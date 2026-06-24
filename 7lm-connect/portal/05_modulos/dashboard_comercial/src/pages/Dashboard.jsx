@@ -296,9 +296,9 @@ const Dashboard = () => {
     const kpiDefinitions = [
       { id: 'leads', label: 'LEADS', unit: 'total', calcDescription: 'Contagem de novos leads no período filtrado.' },
       { id: 'visitas', label: 'VISITAS', unit: 'total', calcDescription: 'Contagem de visitas realizadas no período filtrado.' },
-      { id: 'propostas', label: 'PROPOSTAS', unit: 'total', calcDescription: 'Contagem de idprecadastro pela ultima movimentacao entre Aprovada, Condicionada e Reprovada no periodo filtrado.' },
+      { id: 'propostas', label: 'PROP. APROVADA / CONDICIONADA', unit: 'total', calcDescription: 'Contagem de idprecadastro aprovado ou condicionado pela data de resposta da analise.' },
       { id: 'cancelamentos', label: 'CANCELAMENTOS', unit: 'total', calcDescription: 'Contagem de idreserva com data_cancelamento no período.' },
-      { id: 'vendas', label: 'VENDAS FINALIZADAS', unit: 'total', calcDescription: 'Contagem de idreserva com data_venda da reserva no período.' },
+      { id: 'vendas', label: 'VENDAS', unit: 'total', calcDescription: 'Contagem de reservas iniciadas pela data de reserva, independente do status posterior.' },
       { id: 'distratos', label: 'DISTRATOS', unit: 'total', calcDescription: 'Contagem de idreserva com referência em status distrato no período.' },
       { id: 'repasses', label: 'REPASSES', unit: 'total', calcDescription: 'Contagem de idrepasse por data de assinatura do contrato.' },
       { id: 'sla_f', label: 'SLA FINALIZAÇÃO', unit: 'dias', calcDescription: 'Média em dias entre cadastro da reserva e contrato contabilizado.' },

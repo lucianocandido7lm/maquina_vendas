@@ -27,9 +27,9 @@ const GoalFormSchema = z.object({
 const KPI_DEFINITIONS = [
   { id: 'leads', label: 'Leads', unit: 'total', defaultType: 'absolute' },
   { id: 'visitas', label: 'Visitas', unit: 'total', defaultType: 'absolute' },
-  { id: 'propostas', label: 'Propostas', unit: 'total', defaultType: 'absolute' },
+  { id: 'propostas', label: 'Prop. Aprovada / Condicionada', unit: 'total', defaultType: 'absolute' },
   { id: 'cancelamentos', label: 'Cancelamentos', unit: 'total', defaultType: 'ratio_limit' },
-  { id: 'vendas', label: 'Vendas Finalizadas', unit: 'total', defaultType: 'absolute' },
+  { id: 'vendas', label: 'Vendas', unit: 'total', defaultType: 'absolute' },
   { id: 'distratos', label: 'Distratos', unit: 'total', defaultType: 'ratio_limit' },
   { id: 'repasses', label: 'Repasses', unit: 'total', defaultType: 'absolute' },
   { id: 'sla_f', label: 'SLA Finalização', unit: 'dias', defaultType: 'days_max' },

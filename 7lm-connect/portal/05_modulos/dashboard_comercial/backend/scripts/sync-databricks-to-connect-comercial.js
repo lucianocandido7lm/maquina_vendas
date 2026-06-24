@@ -132,6 +132,7 @@ async function ensureRuntimeObjects(client) {
       situacao_de text,
       situacao_para text,
       agendamento_status_grupo text,
+      funil_status_grupo text,
       idcorretor_atual bigint,
       idgestor bigint,
       idimobiliaria bigint,
@@ -150,6 +151,7 @@ async function ensureRuntimeObjects(client) {
       add column if not exists situacao_de text,
       add column if not exists situacao_para text,
       add column if not exists agendamento_status_grupo text,
+      add column if not exists funil_status_grupo text,
       add column if not exists idcorretor_atual bigint,
       add column if not exists idgestor bigint,
       add column if not exists idimobiliaria bigint,
@@ -167,6 +169,10 @@ async function ensureRuntimeObjects(client) {
       (like ${qualify(TARGET_SCHEMA, table)} including all)
     `);
   }
+  await client.query(`
+    alter table ${qualify(TARGET_SCHEMA, 'comercial_leads_historico_staging')}
+      add column if not exists funil_status_grupo text
+  `);
 }
 
 async function beginLog(client) {
@@ -454,6 +460,12 @@ async function fetchDatabricksRows() {
         lh.situacao_de,
         lh.situacao_para,
         lh.agendamento_status_grupo,
+        case
+          when lh.agendamento_status_grupo in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA') then lh.agendamento_status_grupo
+          when lh.situacao_para in ('Atendimento - IA', 'Atendimento - SDR') then 'ATENDIMENTO'
+          when lh.situacao_para = 'Proposta' then 'PROPOSTA'
+          else 'OUTRA'
+        end as funil_status_grupo,
         coalesce(b.idcorretor_canonico, lh.idcorretor_canonico) as idcorretor_atual,
         coalesce(b.idgestor_canonico, lh.idgestor_canonico) as idgestor,
         coalesce(b.idimobiliaria_canonico, lh.idimobiliaria_canonico) as idimobiliaria,
@@ -462,12 +474,15 @@ async function fetchDatabricksRows() {
       from ${DATABRICKS_TEMP_VIEWS.leadsHistorico} lh
       left join ${DATABRICKS_TEMP_VIEWS.comercialBase} b on lh.journey_id = b.journey_id
       where lh.dt_referencia >= current_date() - interval 3 years
-        and lh.agendamento_status_grupo in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+        and (
+          lh.agendamento_status_grupo in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+          or lh.situacao_para in ('Atendimento - IA', 'Atendimento - SDR', 'Proposta')
+        )
         and lh.idlead is not null
     `, 'comercial_leads_historico');
     const comercial_leads_historico = dedupeBy(
       leadsHistoricoRaw,
-      (row) => row.historico_status_key ?? `${row.dt_referencia}|${row.idlead}|${row.idcorretor_atual ?? ''}|${row.agendamento_status_grupo ?? ''}`,
+      (row) => row.historico_status_key ?? `${row.dt_referencia}|${row.idlead}|${row.idcorretor_atual ?? ''}|${row.agendamento_status_grupo ?? row.situacao_para ?? ''}`,
     );
 
     const comercial_propostas_historico = await executeView(session, `
@@ -786,7 +801,7 @@ async function recomputeKpiDaily(client) {
       left join base_por_lead bl on bj.journey_id is null and lh.idlead is not null and bl.idlead = lh.idlead
       where lh.dt_referencia is not null
         and lh.idlead is not null
-        and lh.agendamento_status_grupo in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+        and coalesce(lh.funil_status_grupo, lh.agendamento_status_grupo) in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
       order by
         lh.dt_referencia,
         lh.idlead,

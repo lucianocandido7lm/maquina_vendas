@@ -698,21 +698,34 @@ const ReservasBI = () => {
     });
   };
 
+  const rankingAxisWidth = (data) => {
+    const maxLength = Math.max(...data.map((item) => String(item.label || '').length), 0);
+    return Math.max(150, Math.min(240, maxLength * 4.8));
+  };
+
   const renderHorizontalBars = ({ title, caption, data, axis }) => (
-    <article key={title} className="reservas-panel reservas-ranking-panel">
+    <article key={title} className={`reservas-panel reservas-ranking-panel reservas-ranking-panel-${axis || 'default'}`}>
       <div className="reservas-panel-heading">
         <h3>{title}</h3>
         <span>{caption}</span>
       </div>
       <div
         className="reservas-ranking-chart"
-        style={{ '--reservas-ranking-height': `${Math.max(13.8, Math.min(38, data.length * 1.35 + 3))}rem` }}
+        style={{ '--reservas-ranking-height': `${Math.max(15, data.length * 1.95 + 3)}rem` }}
       >
         {data.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} layout="vertical" margin={{ top: 4, right: 42, bottom: 4, left: 4 }}>
+            <BarChart data={data} layout="vertical" barCategoryGap={8} margin={{ top: 8, right: 48, bottom: 8, left: 6 }}>
               <XAxis type="number" hide allowDecimals={false} />
-              <YAxis dataKey="label" type="category" width={128} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis
+                dataKey="label"
+                type="category"
+                width={rankingAxisWidth(data)}
+                interval={0}
+                tick={{ fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+              />
               <Tooltip formatter={(value) => fmtNumber(value)} />
               <Bar
                 dataKey="value"

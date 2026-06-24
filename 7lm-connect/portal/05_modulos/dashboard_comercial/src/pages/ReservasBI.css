@@ -309,6 +309,7 @@
 .reservas-ranking-chart {
   width: 100%;
   height: var(--reservas-ranking-height, 13.8rem);
+  min-height: 15rem;
 }
 
 .reservas-cadastro-panel {

@@ -255,6 +255,7 @@ FUNIL_ETAPAS = [
         "source": "historico",
         "aggregate": "countrows",
         "statuses": ("Atendimento - IA", "Atendimento - SDR"),
+        "status_groups": ("ATENDIMENTO",),
         "rule": "Eventos de workflow em Atendimento - IA ou Atendimento - SDR.",
     },
     {
@@ -263,7 +264,7 @@ FUNIL_ETAPAS = [
         "order": 3,
         "source": "historico",
         "aggregate": "countrows",
-        "statuses": ("Agendado - IA", "Agendamento", "Agendamento - IA"),
+        "statuses": ("Agendado", "Agendado - IA", "Agendamento", "Agendamento - IA"),
         "status_groups": ("AGENDADO_IA", "AGENDAMENTO", "AGENDAMENTO_IA"),
         "rule": "Eventos de workflow em situacoes de agendamento.",
     },
@@ -282,6 +283,7 @@ FUNIL_ETAPAS = [
         "source": "historico",
         "aggregate": "countrows",
         "statuses": ("Proposta",),
+        "status_groups": ("PROPOSTA",),
         "rule": "Eventos de workflow na situacao Proposta.",
     },
     {
@@ -291,7 +293,7 @@ FUNIL_ETAPAS = [
         "source": "propostas",
         "aggregate": "distinct",
         "statuses": ("APROVADA", "CONDICIONADA", "CONDICIONADO", "CONDICIONADO PENDENTE"),
-        "rule": "Analises aprovadas ou condicionadas com resposta no periodo.",
+        "rule": "Analises aprovadas ou condicionadas pela data de resposta da analise.",
     },
     {
         "key": "vendas",
@@ -1300,13 +1302,14 @@ def _sql_produtividade_oficial() -> str:
     denominadores_mensais as (
         select
             mes_referencia,
-            count(distinct concat_ws(
-                '|',
-                coalesce(nullif(trim(coordenador), ''), 'Sem coordenador'),
-                coalesce(nullif(trim(gerente), ''), 'Sem gerente'),
-                coalesce(nullif(trim(equipe), ''), 'Sem equipe'),
-                coalesce(nullif(trim(corretor_ativo_mes_key), ''), nullif(trim(corretor_hierarquia_key), ''), nullif(trim(corretor), ''), 'Sem corretor')
-            ))::numeric as corretores_ativos,
+            count(
+                distinct coalesce(
+                    nullif(trim(corretor_identity_key), ''),
+                    nullif(trim(corretor_hierarquia_key), ''),
+                    {_sql_corretor_nome_match("corretor")},
+                    'Sem corretor'
+                )
+            )::numeric as corretores_ativos,
             count(distinct coalesce(nullif(trim(equipe), ''), 'Sem equipe'))::numeric as equipes_ativas
         from hierarquia_ativa
         group by mes_referencia
@@ -2228,6 +2231,8 @@ async def _buscar_resumo(conexao, intervalo: IntervaloDatas, request: Request) -
         *parametros_filtros,
     )
     dados = _linha_para_dict(linha)
+    metricas_funil = await _funil_metricas_diarias(conexao, request, intervalo)
+    _aplicar_metricas_funil_resumo(dados, metricas_funil)
     repasses_fato_filtrado = float(dados.get("total_repasses") or 0)
     produtividade = await _buscar_produtividade_oficial_resumo(conexao, intervalo, request)
     corretores = float(produtividade.get("corretores_ativos") or 0)
@@ -2251,6 +2256,7 @@ async def _buscar_resumo(conexao, intervalo: IntervaloDatas, request: Request) -
 
 async def _buscar_tendencias(conexao, intervalo: IntervaloDatas, request: Request) -> list[dict[str, Any]]:
     where_filtros, parametros_filtros = _montar_where_dimensoes(request, FILTROS_KPI, 3)
+    metricas_funil = await _funil_metricas_diarias(conexao, request, intervalo)
     linhas = await conexao.fetch(
         f"""
         select
@@ -2287,6 +2293,9 @@ async def _buscar_tendencias(conexao, intervalo: IntervaloDatas, request: Reques
     tendencias: list[dict[str, Any]] = []
     for linha in linhas:
         item = _linha_para_dict(linha)
+        metricas_dia = metricas_funil.get(str(item.get("data")))
+        if metricas_dia:
+            _aplicar_metricas_funil_tendencia(item, metricas_dia)
         sla_finalizacao_base = float(item.pop("sla_finalizacao_base", 0) or 0)
         sla_repasse_base = float(item.pop("sla_repasse_base", 0) or 0)
         sla_finalizacao_sum = float(item.pop("sla_finalizacao_sum", 0) or 0)
@@ -2330,7 +2339,39 @@ async def _buscar_tendencias(conexao, intervalo: IntervaloDatas, request: Reques
             "ipc_corretor": 0,
             "ipc_imobiliaria": 0,
         }
+        metricas_dia = metricas_funil.get(data_chave)
+        if metricas_dia:
+            _aplicar_metricas_funil_tendencia(item, metricas_dia)
         tendencias.append(item)
+        dias_existentes.add(data_chave)
+    for data_chave, metricas_dia in metricas_funil.items():
+        if data_chave in dias_existentes:
+            continue
+        item = {
+            "data": metricas_dia["data"],
+            "leads": 0,
+            "visitas": 0,
+            "vendas": 0,
+            "repasses": 0,
+            "cancelamentos": 0,
+            "distratos": 0,
+            "propostas_aprovadas": 0,
+            "propostas_condicionadas": 0,
+            "propostas_reprovadas": 0,
+            "propostas_total": 0,
+            "propostas": 0,
+            "sla_finalizacao": 0,
+            "sla_finalizacao_base": 0,
+            "sla_repasse": 0,
+            "sla_repasse_base": 0,
+            "ipc_corretores_ativos": 0,
+            "ipc_imobiliarias_ativas": 0,
+            "ipc_corretor": 0,
+            "ipc_imobiliaria": 0,
+        }
+        _aplicar_metricas_funil_tendencia(item, metricas_dia)
+        tendencias.append(item)
+        dias_existentes.add(data_chave)
     tendencias.sort(key=lambda item: str(item.get("data") or ""))
     return tendencias
 
@@ -3183,6 +3224,7 @@ def _funil_query_historico(etapa: dict[str, Any], request: Request, intervalo: I
                   and lh.dt_referencia < ($2::date + interval '1 day')
                   and (
                         lh.situacao_para = any($3::text[])
+                        or coalesce(lh.funil_status_grupo, lh.agendamento_status_grupo) = any($4::text[])
                         or lh.agendamento_status_grupo = any($4::text[])
                   )
             )
@@ -3230,6 +3272,7 @@ def _funil_query_historico(etapa: dict[str, Any], request: Request, intervalo: I
               and lh.dt_referencia < ($2::date + interval '1 day')
               and (
                     lh.situacao_para = any($3::text[])
+                    or coalesce(lh.funil_status_grupo, lh.agendamento_status_grupo) = any($4::text[])
                     or lh.agendamento_status_grupo = any($4::text[])
               )
               {where_filtros}
@@ -3248,6 +3291,7 @@ def _funil_query_historico(etapa: dict[str, Any], request: Request, intervalo: I
 
 def _funil_query_propostas(etapa: dict[str, Any], request: Request, intervalo: IntervaloDatas) -> tuple[str, list[Any]]:
     where_filtros, parametros = _funil_filtros_base(request, 4)
+    data_resposta = "coalesce(b.dt_resposta_analise_precadastro, pc.dt_ultimo_historico_data)"
     if not parametros:
         sql = f"""
             with detail_rows as (
@@ -3282,7 +3326,7 @@ def _funil_query_propostas(etapa: dict[str, Any], request: Request, intervalo: I
         with detail_rows as (
             select distinct on (pc.idprecadastro)
                 pc.idprecadastro::text as chave,
-                pc.dt_ultimo_historico_data as data_evento,
+                {data_resposta} as data_evento,
                 b.idlead::text as idlead,
                 pc.idprecadastro::text as idprecadastro,
                 b.idreserva::text as idreserva,
@@ -3303,16 +3347,17 @@ def _funil_query_propostas(etapa: dict[str, Any], request: Request, intervalo: I
                    or (pc.journey_id is not null and b.journey_id = pc.journey_id)
                 order by
                     case when b.idprecadastro = pc.idprecadastro then 1 else 2 end,
+                    b.dt_resposta_analise_precadastro desc nulls last,
                     b.dt_ultima_conversao_lead desc nulls last,
                     b.fato_jornada_comercial_key
                 limit 1
             ) b on true
-            where pc.dt_ultimo_historico_data >= $1::date
-              and pc.dt_ultimo_historico_data < ($2::date + interval '1 day')
+            where {data_resposta} >= $1::date
+              and {data_resposta} < ($2::date + interval '1 day')
               and pc.idprecadastro is not null
               and pc.proposta_status_atual = any($3::text[])
               {where_filtros}
-            order by pc.idprecadastro, pc.dt_ultimo_historico_data desc nulls last
+            order by pc.idprecadastro, {data_resposta} desc nulls last
         )
         select {_funil_select_final("situacao", "sla", "restricao_lead")}
         from detail_rows
@@ -3355,6 +3400,7 @@ def _funil_count_query(etapa: dict[str, Any], request: Request, intervalo: Inter
                and lh.dt_referencia < ($2::date + interval '1 day')
                and (
                     lh.situacao_para = any($3::text[])
+                    or coalesce(lh.funil_status_grupo, lh.agendamento_status_grupo) = any($4::text[])
                     or lh.agendamento_status_grupo = any($4::text[])
                )
                {where_filtros if precisa_base else ""}
@@ -3369,6 +3415,7 @@ def _funil_count_query(etapa: dict[str, Any], request: Request, intervalo: Inter
 
     if etapa["source"] == "propostas":
         where_filtros, parametros = _funil_filtros_base(request, 4)
+        data_resposta = "coalesce(b.dt_resposta_analise_precadastro, pc.dt_ultimo_historico_data)"
         if not parametros:
             sql = f"""
                 select count(distinct pc.idprecadastro)::bigint as total
@@ -3390,12 +3437,13 @@ def _funil_count_query(etapa: dict[str, Any], request: Request, intervalo: Inter
                      or (pc.journey_id is not null and b.journey_id = pc.journey_id)
                   order by
                       case when b.idprecadastro = pc.idprecadastro then 1 else 2 end,
+                      b.dt_resposta_analise_precadastro desc nulls last,
                       b.dt_ultima_conversao_lead desc nulls last,
                       b.fato_jornada_comercial_key
                   limit 1
               ) b on true
-             where pc.dt_ultimo_historico_data >= $1::date
-               and pc.dt_ultimo_historico_data < ($2::date + interval '1 day')
+             where {data_resposta} >= $1::date
+               and {data_resposta} < ($2::date + interval '1 day')
                and pc.idprecadastro is not null
                and pc.proposta_status_atual = any($3::text[])
                {where_filtros}
@@ -3439,6 +3487,239 @@ async def _funil_valor(conexao, etapa: dict[str, Any], request: Request, interva
     sql, parametros = _funil_count_query(etapa, request, intervalo)
     linha = await conexao.fetchrow(sql, *parametros)
     return int(linha["total"] or 0)
+
+
+async def _funil_metricas_diarias(conexao, request: Request, intervalo: IntervaloDatas) -> dict[str, dict[str, Any]]:
+    where_filtros, parametros = _funil_filtros_base(request, 3)
+    usar_base_para_filtros = bool(parametros)
+    data_resposta = "coalesce(b.dt_resposta_analise_precadastro, pc.dt_ultimo_historico_data)" if usar_base_para_filtros else "pc.dt_ultimo_historico_data"
+    status_aprovada_condicionada = "('APROVADA', 'CONDICIONADA', 'CONDICIONADO', 'CONDICIONADO PENDENTE')"
+    historico_join_base = ""
+    propostas_join_base = ""
+    if usar_base_para_filtros:
+        historico_join_base = f"""
+              left join lateral (
+                  select b.*
+                  from {ESQUEMA_COMERCIAL}.comercial_base b
+                  where (lh.journey_id is not null and b.journey_id = lh.journey_id)
+                     or (lh.idlead is not null and b.idlead = lh.idlead)
+                  order by
+                      case when lh.journey_id is not null and b.journey_id = lh.journey_id then 1 else 2 end,
+                      b.dt_ultima_conversao_lead desc nulls last,
+                      b.fato_jornada_comercial_key
+                  limit 1
+              ) b on true
+        """
+        propostas_join_base = f"""
+              left join lateral (
+                  select b.*
+                  from {ESQUEMA_COMERCIAL}.comercial_base b
+                  where b.idprecadastro = pc.idprecadastro
+                     or (pc.journey_id is not null and b.journey_id = pc.journey_id)
+                  order by
+                      case when b.idprecadastro = pc.idprecadastro then 1 else 2 end,
+                      b.dt_resposta_analise_precadastro desc nulls last,
+                      b.dt_ultima_conversao_lead desc nulls last,
+                      b.fato_jornada_comercial_key
+                  limit 1
+              ) b on true
+        """
+    linhas = await conexao.fetch(
+        f"""
+        with dias as (
+            select generate_series($1::date, $2::date, interval '1 day')::date as data
+        ),
+        base_eventos as (
+            select
+                b.dt_ultima_conversao_lead::date as data,
+                count(distinct b.idlead)::numeric as leads,
+                0::numeric as visitas,
+                0::numeric as vendas,
+                0::numeric as vendas_finalizadas,
+                0::numeric as repasses
+              from {ESQUEMA_COMERCIAL}.comercial_base b
+             where b.dt_ultima_conversao_lead >= $1::date
+               and b.dt_ultima_conversao_lead < ($2::date + interval '1 day')
+               and b.idlead is not null
+               {where_filtros}
+             group by 1
+            union all
+            select
+                b.dt_visita_realizada::date as data,
+                0::numeric as leads,
+                count(distinct b.idlead)::numeric as visitas,
+                0::numeric as vendas,
+                0::numeric as vendas_finalizadas,
+                0::numeric as repasses
+              from {ESQUEMA_COMERCIAL}.comercial_base b
+             where b.dt_visita_realizada >= $1::date
+               and b.dt_visita_realizada < ($2::date + interval '1 day')
+               and b.idlead is not null
+               {where_filtros}
+             group by 1
+            union all
+            select
+                b.dt_cadastro_reserva::date as data,
+                0::numeric as leads,
+                0::numeric as visitas,
+                count(distinct b.idreserva)::numeric as vendas,
+                count(distinct b.idreserva) filter (where coalesce(b.fl_venda_finalizada, false) is true)::numeric as vendas_finalizadas,
+                0::numeric as repasses
+              from {ESQUEMA_COMERCIAL}.comercial_base b
+             where b.dt_cadastro_reserva >= $1::date
+               and b.dt_cadastro_reserva < ($2::date + interval '1 day')
+               and b.idreserva is not null
+               {where_filtros}
+             group by 1
+            union all
+            select
+                b.dt_assinatura_contrato::date as data,
+                0::numeric as leads,
+                0::numeric as visitas,
+                0::numeric as vendas,
+                0::numeric as vendas_finalizadas,
+                count(distinct b.idrepasse)::numeric as repasses
+              from {ESQUEMA_COMERCIAL}.comercial_base b
+             where b.dt_assinatura_contrato >= $1::date
+               and b.dt_assinatura_contrato < ($2::date + interval '1 day')
+               and b.idrepasse is not null
+               and coalesce(b.fl_repasse_assinado, false) is true
+               {where_filtros}
+             group by 1
+        ),
+        base_diaria as (
+            select
+                data,
+                coalesce(sum(leads), 0)::numeric as leads,
+                coalesce(sum(visitas), 0)::numeric as visitas,
+                coalesce(sum(vendas), 0)::numeric as vendas,
+                coalesce(sum(vendas_finalizadas), 0)::numeric as vendas_finalizadas,
+                coalesce(sum(repasses), 0)::numeric as repasses
+              from base_eventos
+             group by data
+        ),
+        historico_diario as (
+            select
+                lh.dt_referencia::date as data,
+                count(*) filter (
+                    where coalesce(lh.funil_status_grupo, '') = 'ATENDIMENTO'
+                       or lh.situacao_para in ('Atendimento - IA', 'Atendimento - SDR')
+                )::numeric as atendimentos,
+                count(*) filter (
+                    where coalesce(lh.funil_status_grupo, '') in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+                       or lh.situacao_para in ('Agendado', 'Agendado - IA', 'Agendamento', 'Agendamento - IA')
+                       or lh.agendamento_status_grupo in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+                )::numeric as agendamentos,
+                count(*) filter (
+                    where coalesce(lh.funil_status_grupo, '') = 'PROPOSTA'
+                       or lh.situacao_para = 'Proposta'
+                )::numeric as proposta_funil
+              from {ESQUEMA_COMERCIAL}.comercial_leads_historico lh
+              {historico_join_base}
+             where lh.dt_referencia >= $1::date
+               and lh.dt_referencia < ($2::date + interval '1 day')
+               and (
+                    lh.situacao_para in (
+                        'Atendimento - IA',
+                        'Atendimento - SDR',
+                        'Agendado',
+                        'Agendado - IA',
+                        'Agendamento',
+                        'Agendamento - IA',
+                        'Proposta'
+                    )
+                    or lh.funil_status_grupo in ('ATENDIMENTO', 'PROPOSTA', 'AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+                    or lh.agendamento_status_grupo in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+               )
+               {where_filtros}
+             group by 1
+        ),
+        propostas_diarias as (
+            select
+                {data_resposta}::date as data,
+                count(distinct pc.idprecadastro) filter (
+                    where upper(trim(coalesce(pc.proposta_status_atual, ''))) = 'APROVADA'
+                )::numeric as propostas_aprovadas,
+                count(distinct pc.idprecadastro) filter (
+                    where upper(trim(coalesce(pc.proposta_status_atual, ''))) in ('CONDICIONADA', 'CONDICIONADO', 'CONDICIONADO PENDENTE')
+                )::numeric as propostas_condicionadas,
+                count(distinct pc.idprecadastro) filter (
+                    where upper(trim(coalesce(pc.proposta_status_atual, ''))) = 'REPROVADA'
+                )::numeric as propostas_reprovadas,
+                count(distinct pc.idprecadastro) filter (
+                    where upper(trim(coalesce(pc.proposta_status_atual, ''))) in {status_aprovada_condicionada}
+                )::numeric as prop_aprovada_condicionada
+              from {ESQUEMA_COMERCIAL}.comercial_propostas_consolidada pc
+              {propostas_join_base}
+             where {data_resposta} >= $1::date
+               and {data_resposta} < ($2::date + interval '1 day')
+               and pc.idprecadastro is not null
+               and upper(trim(coalesce(pc.proposta_status_atual, ''))) in ('APROVADA', 'CONDICIONADA', 'CONDICIONADO', 'CONDICIONADO PENDENTE', 'REPROVADA')
+               {where_filtros}
+             group by 1
+        )
+        select
+            dias.data,
+            coalesce(base_diaria.leads, 0)::numeric as leads,
+            coalesce(historico_diario.atendimentos, 0)::numeric as atendimentos,
+            coalesce(historico_diario.agendamentos, 0)::numeric as agendamentos,
+            coalesce(base_diaria.visitas, 0)::numeric as visitas,
+            coalesce(historico_diario.proposta_funil, 0)::numeric as proposta_funil,
+            coalesce(propostas_diarias.propostas_aprovadas, 0)::numeric as propostas_aprovadas,
+            coalesce(propostas_diarias.propostas_condicionadas, 0)::numeric as propostas_condicionadas,
+            coalesce(propostas_diarias.propostas_reprovadas, 0)::numeric as propostas_reprovadas,
+            coalesce(propostas_diarias.prop_aprovada_condicionada, 0)::numeric as prop_aprovada_condicionada,
+            coalesce(base_diaria.vendas, 0)::numeric as vendas,
+            coalesce(base_diaria.vendas_finalizadas, 0)::numeric as vendas_finalizadas,
+            coalesce(base_diaria.repasses, 0)::numeric as repasses
+          from dias
+          left join base_diaria on base_diaria.data = dias.data
+          left join historico_diario on historico_diario.data = dias.data
+          left join propostas_diarias on propostas_diarias.data = dias.data
+         order by dias.data
+        """,
+        intervalo.inicio,
+        intervalo.fim,
+        *parametros,
+    )
+    return {str(linha["data"]): _linha_para_dict(linha) for linha in linhas}
+
+
+def _aplicar_metricas_funil_resumo(dados: dict[str, Any], metricas_diarias: dict[str, dict[str, Any]]) -> None:
+    def total(campo: str) -> float:
+        return sum(float(item.get(campo) or 0) for item in metricas_diarias.values())
+
+    dados["total_leads"] = total("leads")
+    dados["total_atendimentos"] = total("atendimentos")
+    dados["total_agendamentos"] = total("agendamentos")
+    dados["total_visitas"] = total("visitas")
+    dados["total_proposta_funil"] = total("proposta_funil")
+    dados["total_propostas_aprovadas"] = total("propostas_aprovadas")
+    dados["total_propostas_condicionadas"] = total("propostas_condicionadas")
+    dados["total_propostas_reprovadas"] = total("propostas_reprovadas")
+    dados["total_prop_aprovada_condicionada"] = total("prop_aprovada_condicionada")
+    dados["total_propostas"] = dados["total_prop_aprovada_condicionada"]
+    dados["total_propostas_geral"] = dados["total_prop_aprovada_condicionada"]
+    dados["total_vendas"] = total("vendas")
+    dados["total_vendas_finalizadas"] = total("vendas_finalizadas")
+    dados["total_repasses"] = total("repasses")
+
+
+def _aplicar_metricas_funil_tendencia(item: dict[str, Any], metricas: dict[str, Any]) -> None:
+    item["leads"] = float(metricas.get("leads") or 0)
+    item["atendimentos"] = float(metricas.get("atendimentos") or 0)
+    item["agendamentos"] = float(metricas.get("agendamentos") or 0)
+    item["visitas"] = float(metricas.get("visitas") or 0)
+    item["proposta_funil"] = float(metricas.get("proposta_funil") or 0)
+    item["propostas_aprovadas"] = float(metricas.get("propostas_aprovadas") or 0)
+    item["propostas_condicionadas"] = float(metricas.get("propostas_condicionadas") or 0)
+    item["propostas_reprovadas"] = float(metricas.get("propostas_reprovadas") or 0)
+    item["prop_aprovada_condicionada"] = float(metricas.get("prop_aprovada_condicionada") or 0)
+    item["propostas_total"] = item["prop_aprovada_condicionada"]
+    item["propostas"] = item["prop_aprovada_condicionada"]
+    item["vendas"] = float(metricas.get("vendas") or 0)
+    item["vendas_finalizadas"] = float(metricas.get("vendas_finalizadas") or 0)
+    item["repasses"] = float(metricas.get("repasses") or 0)
 
 
 async def _funil_detalhe(
@@ -3498,6 +3779,26 @@ def _dias_uteis(inicio: date, fim: date) -> int:
     return total
 
 
+def _intervalo_trimestre(referencia: date) -> IntervaloDatas:
+    mes_inicio = ((referencia.month - 1) // 3) * 3 + 1
+    inicio = date(referencia.year, mes_inicio, 1)
+    mes_fim = mes_inicio + 2
+    if mes_fim == 12:
+        fim = date(referencia.year, 12, 31)
+    else:
+        fim = date(referencia.year, mes_fim + 1, 1) - timedelta(days=1)
+    return IntervaloDatas(inicio=inicio, fim=fim)
+
+
+def _intervalo_mes(referencia: date) -> IntervaloDatas:
+    inicio = date(referencia.year, referencia.month, 1)
+    if referencia.month == 12:
+        fim = date(referencia.year, 12, 31)
+    else:
+        fim = date(referencia.year, referencia.month + 1, 1) - timedelta(days=1)
+    return IntervaloDatas(inicio=inicio, fim=fim)
+
+
 async def _funil_payload(conexao, request: Request, intervalo: IntervaloDatas) -> dict[str, Any]:
     etapas = []
     avisos = []
@@ -3525,43 +3826,79 @@ async def _funil_payload(conexao, request: Request, intervalo: IntervaloDatas) -
 
 
 async def _funil_goals_payload(conexao, request: Request, intervalo: IntervaloDatas, meta_repasse: float) -> dict[str, Any]:
-    payload = await _funil_payload(conexao, request, intervalo)
-    etapas = payload["stages"]
-    repasse = float(next((etapa["value"] for etapa in etapas if etapa["key"] == "repasse"), 0) or 0)
-    hoje = min(date.today(), intervalo.fim)
-    dias_decorridos = max(_dias_uteis(intervalo.inicio, hoje), 1)
-    dias_total = max(_dias_uteis(intervalo.inicio, intervalo.fim), dias_decorridos)
+    payload_atual = await _funil_payload(conexao, request, intervalo)
+    intervalo_tri = _intervalo_trimestre(intervalo.fim)
+    payload_tri = await _funil_payload(conexao, request, intervalo_tri)
+    etapas_atual = payload_atual["stages"]
+    etapas_tri = payload_tri["stages"]
+    tri_por_chave = {etapa["key"]: etapa for etapa in etapas_tri}
+    repasse_tri = float(next((etapa["value"] for etapa in etapas_tri if etapa["key"] == "repasse"), 0) or 0)
+    intervalo_mes = _intervalo_mes(intervalo.fim)
+    hoje = min(date.today(), intervalo_mes.fim)
+    dias_decorridos = max(_dias_uteis(intervalo_mes.inicio, hoje), 1)
+    dias_total = max(_dias_uteis(intervalo_mes.inicio, intervalo_mes.fim), dias_decorridos)
     dias_restantes = max(dias_total - dias_decorridos, 0)
     rows = []
-    for etapa in etapas:
+    quarter_rows = []
+    for etapa in etapas_atual:
         atual = float(etapa["value"] or 0)
-        conversao_repasse = (repasse / atual) if atual else None
+        etapa_tri = tri_por_chave.get(etapa["key"], {})
+        qtd_tri = float(etapa_tri.get("value") or 0)
+        conversao_repasse = (repasse_tri / qtd_tri) if qtd_tri else None
         meta_dinamica = meta_repasse if etapa["key"] == "repasse" else (
             meta_repasse / conversao_repasse if conversao_repasse else None
         )
+        conversao_atual = etapa.get("conversionFromPrevious")
         tendencia = (atual / dias_decorridos) * dias_total
         gap = None if meta_dinamica is None else meta_dinamica - atual
         necessidade = None if gap is None or dias_restantes <= 0 else gap / dias_restantes
-        rows.append({
+        base = {
             "key": etapa["key"],
             "label": etapa["label"],
             "order": etapa["order"],
-            "actual": atual,
+            "sourceAvailable": etapa.get("sourceAvailable", True),
+        }
+        quarter_rows.append({
+            **base,
+            "quarterActual": qtd_tri,
+            "actual": qtd_tri,
+            "slaAverage": None,
+            "conversionFromPrevious": etapa_tri.get("conversionFromPrevious"),
+            "conversionFromLead": etapa_tri.get("conversionFromLead"),
             "conversionToRepasse": round(conversao_repasse * 100, 2) if conversao_repasse is not None else None,
+            "dynamicGoal": round(meta_dinamica, 1) if meta_dinamica is not None else None,
+        })
+        rows.append({
+            **base,
+            "actual": atual,
+            "quarterActual": qtd_tri,
+            "conversionToRepasse": round(conversao_repasse * 100, 2) if conversao_repasse is not None else None,
+            "conversionFromPrevious": conversao_atual,
+            "conversionFromLead": etapa.get("conversionFromLead"),
             "dynamicGoal": round(meta_dinamica, 1) if meta_dinamica is not None else None,
             "attainment": round((atual / meta_dinamica) * 100, 1) if meta_dinamica else None,
             "trend": round(tendencia, 1),
+            "trendAttainment": round((tendencia / meta_dinamica) * 100, 1) if meta_dinamica else None,
             "gap": round(gap, 1) if gap is not None else None,
             "dailyNeed": round(necessidade, 2) if necessidade is not None else None,
-            "sourceAvailable": etapa.get("sourceAvailable", True),
+            "dailyNeedLabel": "Mes Finalizado" if dias_restantes <= 0 else None,
         })
     return {
         "period": {"startDate": intervalo.inicio.isoformat(), "endDate": intervalo.fim.isoformat(), "today": hoje.isoformat()},
+        "quarterPeriod": {"startDate": intervalo_tri.inicio.isoformat(), "endDate": intervalo_tri.fim.isoformat()},
+        "monthPeriod": {"startDate": intervalo_mes.inicio.isoformat(), "endDate": intervalo_mes.fim.isoformat()},
         "metaRepasse": meta_repasse,
         "businessDays": {"elapsed": dias_decorridos, "total": dias_total, "remaining": dias_restantes},
+        "quarterRows": quarter_rows,
         "rows": rows,
-        "warnings": payload["warnings"],
-        "meta": {"source": "connect_comercial_runtime_conversion"},
+        "warnings": payload_atual["warnings"] + [
+            aviso for aviso in payload_tri["warnings"]
+            if aviso not in payload_atual["warnings"]
+        ],
+        "meta": {
+            "source": "connect_comercial_meta_dinamica_tri",
+            "rule": "Meta REPASSE informada; etapas anteriores = meta REPASSE / conversao historica da etapa ate REPASSE no trimestre.",
+        },
     }
 
 
@@ -3607,7 +3944,7 @@ async def _auditar_cards_expandidos(
         "cards": cards,
         "propostasStatus": propostas_status,
         "meta": {
-            "source": "comercial_kpi_daily/sevenlm_connect.funcionario_acesso",
+            "source": "comercial_kpi_daily + comercial_leads_historico/sevenlm_connect.funcionario_acesso",
             "startDate": intervalo.inicio,
             "endDate": intervalo.fim,
             "notes": [
@@ -4598,7 +4935,6 @@ CORRETORES_DIARIO_SORT = {
 }
 
 CORRETORES_DIARIO_INDICADORES = [
-    {"key": "leads", "label": "LEADS"},
     {"key": "visitas", "label": "VISITA"},
     {"key": "agendamentos", "label": "AGENDAMENTOS"},
     {"key": "propostas_aprovadas", "label": "PASTAS APROVADAS"},
@@ -4786,7 +5122,6 @@ def _valor_numero(valor: Any) -> float:
 
 def _metricas_diarias_corretor(item: dict[str, Any]) -> dict[str, float]:
     metricas = {
-        "leads": _valor_numero(item.get("leads")),
         "visitas": _valor_numero(item.get("visitas")),
         "agendamentos": _valor_numero(item.get("agendamentos")),
         "propostas_aprovadas": _valor_numero(item.get("propostas_aprovadas")),
@@ -5125,7 +5460,7 @@ async def _auditar_corretores_comerciais(
         "coordenadores": _agrupar_auditoria_hierarquia(hierarquia, "coordenador", "Sem coordenador"),
         "mismatches": mismatches,
         "meta": {
-            "source": "sevenlm_connect.funcionario_acesso + comercial_kpi_daily",
+            "source": "sevenlm_connect.funcionario_acesso + comercial_kpi_daily + comercial_leads_historico",
             "startDate": intervalo.inicio,
             "endDate": intervalo.fim,
             "rules": {
@@ -5318,7 +5653,7 @@ async def corretores_consolidado_dashboard(
 
     resposta = _resposta_paginada(linhas, pagina, tamanho)
     resposta["meta"] = {
-        "source": "comercial_kpi_daily/sevenlm_connect.funcionario_acesso",
+        "source": "comercial_kpi_daily + comercial_leads_historico/sevenlm_connect.funcionario_acesso",
         "startDate": intervalo.inicio,
         "endDate": intervalo.fim,
     }
@@ -5920,7 +6255,7 @@ async def corretores_foguetes_dashboard(
         "corretores_repasses_mes_anterior": corretores_repasses_mes_anterior if isinstance(corretores_repasses_mes_anterior, list) else [],
     }
     resposta["meta"] = {
-        "source": "comercial_kpi_daily/sevenlm_connect.funcionario_acesso",
+        "source": "comercial_kpi_daily + comercial_leads_historico/sevenlm_connect.funcionario_acesso",
         "startDate": intervalo.inicio,
         "endDate": intervalo.fim,
         "qualification": "corretores com 2 ou mais repasses no periodo demarcado da regra",
@@ -6069,7 +6404,7 @@ async def corretores_foguetes_frequencia_dashboard(
         "items": itens,
         "pagination": {"total": total, "limit": limit},
         "meta": {
-            "source": "comercial_kpi_daily/sevenlm_connect.funcionario_acesso",
+            "source": "comercial_kpi_daily + comercial_leads_historico/sevenlm_connect.funcionario_acesso",
             "startDate": intervalo.inicio,
             "endDate": intervalo.fim,
             "rule": "Conta 1 vez por mes em que o corretor teve 2 ou mais repasses no mes anterior.",
@@ -6405,7 +6740,7 @@ async def corretores_diario_dashboard(
             "pages": (total + tamanho - 1) // tamanho if tamanho else 0,
         },
         "meta": {
-            "source": "comercial_kpi_daily/sevenlm_connect.funcionario_acesso",
+            "source": "comercial_kpi_daily + comercial_leads_historico/sevenlm_connect.funcionario_acesso",
             "startDate": intervalo.inicio,
             "endDate": intervalo.fim,
             "layout": "matrix",
@@ -7827,7 +8162,7 @@ async def filtros_segmentados_dashboard(
             "imobiliariaSdr": _opcoes_com_todos(valores.get("imobiliariaSdr", []), "todas", "Todas as imobiliarias do SDR"),
         },
         "meta": {
-            "source": "comercial_kpi_daily/sevenlm_connect.funcionario_acesso",
+            "source": "comercial_kpi_daily + comercial_leads_historico/sevenlm_connect.funcionario_acesso",
             "fallback": False,
             "lite": lite,
             "limit": option_limit,

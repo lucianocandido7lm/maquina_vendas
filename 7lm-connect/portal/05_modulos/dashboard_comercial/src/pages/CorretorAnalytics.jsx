@@ -22,7 +22,6 @@ const TABS = [
 ];
 
 const INDICATOR_COLUMNS = [
-  { key: 'leads', label: 'LEADS' },
   { key: 'visitas', label: 'VISITA' },
   { key: 'agendamentos', label: 'AGENDAMENTOS' },
   { key: 'propostas_aprovadas', label: 'PASTAS APROVADAS' },
