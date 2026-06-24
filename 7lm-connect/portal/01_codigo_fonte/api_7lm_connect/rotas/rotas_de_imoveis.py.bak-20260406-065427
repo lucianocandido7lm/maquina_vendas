@@ -1,0 +1,426 @@
+"""
+Rotas do modulo de imoveis.
+"""
+
+from __future__ import annotations
+
+from math import ceil
+from typing import Iterable
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+
+from configuracoes import (
+    DIRETORIO_PUBLICO,
+    ESQUEMA_COMERCIAL,
+    IMOVEIS_IMPORTACAO_TAMANHO_MAXIMO_PLANILHA_MB,
+    IMOVEIS_TAMANHO_MAXIMO_IMAGEM_MB,
+    IMOVEIS_TAMANHO_MAXIMO_VIDEO_MB,
+    IMOVEIS_TOTAL_MAXIMO_ARQUIVOS_POR_ENVIO,
+    IMOVEIS_UPLOADS_DIRETORIO,
+    IMOVEIS_UPLOADS_URL_BASE,
+)
+from dependencias import obter_usuario_autenticado
+from modelos.imoveis import RequisicaoAtualizarImovel, RequisicaoCriarImovel
+from repositorios.imoveis import (
+    buscar_imovel_por_id,
+    buscar_midia_imovel,
+    contar_imoveis,
+    excluir_imovel,
+    excluir_midia_imovel,
+    listar_imoveis as listar_imoveis_repositorio,
+    listar_midias_imovel,
+)
+from servicos.imoveis import (
+    atualizar_imovel as atualizar_imovel_servico,
+    criar_imovel as criar_imovel_servico,
+    importar_imoveis_em_lote,
+    remover_arquivo_publico,
+    remover_arquivos_publicos,
+    salvar_midias_do_imovel,
+    serializar_imovel,
+    serializar_midia,
+)
+from utilitarios.autorizacao import exigir_permissao_portal, usuario_possui_permissao
+
+
+rotas_de_imoveis = APIRouter()
+
+
+def _obter_pool(request: Request):
+    pool = getattr(request.app.state, "pool", None)
+    if not pool:
+        raise HTTPException(status_code=503, detail="Pool indisponivel.")
+    return pool
+
+
+def _normalizar_filtro_texto(valor: str) -> str | None:
+    texto = str(valor or "").strip()
+    if not texto:
+        return None
+    return f"%{texto}%"
+
+
+async def _exigir_qualquer_permissao(
+    conexao,
+    identificador_usuario: str,
+    permissoes: Iterable[str],
+    detalhe: str,
+) -> None:
+    for permissao in permissoes:
+        if await usuario_possui_permissao(conexao, identificador_usuario, permissao):
+            return
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detalhe)
+
+
+@rotas_de_imoveis.get("/imoveis")
+async def listar_imoveis(
+    request: Request,
+    q: str = Query("", description="Busca por titulo"),
+    cidade: str = Query("", description="Filtro por cidade"),
+    bairro: str = Query("", description="Filtro por bairro"),
+    status_imovel: str = Query("", alias="status", description="Filtro por status"),
+    pagina: int = Query(1, ge=1),
+    limite: int = Query(12, ge=1, le=1000),
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+    deslocamento = (pagina - 1) * limite
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.view",
+            "Voce nao tem permissao para visualizar imoveis.",
+        )
+
+        busca_titulo = _normalizar_filtro_texto(q) or "%%"
+        filtro_cidade = _normalizar_filtro_texto(cidade)
+        filtro_bairro = _normalizar_filtro_texto(bairro)
+        filtro_status = _normalizar_filtro_texto(status_imovel)
+
+        linhas = await listar_imoveis_repositorio(
+            conexao,
+            ESQUEMA_COMERCIAL,
+            busca_titulo=busca_titulo,
+            cidade=filtro_cidade,
+            bairro=filtro_bairro,
+            status=filtro_status,
+            limite=limite,
+            deslocamento=deslocamento,
+        )
+        total = await contar_imoveis(
+            conexao,
+            ESQUEMA_COMERCIAL,
+            busca_titulo=busca_titulo,
+            cidade=filtro_cidade,
+            bairro=filtro_bairro,
+            status=filtro_status,
+        )
+
+    total_paginas = max(1, ceil(total / limite)) if total else 1
+
+    return {
+        "items": [serializar_imovel(linha) for linha in linhas],
+        "paginacao": {
+            "pagina": pagina,
+            "limite": limite,
+            "total": total,
+            "total_paginas": total_paginas,
+            "tem_anterior": pagina > 1,
+            "tem_proxima": pagina < total_paginas,
+        },
+    }
+
+
+@rotas_de_imoveis.get("/imoveis/{identificador_imovel}")
+async def buscar_imovel(
+    identificador_imovel: str,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    async with pool.acquire() as conexao:
+        await _exigir_qualquer_permissao(
+            conexao,
+            identificador_usuario,
+            ("imoveis.view", "imoveis.edit", "imoveis.media.manage"),
+            "Voce nao tem permissao para acessar os dados deste imovel.",
+        )
+
+        imovel = await buscar_imovel_por_id(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+        if not imovel:
+            raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+        midias = await listar_midias_imovel(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+
+    return {"item": serializar_imovel(imovel, midias=midias)}
+
+
+@rotas_de_imoveis.post("/imoveis", status_code=status.HTTP_201_CREATED)
+async def criar_imovel(
+    payload: RequisicaoCriarImovel,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.create",
+            "Voce nao tem permissao para cadastrar imoveis.",
+        )
+
+        async with conexao.transaction():
+            imovel = await criar_imovel_servico(conexao, ESQUEMA_COMERCIAL, payload.dict())
+
+    return {"mensagem": "Imovel cadastrado com sucesso.", "item": serializar_imovel(imovel)}
+
+
+@rotas_de_imoveis.post("/imoveis/importacao")
+async def importar_imoveis(
+    request: Request,
+    arquivo: UploadFile = File(...),
+    cidade_padrao: str = Form(...),
+    bairro_padrao: str = Form(...),
+    estado_padrao: str = Form(""),
+    cep_padrao: str = Form(""),
+    endereco_base: str = Form(""),
+    tipo_imovel_padrao: str = Form("Apartamento"),
+    status_padrao: str = Form("Disponivel"),
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+    conteudo_arquivo = b""
+
+    try:
+        conteudo_arquivo = await arquivo.read()
+    finally:
+        try:
+            await arquivo.close()
+        except Exception:
+            pass
+
+    if not conteudo_arquivo:
+        raise HTTPException(status_code=400, detail="Selecione uma planilha Excel para importar.")
+
+    limite_bytes = IMOVEIS_IMPORTACAO_TAMANHO_MAXIMO_PLANILHA_MB * 1024 * 1024
+    if len(conteudo_arquivo) > limite_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"A planilha excede o limite de {IMOVEIS_IMPORTACAO_TAMANHO_MAXIMO_PLANILHA_MB} MB.",
+        )
+
+    contexto_importacao = {
+        "cidade_padrao": cidade_padrao,
+        "bairro_padrao": bairro_padrao,
+        "estado_padrao": estado_padrao,
+        "cep_padrao": cep_padrao,
+        "endereco_base": endereco_base,
+        "tipo_imovel_padrao": tipo_imovel_padrao,
+        "status_padrao": status_padrao,
+    }
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.create",
+            "Voce nao tem permissao para importar imoveis em lote.",
+        )
+
+        resumo = await importar_imoveis_em_lote(
+            conexao,
+            ESQUEMA_COMERCIAL,
+            conteudo_arquivo=conteudo_arquivo,
+            nome_arquivo=arquivo.filename or "planilha.xlsx",
+            contexto=contexto_importacao,
+        )
+
+    mensagem = f"Importacao concluida com {resumo['total_importados']} imovel(is) importado(s)."
+    if resumo["total_ignorados"] or resumo["total_erros"]:
+        mensagem = (
+            f"{mensagem} {resumo['total_ignorados']} linha(s) ignorada(s) "
+            f"e {resumo['total_erros']} com erro."
+        )
+
+    return {"mensagem": mensagem, "resumo": resumo}
+
+
+@rotas_de_imoveis.put("/imoveis/{identificador_imovel}")
+async def atualizar_imovel(
+    identificador_imovel: str,
+    payload: RequisicaoAtualizarImovel,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.edit",
+            "Voce nao tem permissao para editar imoveis.",
+        )
+
+        async with conexao.transaction():
+            imovel = await atualizar_imovel_servico(
+                conexao,
+                ESQUEMA_COMERCIAL,
+                identificador_imovel,
+                payload.dict(),
+            )
+            if not imovel:
+                raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+        midias = await listar_midias_imovel(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+
+    return {"mensagem": "Imovel atualizado com sucesso.", "item": serializar_imovel(imovel, midias=midias)}
+
+
+@rotas_de_imoveis.delete("/imoveis/{identificador_imovel}")
+async def remover_imovel(
+    identificador_imovel: str,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.delete",
+            "Voce nao tem permissao para excluir imoveis.",
+        )
+
+        imovel = await buscar_imovel_por_id(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+        if not imovel:
+            raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+        midias = await listar_midias_imovel(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+
+        async with conexao.transaction():
+            excluido = await excluir_imovel(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+            if not excluido:
+                raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+    remover_arquivos_publicos(DIRETORIO_PUBLICO, [midia["caminho_arquivo"] for midia in midias])
+
+    return {"mensagem": "Imovel excluido com sucesso.", "id": identificador_imovel}
+
+
+@rotas_de_imoveis.post("/imoveis/{identificador_imovel}/midias", status_code=status.HTTP_201_CREATED)
+async def upload_midias(
+    identificador_imovel: str,
+    request: Request,
+    arquivos: list[UploadFile] = File(...),
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    if not arquivos:
+        raise HTTPException(status_code=400, detail="Selecione ao menos um arquivo para upload.")
+
+    if len(arquivos) > IMOVEIS_TOTAL_MAXIMO_ARQUIVOS_POR_ENVIO:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Envie no maximo {IMOVEIS_TOTAL_MAXIMO_ARQUIVOS_POR_ENVIO} arquivos por vez.",
+        )
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.media.manage",
+            "Voce nao tem permissao para enviar ou remover midias dos imoveis.",
+        )
+
+        imovel = await buscar_imovel_por_id(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+        if not imovel:
+            raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+        async with conexao.transaction():
+            novas_midias = await salvar_midias_do_imovel(
+                conexao,
+                ESQUEMA_COMERCIAL,
+                identificador_imovel=identificador_imovel,
+                arquivos=arquivos,
+                diretorio_uploads=IMOVEIS_UPLOADS_DIRETORIO,
+                diretorio_publico=DIRETORIO_PUBLICO,
+                url_base_uploads=IMOVEIS_UPLOADS_URL_BASE,
+                limite_imagem_bytes=IMOVEIS_TAMANHO_MAXIMO_IMAGEM_MB * 1024 * 1024,
+                limite_video_bytes=IMOVEIS_TAMANHO_MAXIMO_VIDEO_MB * 1024 * 1024,
+            )
+
+        midias_atualizadas = await listar_midias_imovel(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+
+    return {
+        "mensagem": "Midias enviadas com sucesso.",
+        "novas_midias": novas_midias,
+        "midias": [serializar_midia(midia) for midia in midias_atualizadas],
+    }
+
+
+@rotas_de_imoveis.delete("/imoveis/{identificador_imovel}/midias/{identificador_midia}")
+async def remover_midia(
+    identificador_imovel: str,
+    identificador_midia: str,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.media.manage",
+            "Voce nao tem permissao para enviar ou remover midias dos imoveis.",
+        )
+
+        imovel = await buscar_imovel_por_id(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+        if not imovel:
+            raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+        midia = await buscar_midia_imovel(
+            conexao,
+            ESQUEMA_COMERCIAL,
+            identificador_imovel=identificador_imovel,
+            identificador_midia=identificador_midia,
+        )
+        if not midia:
+            raise HTTPException(status_code=404, detail="Midia nao encontrada.")
+
+        async with conexao.transaction():
+            removida = await excluir_midia_imovel(
+                conexao,
+                ESQUEMA_COMERCIAL,
+                identificador_imovel=identificador_imovel,
+                identificador_midia=identificador_midia,
+            )
+            if not removida:
+                raise HTTPException(status_code=404, detail="Midia nao encontrada.")
+
+        midias_atualizadas = await listar_midias_imovel(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+
+    remover_arquivo_publico(DIRETORIO_PUBLICO, midia["caminho_arquivo"])
+
+    return {
+        "mensagem": "Midia removida com sucesso.",
+        "id": identificador_midia,
+        "midias": [serializar_midia(midia) for midia in midias_atualizadas],
+    }

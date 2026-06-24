@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>7LM | Inicio</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../02_recursos/01_estilos/inicio.css?v=20260402-atmosmotion1" />
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260401-sidebar-sync1"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260401-textfix2" defer></script>
+</head>
+<body class="tl-home">
+  <div class="tl-atmos-layer">
+    <div class="tl-blob tl-blob--teal"></div>
+    <div class="tl-blob tl-blob--purple"></div>
+    <div id="tl-particles-container"></div>
+    <div class="tl-glass-overlay"></div>
+  </div>
+
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <header class="tl-topbar anim-stagger-1">
+        <div class="tl-topbar__titles">
+          <div class="tl-overline reveal-text">CONSTRUINDO SONHOS E TRANSFORMANDO VIDAS</div>
+<h1 class="tl-title reveal-text delay-1">7LM</h1>
+          <p class="tl-subtitle reveal-text delay-2">
+            Mais do que uma plataforma, este e o ponto de entrada para uma historia feita de lares, confianca, escala e transformacao.
+          </p>
+        </div>
+
+        <div class="tl-topbar__controls">
+          <button id="btnTema" class="tl-btn-icon glass-panel hyper-glass" aria-label="Alternar tema">
+            <div class="icon-wrap">
+              <svg class="icon-sun" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+              <svg class="icon-moon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            </div>
+          </button>
+
+          <div class="tl-userbox glass-panel hyper-glass">
+            <div class="tl-userbox__avatar">
+              <span id="userInitials">7L</span>
+            </div>
+            <div class="tl-userbox__info">
+              <div class="tl-userbox__name" id="nomeUsuario">Carregando...</div>
+              <div class="tl-userbox__meta mono-font" id="metaUsuario">Conectando...</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="tl-kpis anim-stagger-2">
+        <div class="tl-kpi glass-panel hyper-glass" style="padding: 20px;">
+          <div class="tl-kpi__icon icon-teal" style="width: 48px; height: 48px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <rect x="3" y="4" width="18" height="18" rx="3"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+          </div>
+          <div>
+            <span class="tl-kpi__label" style="font-size: 0.7rem;">Nossa historia</span>
+            <strong class="tl-kpi__value" style="font-size: 1.2rem;">Desde 2010</strong>
+          </div>
+        </div>
+
+        <div class="tl-kpi glass-panel hyper-glass" style="padding: 20px;">
+          <div class="tl-kpi__icon icon-purple" style="width: 48px; height: 48px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 21s-6-4.35-6-10a6 6 0 1 1 12 0c0 5.65-6 10-6 10Z"></path>
+              <circle cx="12" cy="11" r="2.5"></circle>
+            </svg>
+          </div>
+          <div>
+            <span class="tl-kpi__label" style="font-size: 0.7rem;">Presenca consolidada</span>
+            <strong class="tl-kpi__value" style="font-size: 1.2rem;">16 cidades</strong>
+          </div>
+        </div>
+
+        <div class="tl-kpi glass-panel hyper-glass" style="padding: 20px;">
+          <div class="tl-kpi__icon icon-neutral" style="width: 48px; height: 48px; background: linear-gradient(135deg, #738086, #010101);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M4 20V10"></path>
+              <path d="M10 20V4"></path>
+              <path d="M16 20v-8"></path>
+              <path d="M22 20V7"></path>
+            </svg>
+          </div>
+          <div>
+            <span class="tl-kpi__label" style="font-size: 0.7rem;">Impacto construido</span>
+            <strong class="tl-kpi__value" style="font-size: 1.2rem;">+50 entregas</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="tl-grid anim-stagger-3">
+        <article id="historia-7lm" class="tl-card glass-panel hyper-glass js-tilt js-spotlight" style="--card-accent: #00B3DE; grid-column: 1 / -1;">
+          <div class="tl-card__glow"></div>
+          <div class="tl-card__sweep"></div>
+          <div class="tl-card__content">
+            <div class="tl-card__header">
+              <div class="tl-card__tag mono-font" style="background: rgba(0, 179, 222, 0.14); color: #00B3DE;">NOSSA HISTORIA</div>
+              <div class="tl-card__meta mono-font">Mais de uma decada de dedicacao</div>
+            </div>
+            <h2 class="tl-card__title" style="font-size: 2rem;">Uma marca que nasceu para construir lares, relacoes e futuros</h2>
+            <p class="tl-card__text">
+              A 7LM surgiu como resposta ao desejo de muitas pessoas de ter um lar para chamar de seu. Desde 2010, a empresa cresce com o compromisso de transformar sonhos em realidade, unindo proximidade, confianca e consistencia em cada entrega.
+            </p>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; margin: -6px 0 28px;">
+              <span class="tl-card__tag mono-font" style="background: rgba(255,255,255,0.08); color: var(--txt-main);">2010 · Fundacao da 7LM</span>
+              <span class="tl-card__tag mono-font" style="background: rgba(255,255,255,0.08); color: var(--txt-main);">2011 · Primeiras obras em Aguas Lindas - GO</span>
+              <span class="tl-card__tag mono-font" style="background: rgba(255,255,255,0.08); color: var(--txt-main);">2019 · Fortalecimento estrategico e expansao</span>
+              <span class="tl-card__tag mono-font" style="background: rgba(255,255,255,0.08); color: var(--txt-main);">2023 · Presenca ampliada em novas cidades</span>
+              <span class="tl-card__tag mono-font" style="background: rgba(255,255,255,0.08); color: var(--txt-main);">2024 · Entre as 100 maiores construtoras do Brasil</span>
+            </div>
+            <div class="tl-card__actions">
+              <a class="tl-btn tl-btn--full magnetic-btn" href="#essencia-7lm">
+                <span class="btn-text">Continuar conhecendo a 7LM</span>
+                <div class="btn-fill"></div>
+              </a>
+            </div>
+          </div>
+        </article>
+
+        <article id="impacto-7lm" class="tl-card glass-panel hyper-glass js-tilt js-spotlight" style="--card-accent: #738086;">
+          <div class="tl-card__glow"></div>
+          <div class="tl-card__sweep"></div>
+          <div class="tl-card__content">
+            <div class="tl-card__header">
+              <div class="tl-card__tag mono-font" style="background: rgba(115, 128, 134, 0.16); color: #566268;">PRESENCA E ESCALA</div>
+              <div class="tl-card__meta mono-font">2 estados · 16 cidades</div>
+            </div>
+            <h2 class="tl-card__title" style="font-size: 1.6rem;">Transformando sonhos em realidade com crescimento consistente</h2>
+            <p class="tl-card__text">
+              A 7LM soma mais de 50 empreendimentos entregues, mais de 6 mil unidades habitacionais, mais de 130 mil m² construidos e mais de 2 mil empregos gerados. Cada numero ajuda a contar uma historia de impacto real.
+            </p>
+            <div class="tl-card__actions">
+              <a class="tl-btn tl-btn--full magnetic-btn" href="#qualidade-7lm">
+                <span class="btn-text">Ver compromisso com qualidade</span>
+                <div class="btn-fill"></div>
+              </a>
+            </div>
+          </div>
+        </article>
+
+        <article id="essencia-7lm" class="tl-card glass-panel hyper-glass js-tilt js-spotlight" style="--card-accent: #010101;">
+          <div class="tl-card__glow"></div>
+          <div class="tl-card__sweep"></div>
+          <div class="tl-card__content">
+            <div class="tl-card__header">
+              <div class="tl-card__tag mono-font" style="background: rgba(1, 1, 1, 0.08); color: #010101;">ESSENCIA</div>
+              <div class="tl-card__meta mono-font">Missao, visao e nicho</div>
+            </div>
+            <h2 class="tl-card__title" style="font-size: 1.6rem;">Uma empresa orientada por impacto real na vida das pessoas</h2>
+            <p class="tl-card__text">
+              A missao da 7LM e transformar a vida das pessoas. Sua visao aponta para produzir e repassar 10 mil imoveis ate 2034, com foco em imoveis residenciais industrializados e em uma jornada cada vez mais acessivel, eficiente e solida.
+            </p>
+            <div class="tl-card__actions">
+              <a class="tl-btn tl-btn--full magnetic-btn" href="#valores-7lm">
+                <span class="btn-text">Conhecer os valores da marca</span>
+                <div class="btn-fill"></div>
+              </a>
+            </div>
+          </div>
+        </article>
+
+        <article id="valores-7lm" class="tl-card glass-panel hyper-glass js-tilt js-spotlight" style="--card-accent: #00B3DE;">
+          <div class="tl-card__glow"></div>
+          <div class="tl-card__sweep"></div>
+          <div class="tl-card__content">
+            <div class="tl-card__header">
+              <div class="tl-card__tag mono-font" style="background: rgba(0, 179, 222, 0.14); color: #00B3DE;">VALORES</div>
+              <div class="tl-card__meta mono-font">Cultura que aproxima</div>
+            </div>
+            <h2 class="tl-card__title" style="font-size: 1.6rem;">Atitude de dono, simplicidade e resultados consistentes</h2>
+            <p class="tl-card__text">
+              A cultura da 7LM e feita de atitudes concretas: agir como dono, colocar pessoas no centro, praticar disciplina financeira, entregar o que promete com eficiencia e manter foco no essencial bem feito.
+            </p>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; margin: -6px 0 28px;">
+              <span class="tl-card__tag mono-font" style="background: rgba(0, 179, 222, 0.10); color: #00B3DE;">Atitude de dono</span>
+              <span class="tl-card__tag mono-font" style="background: rgba(0, 179, 222, 0.10); color: #00B3DE;">De pessoas para pessoas</span>
+              <span class="tl-card__tag mono-font" style="background: rgba(0, 179, 222, 0.10); color: #00B3DE;">Disciplina financeira</span>
+              <span class="tl-card__tag mono-font" style="background: rgba(0, 179, 222, 0.10); color: #00B3DE;">Resultados consistentes</span>
+              <span class="tl-card__tag mono-font" style="background: rgba(0, 179, 222, 0.10); color: #00B3DE;">O essencial bem feito</span>
+            </div>
+            <div class="tl-card__actions">
+              <a class="tl-btn tl-btn--full magnetic-btn" href="#conexao-7lm">
+                <span class="btn-text">Ver como isso chega ao usuario</span>
+                <div class="btn-fill"></div>
+              </a>
+            </div>
+          </div>
+        </article>
+
+        <article id="qualidade-7lm" class="tl-card glass-panel hyper-glass js-tilt js-spotlight" style="--card-accent: #738086;">
+          <div class="tl-card__glow"></div>
+          <div class="tl-card__sweep"></div>
+          <div class="tl-card__content">
+            <div class="tl-card__header">
+              <div class="tl-card__tag mono-font" style="background: rgba(115, 128, 134, 0.16); color: #566268;">CONFIANCA</div>
+              <div class="tl-card__meta mono-font">Qualidade e reconhecimento</div>
+            </div>
+            <h2 class="tl-card__title" style="font-size: 1.6rem;">Reconhecimento tecnico que reforca a escolha pela 7LM</h2>
+            <p class="tl-card__text">
+              Certificacoes, politica de qualidade e reconhecimento de mercado reforcam uma jornada sustentada por processos serios, evolucao tecnica e compromisso com seguranca, durabilidade e satisfacao do cliente.
+            </p>
+            <div class="tl-card__actions">
+              <a class="tl-btn tl-btn--full magnetic-btn" href="#conexao-7lm">
+                <span class="btn-text">Entender a experiencia da plataforma</span>
+                <div class="btn-fill"></div>
+              </a>
+            </div>
+          </div>
+        </article>
+
+        <article id="conexao-7lm" class="tl-card glass-panel hyper-glass js-tilt js-spotlight" style="--card-accent: #010101;">
+          <div class="tl-card__glow"></div>
+          <div class="tl-card__sweep"></div>
+          <div class="tl-card__content">
+            <div class="tl-card__header">
+<div class="tl-card__tag mono-font" style="background: rgba(1, 1, 1, 0.08); color: #010101;">7LM</div>
+              <div class="tl-card__meta mono-font">Plataforma com identidade</div>
+            </div>
+            <h2 class="tl-card__title" style="font-size: 1.6rem;">Essa historia agora ganha um ambiente digital a altura da marca</h2>
+            <p class="tl-card__text">
+A home da 7LM deixa de falar apenas sobre sistema e passa a representar a forca institucional da 7LM: uma marca feita para acolher, inspirar confianca e preparar o caminho para as proximas etapas da jornada digital.
+            </p>
+            <div class="tl-card__actions">
+              <a class="tl-btn tl-btn--full magnetic-btn" href="/plataforma">
+                <span class="btn-text">Entrar na plataforma</span>
+                <div class="btn-fill"></div>
+              </a>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="/02_recursos/02_scripts/inicio.js?v=20260401-textfix2"></script>
+</body>
+</html>

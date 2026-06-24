@@ -1,0 +1,13 @@
+Front
+Host: 104.131.48.54
+Porta:22
+User: root
+Senha:Dev147lm$SNK
+Conexão:SSH
+
+Postgres
+Host: 134.209.173.115
+Porta:22
+User: root
+Senha:Dev147lm$SNK
+Conexão:SSH

@@ -1,0 +1,238 @@
+{
+  "ciclo_id": "2026-05",
+  "periodo": {
+    "inicio": "2026-05-01",
+    "fim": "2026-05-31"
+  },
+  "modo": "dry-run",
+  "lideres_detectados": 17,
+  "por_papel": {
+    "gestor": 16,
+    "coordenador": 1
+  },
+  "preview": [
+    {
+      "resultado_id": "seed-4",
+      "nome": "Ana Cleia Nonato",
+      "cargo": "Gerente De Vendas",
+      "papel": "gestor",
+      "email": null,
+      "documento": "72532980125",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 2850.0,
+      "existia_no_ciclo": true
+    },
+    {
+      "resultado_id": "seed-9",
+      "nome": "Daiana Soares Da Rocha",
+      "cargo": "Gerente De Vendas",
+      "papel": "gestor",
+      "email": "daianafsa@gmail.com",
+      "documento": "01972802186",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 4250.0,
+      "existia_no_ciclo": true
+    },
+    {
+      "resultado_id": "seed-2",
+      "nome": "Francisco Lucielio De Queiroz",
+      "cargo": "Gerente De Vendas",
+      "papel": "gestor",
+      "email": "trainee5@7lm.com.br",
+      "documento": "02663352330",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 1250.0,
+      "existia_no_ciclo": true
+    },
+    {
+      "resultado_id": "seed-11",
+      "nome": "Geisiane Gomes Dos Santos",
+      "cargo": "Gerente Comercial",
+      "papel": "gestor",
+      "email": "gestaocanal@7lm.com.br",
+      "documento": "05128887529",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 8500.0,
+      "existia_no_ciclo": true
+    },
+    {
+      "resultado_id": "seed-6",
+      "nome": "Jordan Vasconcelos",
+      "cargo": "Gerente Comercial",
+      "papel": "gestor",
+      "email": "gestaocatalao@7lm.com.br",
+      "documento": "04484982196",
+      "origens": [
+        "funcionario_acesso",
+        "funcionario_acesso.coordenador"
+      ],
+      "valor_preservado": 9300.0,
+      "existia_no_ciclo": true
+    },
+    {
+      "resultado_id": "seed-3",
+      "nome": "Josué Gomes De Souza",
+      "cargo": "Gerente de Vendas",
+      "papel": "gestor",
+      "email": "josuegomes7lm@gmail.com",
+      "documento": "06923993130",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 1000.0,
+      "existia_no_ciclo": true
+    },
+    {
+      "resultado_id": "prod-auto-gestor-81af896d364248f7",
+      "nome": "Leonardo De Azevedo Mariano Silva",
+      "cargo": "Gerente De Vendas",
+      "papel": "gestor",
+      "email": null,
+      "documento": "13954441616",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 0.0,
+      "existia_no_ciclo": false
+    },
+    {
+      "resultado_id": "prod-auto-gestor-51e5d0f74ed92946",
+      "nome": "Lucas Paulo Marques Pinto",
+      "cargo": "Gerente De Vendas",
+      "papel": "gestor",
+      "email": "lucas.marques@7lm.com.br",
+      "documento": "04712438177",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 0.0,
+      "existia_no_ciclo": false
+    },
+    {
+      "resultado_id": "prod-auto-gestor-b3bf006667fdeed1",
+      "nome": "Marcelo Paiva",
+      "cargo": "Head Comercial",
+      "papel": "gestor",
+      "email": "gestaocomercial@7lm.com.br",
+      "documento": "91763231100",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 0.0,
+      "existia_no_ciclo": false
+    },
+    {
+      "resultado_id": "prod-auto-gestor-8a0986cae3b95c32",
+      "nome": "Marco Narciso",
+      "cargo": "Diretor Comercial",
+      "papel": "gestor",
+      "email": null,
+      "documento": null,
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 0.0,
+      "existia_no_ciclo": false
+    },
+    {
+      "resultado_id": "seed-10",
+      "nome": "Marco Taveira",
+      "cargo": "Gerente Regional",
+      "papel": "gestor",
+      "email": "comercial.regional@7lm.com.br",
+      "documento": "99546647187",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 7300.0,
+      "existia_no_ciclo": true
+    },
+    {
+      "resultado_id": "prod-auto-gestor-738b21392337176c",
+      "nome": "Micael Dos Santos Pires",
+      "cargo": "Gerente De Vendas",
+      "papel": "gestor",
+      "email": "micael.pires@7lm.com.br",
+      "documento": "70329232169",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 0.0,
+      "existia_no_ciclo": false
+    },
+    {
+      "resultado_id": "seed-7",
+      "nome": "Rafael De Lucena Martins",
+      "cargo": "Gerente De Vendas",
+      "papel": "gestor",
+      "email": null,
+      "documento": "03817998163",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 4400.0,
+      "existia_no_ciclo": true
+    },
+    {
+      "resultado_id": "prod-auto-gestor-3e5aed9cc2432b79",
+      "nome": "Renata Bento",
+      "cargo": "Gerente De Vendas",
+      "papel": "gestor",
+      "email": "renata.bezerra@7lm.com.br",
+      "documento": null,
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 0.0,
+      "existia_no_ciclo": false
+    },
+    {
+      "resultado_id": "seed-5",
+      "nome": "Thomaz Moreira Aquino",
+      "cargo": "Gerente Comercial",
+      "papel": "gestor",
+      "email": "gestaovendasfsa@7lm.com.br",
+      "documento": "70210764104",
+      "origens": [
+        "funcionario_acesso",
+        "funcionario_acesso.coordenador"
+      ],
+      "valor_preservado": 4500.0,
+      "existia_no_ciclo": true
+    },
+    {
+      "resultado_id": "prod-auto-coordenador-620552ed889c8efe",
+      "nome": "Vanessa Rodrigues Valadares",
+      "cargo": "Coordenador de Vendas",
+      "papel": "coordenador",
+      "email": "milca.ribeiro@7lm.com.br",
+      "documento": null,
+      "origens": [
+        "funcionario_acesso.coordenador"
+      ],
+      "valor_preservado": 0.0,
+      "existia_no_ciclo": false
+    },
+    {
+      "resultado_id": "prod-auto-gestor-137f27bd0416d9e6",
+      "nome": "Vivian dos Santos Pereira",
+      "cargo": "Gerente De Vendas",
+      "papel": "gestor",
+      "email": null,
+      "documento": "07754826178",
+      "origens": [
+        "funcionario_acesso"
+      ],
+      "valor_preservado": 0.0,
+      "existia_no_ciclo": false
+    }
+  ]
+}

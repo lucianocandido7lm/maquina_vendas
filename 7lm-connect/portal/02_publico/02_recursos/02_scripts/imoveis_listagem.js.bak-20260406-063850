@@ -1,0 +1,1360 @@
+﻿(function () {
+  "use strict";
+
+  const shared = window.SevenLMConnectImoveis;
+  if (!shared) return;
+
+  const ENDPOINT_LISTAR = shared.meta("sevenlm-connect-endpoint-imoveis-listar", "/api/imoveis");
+  const ENDPOINT_IMPORTAR = shared.meta("sevenlm-connect-endpoint-imoveis-importar", "/api/imoveis/importacao");
+  const ENDPOINT_REMOVER = shared.meta("sevenlm-connect-endpoint-imoveis-remover", "/api/imoveis/{id}");
+  const ENDPOINT_DETALHE = shared.meta("sevenlm-connect-endpoint-imoveis-detalhe", "/api/imoveis/{id}");
+  const ENDPOINT_ATUALIZAR = shared.meta("sevenlm-connect-endpoint-imoveis-atualizar", "/api/imoveis/{id}");
+  const PATH_CADASTRO = shared.meta("sevenlm-connect-path-imoveis-cadastro", "/comercial/imoveis/cadastro");
+  const PATH_SIMULADOR = shared.meta("sevenlm-connect-path-comercial-simulador", "/comercial/simulador");
+  const VIEW_MODE_STORAGE_KEY = "7lm-imoveis-view-mode";
+  const FAVORITOS_STORAGE_KEY = "7lm-imoveis-favoritos";
+  const SIMULADOR_STORAGE_KEY = "7lm-connect-simulador-imovel";
+  const LIMITE_COMPARACAO = 3;
+
+  const state = {
+    user: null,
+    pagina: 1,
+    paginacao: null,
+    viewMode: "comercial",
+    items: [],
+    byId: new Map(),
+    details: new Map(),
+    favoritos: new Set(),
+    comparacao: new Set(),
+    showroomItem: null,
+    showroomMidias: [],
+    showroomIndex: 0,
+    mapaAtual: null,
+    mapaRequestId: 0,
+    touchX: null,
+  };
+
+  const permissions = {
+    canCreate: false,
+    canEdit: false,
+    canDelete: false,
+    canMedia: false,
+  };
+
+  const el = {
+    feedback: document.getElementById("imoveisFeedback"),
+    resumo: document.getElementById("imoveisResumo"),
+    lista: document.getElementById("imoveisLista"),
+    paginaInfo: document.getElementById("imoveisPaginacaoInfo"),
+    paginationWrap: document.getElementById("imoveisPaginacao"),
+    btnAnterior: document.getElementById("btnPaginaAnterior"),
+    btnProxima: document.getElementById("btnPaginaProxima"),
+    btnBuscar: document.getElementById("btnBuscarImoveis"),
+    btnLimpar: document.getElementById("btnLimparFiltros"),
+    inputBusca: document.getElementById("imoveisBusca"),
+    inputCidade: document.getElementById("imoveisCidade"),
+    inputBairro: document.getElementById("imoveisBairro"),
+    inputStatus: document.getElementById("imoveisStatus"),
+    btnNovo: document.getElementById("btnNovoImovel"),
+    btnImportacao: document.getElementById("btnAbrirImportacaoImoveis"),
+    btnViewComercial: document.getElementById("btnViewComercial"),
+    btnViewTecnica: document.getElementById("btnViewTecnica"),
+    importSection: document.getElementById("imoveisImportacaoSection"),
+    btnFecharImportacao: document.getElementById("btnFecharImportacaoImoveis"),
+    importForm: document.getElementById("formImportacaoImoveis"),
+    importArquivo: document.getElementById("imoveisImportacaoArquivo"),
+    importCidade: document.getElementById("imoveisImportacaoCidade"),
+    importBairro: document.getElementById("imoveisImportacaoBairro"),
+    importEstado: document.getElementById("imoveisImportacaoEstado"),
+    importCep: document.getElementById("imoveisImportacaoCep"),
+    importEndereco: document.getElementById("imoveisImportacaoEnderecoBase"),
+    importTipo: document.getElementById("imoveisImportacaoTipo"),
+    importStatus: document.getElementById("imoveisImportacaoStatus"),
+    btnImportar: document.getElementById("btnImportarImoveis"),
+    importResumo: document.getElementById("imoveisImportacaoResumo"),
+    compareDock: document.getElementById("imoveisCompareDock"),
+    compareItens: document.getElementById("imoveisCompareItens"),
+    btnAbrirComparacao: document.getElementById("btnAbrirComparacao"),
+    btnLimparComparacao: document.getElementById("btnLimparComparacao"),
+    showroomSection: document.getElementById("imoveisShowroomSection"),
+    showroomContent: document.getElementById("imoveisShowroomContent"),
+    showroomSubtitle: document.getElementById("imoveisShowroomSubtitulo"),
+    btnFecharShowroom: document.getElementById("btnFecharShowroom"),
+    mapaSection: document.getElementById("imoveisMapaSection"),
+    mapaFrame: document.getElementById("imoveisMapaFrame"),
+    mapaEndereco: document.getElementById("imoveisMapaEndereco"),
+    mapaCidade: document.getElementById("imoveisMapaCidade"),
+    btnMapaCopiar: document.getElementById("btnMapaCopiarEndereco"),
+    btnMapaGoogle: document.getElementById("btnMapaAbrirGoogle"),
+    btnMapaRota: document.getElementById("btnMapaAbrirRota"),
+    btnMapaFechar: document.getElementById("btnMapaFechar"),
+    btnFecharMapa: document.getElementById("btnFecharMapa"),
+    comparacaoSection: document.getElementById("imoveisComparacaoSection"),
+    comparacaoContent: document.getElementById("imoveisComparacaoConteudo"),
+    btnFecharComparacao: document.getElementById("btnFecharComparacao"),
+  };
+
+  const statusMap = { disponivel: "Disponivel", reservado: "Reservado", vendido: "Vendido", inativo: "Inativo" };
+  const text = (v) => String(v || "").trim();
+  const esc = (v) => shared.escapeHtml(String(v || ""));
+  const num = (v) => {
+    const x = Number(v);
+    return Number.isFinite(x) ? x : null;
+  };
+  const pth = (v) => {
+    const s = text(v);
+    return s ? `/${s.replace(/^\/+/, "")}` : "";
+  };
+  const sKey = (v) => text(v).toLowerCase();
+  const sLabel = (v) => statusMap[sKey(v)] || (text(v) || "Indefinido");
+  const area = (v) => (num(v) === null ? "-" : `${num(v).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m2`);
+  const local = (item) => [item?.bairro, item?.cidade].map(text).filter(Boolean).join(" - ") || "Local nao informado";
+  const address = (item) => text(item?.endereco_formatado) || [item?.endereco, item?.bairro, item?.cidade, item?.estado, item?.cep].map(text).filter(Boolean).join(", ");
+  const canOpenEditor = () => permissions.canEdit || permissions.canMedia;
+  const compact = (v, max = 180) => {
+    const s = text(v);
+    return s.length > max ? `${s.slice(0, Math.max(0, max - 1)).trimEnd()}...` : s;
+  };
+  const numLoose = (v) => {
+    if (typeof v === "number") return Number.isFinite(v) ? v : null;
+    let s = text(v);
+    if (!s) return null;
+    s = s.replace(/m2|m²/gi, "").replace(/\s+/g, "").replace(/[^\d,.\-]/g, "");
+    if (!s) return null;
+    if (s.includes(",") && s.includes(".")) {
+      if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
+      else s = s.replace(/,/g, "");
+    } else if (s.includes(",")) {
+      s = s.replace(",", ".");
+    }
+    const x = Number(s);
+    return Number.isFinite(x) ? x : null;
+  };
+  const areaMetric = (v) => {
+    const x = numLoose(v);
+    return x === null ? "-" : `${x.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m2`;
+  };
+  const coord = (v) => {
+    const raw = text(v).replace(",", ".");
+    const x = Number(raw);
+    return Number.isFinite(x) ? x : null;
+  };
+  const mapPreviewCache = new Map();
+
+  function buildOsmEmbedUrl(latitude, longitude, zoom = 16) {
+    const lat = coord(latitude);
+    const lon = coord(longitude);
+    if (lat === null || lon === null) return "";
+    const latDelta = 0.0065;
+    const lonDelta = 0.009;
+    const bbox = [lon - lonDelta, lat - latDelta, lon + lonDelta, lat + latDelta]
+      .map((value) => value.toFixed(6))
+      .join("%2C");
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat.toFixed(6)}%2C${lon.toFixed(6)}&zoom=${zoom}`;
+  }
+
+  async function geocodeAddress(query) {
+    const q = text(query);
+    if (!q) return null;
+    if (mapPreviewCache.has(q)) return mapPreviewCache.get(q);
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`, {
+        headers: {
+          Accept: "application/json",
+        },
+      });
+      if (!response.ok) throw new Error(`Falha ao geocodificar (${response.status})`);
+      const data = await response.json();
+      const first = Array.isArray(data) ? data[0] : null;
+      const result = first ? { lat: first.lat, lon: first.lon } : null;
+      mapPreviewCache.set(q, result);
+      return result;
+    } catch {
+      mapPreviewCache.set(q, null);
+      return null;
+    }
+  }
+
+  function setMapFrameDoc(title, body, actionLabel, actionUrl) {
+    if (!el.mapaFrame) return;
+    const safeTitle = esc(title || "Mapa");
+    const safeBody = esc(body || "");
+    const safeActionLabel = esc(actionLabel || "");
+    const safeActionUrl = actionUrl ? esc(actionUrl) : "";
+    const actionHtml = safeActionUrl && safeActionLabel
+      ? `<a href="${safeActionUrl}" target="_blank" rel="noopener noreferrer">${safeActionLabel}</a>`
+      : "";
+    el.mapaFrame.src = "about:blank";
+    el.mapaFrame.srcdoc = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>
+      html,body{margin:0;height:100%;font-family:Inter,Arial,sans-serif;background:#eef3f8;color:#233248}
+      body{display:grid;place-items:center;padding:24px;box-sizing:border-box}
+      main{max-width:360px;text-align:center;display:grid;gap:12px}
+      h1{margin:0;font-size:1.1rem;line-height:1.2}
+      p{margin:0;font-size:.96rem;line-height:1.45;color:#516176}
+      a{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 16px;border-radius:999px;background:#0f7bff;color:#fff;text-decoration:none;font-weight:700}
+    </style></head><body><main><h1>${safeTitle}</h1><p>${safeBody}</p>${actionHtml}</main></body></html>`;
+  }
+
+  function setMapFrameEmbed(url, title) {
+    if (!el.mapaFrame) return;
+    el.mapaFrame.removeAttribute("srcdoc");
+    el.mapaFrame.src = url || "about:blank";
+    el.mapaFrame.title = title || "Mapa do imovel";
+  }
+
+  function toggleModal(section, open) {
+    if (!section) return;
+    shared.toggleHidden(section, !open);
+    const hasOpen = [el.importSection, el.showroomSection, el.mapaSection, el.comparacaoSection].some((x) => x && !x.hidden);
+    document.body.classList.toggle("tl-modal-open", hasOpen);
+    document.documentElement.classList.toggle("tl-modal-open", hasOpen);
+  }
+
+  function queryAtual() {
+    return {
+      q: text(el.inputBusca?.value),
+      cidade: text(el.inputCidade?.value),
+      bairro: text(el.inputBairro?.value),
+      status: text(el.inputStatus?.value),
+      pagina: String(state.pagina),
+      limite: "80",
+    };
+  }
+
+  function queryString(params) {
+    const s = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (text(v)) s.set(k, String(v));
+    });
+    return s.toString();
+  }
+
+  function syncPermissions() {
+    permissions.canCreate = shared.hasPermission(state.user, "imoveis.create");
+    permissions.canEdit = shared.hasPermission(state.user, "imoveis.edit");
+    permissions.canDelete = shared.hasPermission(state.user, "imoveis.delete");
+    permissions.canMedia = shared.hasPermission(state.user, "imoveis.media.manage");
+    shared.toggleHidden(el.btnNovo, !permissions.canCreate);
+    shared.toggleHidden(el.btnImportacao, !permissions.canCreate);
+    if (el.btnNovo) el.btnNovo.href = shared.buildPortalPath(PATH_CADASTRO);
+  }
+
+  function loadFavoritos() {
+    try {
+      const raw = window.localStorage.getItem(FAVORITOS_STORAGE_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      state.favoritos = new Set(Array.isArray(arr) ? arr.map(String) : []);
+    } catch {
+      state.favoritos = new Set();
+    }
+  }
+
+  function saveFavoritos() {
+    try {
+      window.localStorage.setItem(FAVORITOS_STORAGE_KEY, JSON.stringify(Array.from(state.favoritos)));
+    } catch {}
+  }
+
+  function loadViewMode() {
+    try {
+      const v = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+      if (v === "tecnica" || v === "comercial") state.viewMode = v;
+    } catch {
+      state.viewMode = "comercial";
+    }
+  }
+
+  function setViewMode(mode) {
+    state.viewMode = mode === "tecnica" ? "tecnica" : "comercial";
+    try {
+      window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, state.viewMode);
+    } catch {}
+    el.btnViewComercial?.classList.toggle("is-active", state.viewMode === "comercial");
+    el.btnViewTecnica?.classList.toggle("is-active", state.viewMode === "tecnica");
+    el.btnViewComercial?.setAttribute("aria-selected", state.viewMode === "comercial" ? "true" : "false");
+    el.btnViewTecnica?.setAttribute("aria-selected", state.viewMode === "tecnica" ? "true" : "false");
+    if (el.lista) el.lista.setAttribute("data-view-mode", state.viewMode);
+  }
+
+  function statusCounts(items) {
+    const out = { disponivel: 0, reservado: 0, vendido: 0, inativo: 0, outros: 0 };
+    items.forEach((item) => {
+      const key = sKey(item.status);
+      if (Object.prototype.hasOwnProperty.call(out, key)) out[key] += 1;
+      else out.outros += 1;
+    });
+    return out;
+  }
+
+  function statusChips(c) {
+    return Object.entries(c)
+      .filter(([, v]) => v > 0)
+      .map(([k, v]) => `<span class="tl-imoveis-chip tl-imoveis-chip--${esc(k)}">${esc(String(v))} ${esc(sLabel(k))}</span>`)
+      .join("");
+  }
+
+  function groupItems(items) {
+    const map = new Map();
+    items.forEach((item) => {
+      const a = item.agrupamento || {};
+      const localNome = text(a.localidade || "Sem localidade");
+      const blocoNome = text(a.bloco || "Sem bloco");
+      const andarNome = text(a.andar || a.pavimento || "Andar nao informado");
+      if (!map.has(localNome)) map.set(localNome, { nome: localNome, blocos: new Map(), contexto: local(item), total: 0 });
+      const locObj = map.get(localNome);
+      locObj.total += 1;
+      if (!locObj.blocos.has(blocoNome)) locObj.blocos.set(blocoNome, { nome: blocoNome, andares: new Map(), total: 0 });
+      const blocoObj = locObj.blocos.get(blocoNome);
+      blocoObj.total += 1;
+      if (!blocoObj.andares.has(andarNome)) blocoObj.andares.set(andarNome, { nome: andarNome, itens: [] });
+      blocoObj.andares.get(andarNome).itens.push(item);
+    });
+    return Array.from(map.values()).map((locObj) => {
+      const blocos = Array.from(locObj.blocos.values()).map((b) => {
+        const andares = Array.from(b.andares.values()).sort((a, z) => a.nome.localeCompare(z.nome));
+        return { ...b, andares, itens: andares.flatMap((x) => x.itens) };
+      }).sort((a, z) => a.nome.localeCompare(z.nome));
+      return { ...locObj, blocos, itens: blocos.flatMap((b) => b.itens), totalAndares: blocos.reduce((s, b) => s + b.andares.length, 0) };
+    });
+  }
+
+  function renderAcoes(id) {
+    const btns = [`<button class="tl-imoveis-btn tl-imoveis-btn--secondary" data-action="ver-imovel" data-id="${esc(id)}">Ver imovel</button>`];
+    if (canOpenEditor()) btns.push(`<button class="tl-imoveis-btn" data-action="editar" data-id="${esc(id)}">${permissions.canEdit ? "Editar" : "Gerenciar midias"}</button>`);
+    if (permissions.canDelete) btns.push(`<button class="tl-imoveis-btn tl-imoveis-btn--danger" data-action="excluir" data-id="${esc(id)}">Excluir</button>`);
+    return btns.join("");
+  }
+
+  function renderItemTecnico(item) {
+    return `
+      <article class="tl-imoveis-unit">
+        <div class="tl-imoveis-unit__head">
+          <div>
+            <span class="tl-imoveis-eyebrow mono-font">${esc(item.tipo_imovel || "Imovel")}</span>
+            <div class="tl-imoveis-unit__title">${esc(item.titulo || "Imovel")}</div>
+          </div>
+          <span class="tl-imoveis-badge tl-imoveis-badge--status tl-imoveis-badge--${esc(sKey(item.status))}">${esc(sLabel(item.status))}</span>
+        </div>
+        <div class="tl-imoveis-unit__stats">
+          <span class="tl-imoveis-unit__stat">Valor: ${shared.formatCurrency(item.valor)}</span>
+          <span class="tl-imoveis-unit__stat">Area: ${esc(area(item.area_m2))}</span>
+          <span class="tl-imoveis-unit__stat">Midias: ${esc(String(item.quantidade_midias || 0))}</span>
+        </div>
+        <div class="tl-imoveis-unit__meta"><strong>Local:</strong> <span>${esc(item.endereco || local(item))}</span></div>
+        <div class="tl-imoveis-unit__actions">${renderAcoes(item.id)}</div>
+      </article>`;
+  }
+
+  function renderAndar(andar) {
+    return `
+      <article class="tl-imoveis-floor">
+        <div class="tl-imoveis-floor__head">
+          <span class="tl-imoveis-floor__title">${esc(andar.nome)}</span>
+          <div class="tl-imoveis-floor__chips">
+            <span class="tl-imoveis-chip">${esc(String(andar.itens.length))} unidade(s)</span>
+            ${statusChips(statusCounts(andar.itens))}
+          </div>
+        </div>
+        <div class="tl-imoveis-floor__rows">${andar.itens.map(renderItemTecnico).join("")}</div>
+      </article>`;
+  }
+
+  function renderBloco(bloco) {
+    return `
+      <details class="tl-imoveis-bloco">
+        <summary class="tl-imoveis-bloco__summary">
+          <div><span class="tl-imoveis-eyebrow mono-font">BLOCO</span><strong>${esc(bloco.nome)}</strong></div>
+          <div class="tl-imoveis-group__chips"><span class="tl-imoveis-chip">${esc(String(bloco.total))} imovel(is)</span>${statusChips(statusCounts(bloco.itens))}</div>
+          <span class="tl-imoveis-toggle">Ver andares</span>
+        </summary>
+        <div class="tl-imoveis-group__body">${bloco.andares.map(renderAndar).join("")}</div>
+      </details>`;
+  }
+
+  function renderLocal(locObj) {
+    return `
+      <details class="tl-imoveis-local">
+        <summary class="tl-imoveis-local__summary">
+          <div><span class="tl-imoveis-eyebrow mono-font">LOCALIDADE</span><strong>${esc(locObj.nome)}</strong>${locObj.contexto ? `<small>${esc(locObj.contexto)}</small>` : ""}</div>
+          <div class="tl-imoveis-local__chips"><span class="tl-imoveis-chip">${esc(String(locObj.total))} imovel(is)</span><span class="tl-imoveis-chip">${esc(String(locObj.blocos.length))} bloco(s)</span><span class="tl-imoveis-chip">${esc(String(locObj.totalAndares))} andar(es)</span>${statusChips(statusCounts(locObj.itens))}</div>
+        </summary>
+        <div class="tl-imoveis-local__body">${locObj.blocos.map(renderBloco).join("")}</div>
+      </details>`;
+  }
+
+  function commercialStats(items) {
+    const valores = items.map((i) => num(i.valor)).filter((x) => x !== null).sort((a, b) => a - b);
+    const p2 = items.map((i) => {
+      const v = num(i.valor);
+      const a = num(i.area_m2);
+      return v !== null && a !== null && a > 0 ? v / a : null;
+    }).filter((x) => x !== null).sort((a, b) => a - b);
+    return {
+      v1: valores.length ? valores[Math.floor((valores.length - 1) * 0.25)] : null,
+      pm: p2.length ? p2[Math.floor((p2.length - 1) * 0.5)] : null,
+    };
+  }
+
+  function badges(item, stats) {
+    const out = [];
+    const v = num(item.valor);
+    const a = num(item.area_m2);
+    const p2 = v !== null && a !== null && a > 0 ? v / a : null;
+    const txt = `${text(item.titulo)} ${text(item.descricao)} ${text(item.tipo_imovel)}`.toLowerCase();
+    if (sKey(item.status) === "disponivel" && stats.v1 !== null && v !== null && v <= stats.v1) out.push(["oportunidade", "Oportunidade"]);
+    if (p2 !== null && stats.pm !== null && p2 <= stats.pm * 0.95) out.push(["custo", "Melhor custo-beneficio"]);
+    if ((num(item.quartos) || 0) >= 3 && (num(item.banheiros) || 0) >= 2) out.push(["familia", "Ideal para familia"]);
+    if (txt.includes("garden")) out.push(["garden", "Garden"]);
+    if (txt.includes("cobertura")) out.push(["cobertura", "Cobertura"]);
+    if (sKey(item.status) === "reservado") out.push(["procurado", "Mais procurado"]);
+    return out.slice(0, 3);
+  }
+
+  function renderCard(item, stats) {
+    const id = esc(item.id);
+    const foto = pth(item.foto_principal);
+    const fav = state.favoritos.has(String(item.id));
+    const cmp = state.comparacao.has(String(item.id));
+    const tags = badges(item, stats);
+    return `
+      <article class="tl-imoveis-showcase-card" data-id="${id}" tabindex="0" role="button" aria-label="Abrir showroom de ${esc(item.titulo || "Imovel")}">
+        <div class="tl-imoveis-showcase-card__media">
+          ${foto ? `<img src="${esc(foto)}" alt="${esc(item.titulo || "Imovel")}" loading="lazy" class="tl-imoveis-showcase-card__hero" />` : `<div class="tl-imoveis-showcase-card__hero tl-imoveis-showcase-card__hero--empty"><span>Sem foto principal</span></div>`}
+          <div class="tl-imoveis-showcase-card__top-actions">
+            <button class="tl-imoveis-card-icon-btn ${fav ? "is-active" : ""}" type="button" data-action="favoritar" data-id="${id}" aria-label="Favoritar">${fav ? "&#9733;" : "&#9734;"}</button>
+            <button class="tl-imoveis-card-icon-btn ${cmp ? "is-active" : ""}" type="button" data-action="comparar" data-id="${id}" aria-label="Comparar">&#8644;</button>
+          </div>
+          <span class="tl-imoveis-badge tl-imoveis-badge--status tl-imoveis-badge--${esc(sKey(item.status))}">${esc(sLabel(item.status))}</span>
+          ${tags.length ? `<div class="tl-imoveis-showcase-card__badges">${tags.map(([k, l]) => `<span class="tl-imoveis-commercial-badge tl-imoveis-commercial-badge--${esc(k)}">${esc(l)}</span>`).join("")}</div>` : ""}
+        </div>
+        <div class="tl-imoveis-showcase-card__body">
+          <div class="tl-imoveis-showcase-card__top">
+            <span class="tl-imoveis-eyebrow mono-font">${esc(item.tipo_imovel || "Imovel")}</span>
+            <h3>${esc(item.titulo || "Imovel")}</h3>
+            <p>${esc(item?.detalhes_comerciais?.empreendimento || item?.agrupamento?.localidade || "Empreendimento nao informado")}</p>
+            <small>${esc(local(item))}</small>
+          </div>
+          <div class="tl-imoveis-showcase-card__price">${shared.formatCurrency(item.valor)}</div>
+          <div class="tl-imoveis-showcase-card__meta">
+            <span><b>${esc(String(num(item.quartos) ?? "-"))}</b><small>Quartos</small></span>
+            <span><b>${esc(String(num(item.banheiros) ?? "-"))}</b><small>Banheiros</small></span>
+            <span><b>${esc(String(num(item.vagas_garagem) ?? "-"))}</b><small>Vagas</small></span>
+            <span><b>${esc(area(item.area_m2))}</b><small>Area</small></span>
+          </div>
+          <div class="tl-imoveis-showcase-card__actions">${renderAcoes(item.id)}</div>
+        </div>
+      </article>`;
+  }
+
+  function renderCompareDock() {
+    if (!el.compareDock || !el.compareItens) return;
+    const ids = Array.from(state.comparacao);
+    if (!ids.length) {
+      shared.toggleHidden(el.compareDock, true);
+      el.compareItens.innerHTML = "";
+      return;
+    }
+    el.compareItens.innerHTML = ids.map((id) => {
+      const item = state.byId.get(id) || state.details.get(id);
+      return `<button class="tl-imoveis-compare-dock__item" type="button" data-action="remove-compare" data-id="${esc(id)}"><span>${esc(item?.titulo || id)}</span><strong>&times;</strong></button>`;
+    }).join("");
+    shared.toggleHidden(el.compareDock, false);
+    if (el.btnAbrirComparacao) {
+      el.btnAbrirComparacao.disabled = ids.length < 2;
+      el.btnAbrirComparacao.textContent = `Comparar (${ids.length})`;
+    }
+  }
+
+  function rerenderCurrentList() {
+    if (!Array.isArray(state.items) || !state.items.length) return;
+    const resumo = renderList(state.items);
+    if (el.resumo) el.resumo.textContent = resumo;
+  }
+
+  function renderList(items) {
+    if (!items.length) {
+      el.lista.innerHTML = `<article class="tl-imoveis-empty"><strong>Nenhum imovel encontrado</strong><p>Refine os filtros para continuar.</p></article>`;
+      renderCompareDock();
+      return "Nenhum imovel encontrado.";
+    }
+    state.items = items;
+    state.byId = new Map(items.map((i) => [String(i.id), i]));
+    state.comparacao = new Set(Array.from(state.comparacao).filter((id) => state.byId.has(id) || state.details.has(id)));
+    if (state.viewMode === "tecnica") {
+      const locs = groupItems(items);
+      el.lista.innerHTML = `<div class="tl-imoveis-group-list">${locs.map(renderLocal).join("")}</div>`;
+      renderCompareDock();
+      return `${items.length} imovel(is) em ${locs.length} localidade(s).`;
+    }
+    const stats = commercialStats(items);
+    el.lista.innerHTML = `<div class="tl-imoveis-showcase-grid">${items.map((i) => renderCard(i, stats)).join("")}</div>`;
+    renderCompareDock();
+    const c = statusCounts(items);
+    return `${items.length} imovel(is). Disponiveis: ${c.disponivel}, Reservados: ${c.reservado}, Vendidos: ${c.vendido}, Inativos: ${c.inativo}.`;
+  }
+
+  function renderLoading() {
+    el.lista.innerHTML = `<article class="tl-imoveis-empty"><strong>Carregando imoveis...</strong><p>Aguarde enquanto consultamos a base.</p></article>`;
+    if (el.resumo) el.resumo.textContent = "Carregando listagem de imoveis...";
+  }
+
+  function updatePagination(meta) {
+    state.paginacao = meta;
+    shared.toggleHidden(el.paginationWrap, meta.total_paginas <= 1);
+    if (el.paginaInfo) el.paginaInfo.textContent = `Pagina ${meta.pagina} de ${meta.total_paginas} - ${meta.total} registro(s)`;
+    if (el.btnAnterior) el.btnAnterior.disabled = !meta.tem_anterior;
+    if (el.btnProxima) el.btnProxima.disabled = !meta.tem_proxima;
+  }
+
+  async function carregarImoveis() {
+    shared.showInlineMessage(el.feedback, "", "");
+    renderLoading();
+    try {
+      const payload = await shared.apiRequest(`${ENDPOINT_LISTAR}?${queryString(queryAtual())}`, { method: "GET" });
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      const meta = payload.paginacao || { pagina: 1, total_paginas: 1, total: items.length, tem_anterior: false, tem_proxima: false };
+      const resumo = renderList(items);
+      updatePagination(meta);
+      if (el.resumo) el.resumo.textContent = resumo;
+    } catch (error) {
+      shared.showInlineMessage(el.feedback, "error", error.message || "Nao foi possivel carregar os imoveis.");
+      el.lista.innerHTML = `<article class="tl-imoveis-empty"><strong>Falha ao carregar</strong><p>${esc(error.message || "Tente novamente em instantes.")}</p></article>`;
+      if (el.resumo) el.resumo.textContent = "Nao foi possivel carregar os imoveis.";
+    }
+  }
+
+  function buildImportFormData() {
+    const file = el.importArquivo?.files?.[0];
+    const cidade = text(el.importCidade?.value);
+    const bairro = text(el.importBairro?.value);
+    if (!file) throw new Error("Selecione o arquivo da planilha.");
+    if (!cidade || !bairro) throw new Error("Informe a cidade e o bairro padrao da importacao.");
+    const fd = new FormData();
+    fd.append("arquivo", file);
+    fd.append("cidade_padrao", cidade);
+    fd.append("bairro_padrao", bairro);
+    fd.append("estado_padrao", text(el.importEstado?.value));
+    fd.append("cep_padrao", text(el.importCep?.value));
+    fd.append("endereco_base", text(el.importEndereco?.value));
+    fd.append("tipo_imovel_padrao", text(el.importTipo?.value) || "Apartamento");
+    fd.append("status_padrao", text(el.importStatus?.value) || "Disponivel");
+    return fd;
+  }
+
+  function resetImportSummary() {
+    if (!el.importResumo) return;
+    el.importResumo.innerHTML = "";
+    shared.toggleHidden(el.importResumo, true);
+  }
+
+  function renderImportSummary(summary) {
+    if (!el.importResumo || !summary) return resetImportSummary();
+    el.importResumo.innerHTML = `
+      <div class="tl-imoveis-import-summary__stats">
+        <article class="tl-imoveis-stat"><strong>Arquivo:</strong> ${esc(summary.arquivo || "-")}</article>
+        <article class="tl-imoveis-stat"><strong>Linhas:</strong> ${esc(String(summary.total_linhas || 0))}</article>
+        <article class="tl-imoveis-stat"><strong>Importados:</strong> ${esc(String(summary.total_importados || 0))}</article>
+        <article class="tl-imoveis-stat"><strong>Ignorados:</strong> ${esc(String(summary.total_ignorados || 0))}</article>
+        <article class="tl-imoveis-stat"><strong>Erros:</strong> ${esc(String(summary.total_erros || 0))}</article>
+      </div>`;
+    shared.toggleHidden(el.importResumo, false);
+  }
+
+  async function importarPlanilha(event) {
+    event.preventDefault();
+    if (!permissions.canCreate) return;
+    shared.showInlineMessage(el.feedback, "", "");
+    resetImportSummary();
+    if (el.btnImportar) el.btnImportar.disabled = true;
+    try {
+      const payload = await shared.apiRequest(ENDPOINT_IMPORTAR, { method: "POST", body: buildImportFormData() });
+      renderImportSummary(payload.resumo || null);
+      shared.showInlineMessage(el.feedback, "success", payload.mensagem || "Importacao concluida com sucesso.");
+      if (el.importArquivo) el.importArquivo.value = "";
+      state.pagina = 1;
+      await carregarImoveis();
+    } catch (error) {
+      renderImportSummary(error?.payload?.resumo || null);
+      shared.showInlineMessage(el.feedback, "error", error.message || "Nao foi possivel importar a planilha.");
+    } finally {
+      if (el.btnImportar) el.btnImportar.disabled = false;
+    }
+  }
+
+  async function detalhe(id, force) {
+    const key = String(id || "");
+    if (!key) return null;
+    if (!force && state.details.has(key)) return state.details.get(key);
+    const payload = await shared.apiRequest(shared.buildEndpoint(ENDPOINT_DETALHE, { id: key }), { method: "GET" });
+    const item = payload?.item || null;
+    if (item?.foto_principal) item.foto_principal = pth(item.foto_principal);
+    if (item) state.details.set(key, item);
+    return item;
+  }
+
+  function normalizeMidias(item) {
+    const list = Array.isArray(item?.midias) ? item.midias : [];
+    const parsed = list
+      .map((m) => ({ ...m, caminho_arquivo: pth(m.caminho_arquivo), tipo_arquivo: text(m.tipo_arquivo).toLowerCase() }))
+      .filter((m) => m.caminho_arquivo);
+    if (!parsed.length && item?.foto_principal) {
+      parsed.push({
+        id: `principal-${item.id}`,
+        tipo_arquivo: "foto",
+        nome_arquivo: item.foto_principal_nome || item.titulo || "Foto",
+        caminho_arquivo: pth(item.foto_principal),
+      });
+    }
+    return parsed;
+  }
+
+  function openLightbox(midias, idx) {
+    const fotos = (midias || []).filter((m) => m.tipo_arquivo !== "video");
+    if (!fotos.length) return;
+    const lb = document.getElementById("tl-imoveis-lightbox");
+    if (!lb) return;
+    lb.innerHTML = `
+      <div class="tl-imoveis-lightbox__backdrop"></div>
+      <div class="tl-imoveis-lightbox__content">
+        <div class="tl-imoveis-lightbox__panel" role="dialog" aria-modal="true" aria-label="Visualizador de imagens do imovel">
+          <button class="tl-imoveis-lightbox__close" type="button" aria-label="Fechar">&times;</button>
+          <div class="tl-imoveis-lightbox__toolbar">
+            <span class="tl-imoveis-lightbox__counter">1 / ${fotos.length}</span>
+            <div class="tl-imoveis-lightbox__zoom-actions">
+              <button class="tl-imoveis-lightbox__zoom-btn" type="button" data-action="zoom-out" aria-label="Diminuir zoom">-</button>
+              <button class="tl-imoveis-lightbox__zoom-btn" type="button" data-action="zoom-reset" aria-label="Resetar zoom">100%</button>
+              <button class="tl-imoveis-lightbox__zoom-btn" type="button" data-action="zoom-in" aria-label="Aumentar zoom">+</button>
+            </div>
+          </div>
+          <div class="tl-imoveis-lightbox__stage">
+            <button class="tl-imoveis-lightbox__nav tl-imoveis-lightbox__prev" type="button" aria-label="Imagem anterior">&lsaquo;</button>
+            <img class="tl-imoveis-lightbox__img" alt="Midia" />
+            <button class="tl-imoveis-lightbox__nav tl-imoveis-lightbox__next" type="button" aria-label="Proxima imagem">&rsaquo;</button>
+          </div>
+          <div class="tl-imoveis-lightbox__thumbs" aria-label="Miniaturas da galeria"></div>
+        </div>
+      </div>`;
+    let i = Math.max(0, Math.min(Number(idx) || 0, fotos.length - 1));
+    let zoom = 1;
+    const ZOOM_MIN = 1;
+    const ZOOM_MAX = 3;
+    const ZOOM_STEP = 0.2;
+    const img = lb.querySelector(".tl-imoveis-lightbox__img");
+    const counter = lb.querySelector(".tl-imoveis-lightbox__counter");
+    const thumbs = lb.querySelector(".tl-imoveis-lightbox__thumbs");
+    const zoomReset = lb.querySelector("[data-action='zoom-reset']");
+    const stage = lb.querySelector(".tl-imoveis-lightbox__stage");
+    const clampZoom = (v) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v));
+    const applyZoom = (nextZoom) => {
+      zoom = clampZoom(nextZoom);
+      if (img) img.style.transform = `scale(${zoom})`;
+      if (zoomReset) zoomReset.textContent = `${Math.round(zoom * 100)}%`;
+    };
+    const resetZoom = () => applyZoom(1);
+    const renderThumbs = () => {
+      if (!thumbs) return;
+      thumbs.innerHTML = fotos.map((foto, index) => `
+        <button class="tl-imoveis-lightbox__thumb ${index === i ? "is-active" : ""}" type="button" data-index="${index}" aria-label="Abrir imagem ${index + 1}">
+          <img src="${esc(pth(foto.caminho_arquivo))}" alt="${esc(foto.nome_arquivo || `Imagem ${index + 1}`)}" loading="lazy" />
+        </button>`).join("");
+    };
+    const show = (x) => {
+      i = (x + fotos.length) % fotos.length;
+      img.src = pth(fotos[i].caminho_arquivo);
+      img.alt = fotos[i].nome_arquivo || "Midia";
+      if (counter) counter.textContent = `${i + 1} / ${fotos.length}`;
+      renderThumbs();
+      resetZoom();
+    };
+    const onKey = (event) => {
+      if (!lb.classList.contains("is-open")) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+        return;
+      }
+      if (event.key === "ArrowLeft") return void show(i - 1);
+      if (event.key === "ArrowRight") return void show(i + 1);
+      if (event.key === "+" || event.key === "=") return void applyZoom(zoom + ZOOM_STEP);
+      if (event.key === "-") return void applyZoom(zoom - ZOOM_STEP);
+      if (event.key === "0") return void resetZoom();
+    };
+    const close = () => {
+      lb.classList.remove("is-open");
+      document.removeEventListener("keydown", onKey);
+    };
+    lb.querySelector(".tl-imoveis-lightbox__close")?.addEventListener("click", close);
+    lb.querySelector(".tl-imoveis-lightbox__backdrop")?.addEventListener("click", close);
+    lb.querySelector(".tl-imoveis-lightbox__prev")?.addEventListener("click", () => show(i - 1));
+    lb.querySelector(".tl-imoveis-lightbox__next")?.addEventListener("click", () => show(i + 1));
+    lb.querySelector("[data-action='zoom-in']")?.addEventListener("click", () => applyZoom(zoom + ZOOM_STEP));
+    lb.querySelector("[data-action='zoom-out']")?.addEventListener("click", () => applyZoom(zoom - ZOOM_STEP));
+    lb.querySelector("[data-action='zoom-reset']")?.addEventListener("click", resetZoom);
+    thumbs?.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const button = target.closest(".tl-imoveis-lightbox__thumb");
+      if (!(button instanceof HTMLElement)) return;
+      const index = Number(button.getAttribute("data-index"));
+      if (Number.isFinite(index)) show(index);
+    });
+    stage?.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      applyZoom(zoom + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+    }, { passive: false });
+    img?.addEventListener("dblclick", () => {
+      if (zoom > 1) resetZoom();
+      else applyZoom(2);
+    });
+    lb.classList.add("is-open");
+    document.addEventListener("keydown", onKey);
+    show(i);
+  }
+
+  function renderCarousel() {
+    const stage = document.getElementById("imoveisShowroomCarouselStage");
+    const thumbs = document.getElementById("imoveisShowroomCarouselThumbs");
+    const count = document.getElementById("imoveisShowroomCarouselCount");
+    if (!stage || !thumbs || !count) return;
+    const arr = state.showroomMidias;
+    if (!arr.length) {
+      stage.innerHTML = `<div class="tl-imoveis-showroom__media-empty"><strong>Sem fotos disponiveis</strong><p>Este imovel ainda nao possui imagens cadastradas.</p></div>`;
+      thumbs.innerHTML = "";
+      count.textContent = "0 / 0";
+      return;
+    }
+    state.showroomIndex = Math.max(0, Math.min(state.showroomIndex, arr.length - 1));
+    const m = arr[state.showroomIndex];
+    stage.innerHTML = `
+      <button class="tl-imoveis-showroom__nav tl-imoveis-showroom__nav--prev" type="button" data-action="show-prev">&lsaquo;</button>
+      <div class="tl-imoveis-showroom__stage-inner" data-showroom-stage="1">
+        ${m.tipo_arquivo === "video" ? `<video src="${esc(m.caminho_arquivo)}" controls preload="metadata" class="tl-imoveis-showroom__media-video"></video>` : `<img src="${esc(m.caminho_arquivo)}" alt="${esc(m.nome_arquivo || state.showroomItem?.titulo || "Midia")}" class="tl-imoveis-showroom__media-img" loading="eager" />`}
+        ${m.tipo_arquivo === "video" ? "" : `<button class="tl-imoveis-showroom__zoom" type="button" data-action="show-zoom">Ampliar</button>`}
+      </div>
+      <button class="tl-imoveis-showroom__nav tl-imoveis-showroom__nav--next" type="button" data-action="show-next">&rsaquo;</button>`;
+    thumbs.innerHTML = arr.map((x, i) => `<button class="tl-imoveis-showroom__thumb ${i === state.showroomIndex ? "is-active" : ""}" type="button" data-action="show-go" data-index="${i}">${x.tipo_arquivo === "video" ? "<span class='tl-imoveis-showroom__thumb-video'>VIDEO</span>" : `<img src="${esc(x.caminho_arquivo)}" alt="${esc(x.nome_arquivo || "Miniatura")}" loading="lazy" />`}</button>`).join("");
+    count.textContent = `${state.showroomIndex + 1} / ${arr.length}`;
+  }
+
+  function infoShowroom(item) {
+    const d = item?.detalhes_comerciais || {};
+    const locx = item?.localizacao || {};
+    const difs = Array.isArray(item?.diferenciais_comerciais)
+      ? item.diferenciais_comerciais
+          .filter((x) => text(x))
+          .map((x) => compact(x, 26))
+          .slice(0, 5)
+      : [];
+    const empreendimento = d.empreendimento || item?.agrupamento?.localidade || item?.bairro || "Empreendimento nao informado";
+    const localCompacto = [locx.bairro || item?.bairro, locx.cidade || item?.cidade, locx.estado || item?.estado].filter(Boolean).join(" - ") || "Bairro e cidade nao informados";
+    const enderecoCompleto = address(item) || "Endereco nao informado";
+    const descricaoTexto = text(item.descricao) || "Sem descricao comercial cadastrada para esta unidade.";
+    const areaPrivativa = areaMetric(text(d.area_privativa) || item.area_m2);
+    const areaTotal = areaMetric(text(d.area_total));
+    const statusLabel = sLabel(item.status);
+    const disponibilidadeLabel = statusLabel === "Disponivel" ? "Pronto para proposta" : statusLabel;
+    return `
+      <div class="tl-imoveis-showroom__hero-card">
+        <div class="tl-imoveis-showroom__summary">
+          <span class="tl-imoveis-eyebrow mono-font">${esc(item.tipo_imovel || "Imovel")}</span>
+          <h3>${esc(item.titulo || "Imovel")}</h3>
+          <p title="${esc(empreendimento)}">${esc(compact(empreendimento, 72))}</p>
+          <small title="${esc(local(item))}">${esc(compact(local(item), 44))}</small>
+        </div>
+        <div class="tl-imoveis-showroom__price-row"><strong>${shared.formatCurrency(item.valor)}</strong><span class="tl-imoveis-badge tl-imoveis-badge--status tl-imoveis-badge--${esc(sKey(item.status))}">${esc(statusLabel)}</span></div>
+        <div class="tl-imoveis-showroom__quick-strip">
+          <article><span>Area privativa</span><strong>${esc(areaPrivativa)}</strong></article>
+          <article><span>Quartos</span><strong>${esc(String(num(item.quartos) ?? "-"))}</strong></article>
+          <article><span>Vagas</span><strong>${esc(String(num(item.vagas_garagem) ?? "-"))}</strong></article>
+        </div>
+      </div>
+      <div class="tl-imoveis-showroom__section-block">
+        <div class="tl-imoveis-showroom__section-head">
+          <span class="tl-imoveis-eyebrow mono-font">INFORMACOES DA UNIDADE</span>
+          <small title="${esc(localCompacto)}">${esc(compact(localCompacto, 52))}</small>
+        </div>
+        <div class="tl-imoveis-showroom__meta-grid">
+          <article><span>Unidade</span><strong>${esc(d.unidade || item?.agrupamento?.unidade || "-")}</strong></article>
+          <article><span>Bloco</span><strong>${esc(d.bloco || item?.agrupamento?.bloco || "-")}</strong></article>
+          <article><span>Pavimento</span><strong>${esc(d.pavimento || item?.agrupamento?.pavimento || "-")}</strong></article>
+          <article><span>Quartos</span><strong>${esc(String(num(item.quartos) ?? "-"))}</strong></article>
+          <article><span>Banheiros</span><strong>${esc(String(num(item.banheiros) ?? "-"))}</strong></article>
+          <article><span>Vagas</span><strong>${esc(String(num(item.vagas_garagem) ?? "-"))}</strong></article>
+          <article><span>Area privativa</span><strong>${esc(areaPrivativa)}</strong></article>
+          <article><span>Area total</span><strong>${esc(areaTotal)}</strong></article>
+          <article><span>Orientacao</span><strong>${esc(text(d.orientacao) || "-")}</strong></article>
+          <article><span>Posicao</span><strong>${esc(text(d.posicao) || "-")}</strong></article>
+        </div>
+      </div>
+      <div class="tl-imoveis-showroom__location">
+        <div class="tl-imoveis-showroom__location-text">
+          <span class="tl-imoveis-eyebrow mono-font">LOCALIZACAO</span>
+          <strong title="${esc(enderecoCompleto)}">${esc(compact(enderecoCompleto, 116))}</strong>
+          <small title="${esc(localCompacto)}">${esc(compact(localCompacto, 44))}</small>
+        </div>
+        <button class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button" data-action="show-map">Ver no mapa</button>
+      </div>
+      <div class="tl-imoveis-showroom__highlights">
+        <div class="tl-imoveis-showroom__section-head">
+          <span class="tl-imoveis-eyebrow mono-font">DIFERENCIAIS</span>
+          <small>${esc(difs.length ? `${difs.length} item${difs.length > 1 ? "s" : ""}` : "Sem itens")}</small>
+        </div>
+        ${difs.length ? `<div class="tl-imoveis-showroom__tags">${difs.map((x) => `<span class="tl-imoveis-chip">${esc(x)}</span>`).join("")}</div>` : "<p>Nenhum diferencial comercial cadastrado.</p>"}
+      </div>
+      <div class="tl-imoveis-showroom__description">
+        <div class="tl-imoveis-showroom__section-head">
+          <span class="tl-imoveis-eyebrow mono-font">DESCRICAO</span>
+          <small>Resumo comercial</small>
+        </div>
+        <p>${esc(descricaoTexto)}</p>
+      </div>
+      <div class="tl-imoveis-showroom__timeline">
+        <div class="tl-imoveis-showroom__section-head">
+          <span class="tl-imoveis-eyebrow mono-font">RESUMO RAPIDO</span>
+          <small>Atualizacao comercial</small>
+        </div>
+        <ul>
+          <li><span>Status</span><strong>${esc(statusLabel)}</strong></li>
+          <li><span>Disponibilidade</span><strong>${esc(disponibilidadeLabel)}</strong></li>
+          <li><span>Cadastro</span><strong>${esc(shared.formatDate(item.data_hora_criacao) || "-")}</strong></li>
+          <li><span>Atualizacao</span><strong>${esc(shared.formatDate(item.data_hora_atualizado_em) || "-")}</strong></li>
+        </ul>
+      </div>
+      <div class="tl-imoveis-showroom__actions-wrap">
+        <div class="tl-imoveis-showroom__actions-head">
+          <span class="tl-imoveis-eyebrow mono-font">ACOES</span>
+          <small>Atalhos da unidade</small>
+        </div>
+        <div class="tl-imoveis-showroom__actions tl-imoveis-showroom__actions--primary">
+          <button class="tl-imoveis-btn" type="button" data-action="show-simular">Simular com este imovel</button>
+          <button class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button" data-action="show-reservar" ${permissions.canEdit ? "" : "disabled"}>Reservar</button>
+          <button class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button" data-action="show-vender" ${permissions.canEdit ? "" : "disabled"}>Marcar como venda</button>
+        </div>
+        <div class="tl-imoveis-showroom__actions tl-imoveis-showroom__actions--secondary">
+          <button class="tl-imoveis-btn tl-imoveis-btn--ghost" type="button" data-action="show-share">Compartilhar</button>
+          <button class="tl-imoveis-btn tl-imoveis-btn--ghost" type="button" data-action="show-copy">Copiar localizacao</button>
+          ${canOpenEditor() ? `<button class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button" data-action="show-editar">Editar</button>` : ""}
+          ${permissions.canDelete ? `<button class="tl-imoveis-btn tl-imoveis-btn--danger" type="button" data-action="show-excluir">Excluir</button>` : ""}
+          <button class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button" data-action="show-close">Fechar showroom</button>
+        </div>
+      </div>`;
+  }
+
+  function renderShowroom(item) {
+    state.showroomItem = item;
+    state.showroomMidias = normalizeMidias(item);
+    state.showroomIndex = 0;
+    if (el.showroomSubtitle) el.showroomSubtitle.textContent = `${local(item)} - ${item?.detalhes_comerciais?.empreendimento || item?.bairro || "Sem empreendimento"}`;
+    if (el.showroomContent) {
+      el.showroomContent.innerHTML = `
+        <div class="tl-imoveis-showroom__layout">
+          <section class="tl-imoveis-showroom__gallery">
+            <div class="tl-imoveis-showroom__gallery-head"><span class="tl-imoveis-eyebrow mono-font">GALERIA</span><strong id="imoveisShowroomCarouselCount">0 / 0</strong></div>
+            <div id="imoveisShowroomCarouselStage" class="tl-imoveis-showroom__stage"></div>
+            <div id="imoveisShowroomCarouselThumbs" class="tl-imoveis-showroom__thumbs"></div>
+          </section>
+          <section class="tl-imoveis-showroom__details"><div class="tl-imoveis-showroom__details-scroll">${infoShowroom(item)}</div></section>
+        </div>`;
+    }
+    renderCarousel();
+  }
+
+  async function openShowroom(id) {
+    if (!id) return;
+    toggleModal(el.showroomSection, true);
+    if (el.showroomSubtitle) el.showroomSubtitle.textContent = "Carregando dados da unidade...";
+    if (el.showroomContent) el.showroomContent.innerHTML = `<article class="tl-imoveis-empty"><strong>Carregando showroom...</strong><p>Estamos consultando as midias e detalhes comerciais.</p></article>`;
+    try {
+      const item = await detalhe(id, false);
+      if (!item) throw new Error("Imovel nao encontrado para showroom.");
+      renderShowroom(item);
+    } catch (error) {
+      if (el.showroomContent) el.showroomContent.innerHTML = `<article class="tl-imoveis-empty"><strong>Falha ao abrir showroom</strong><p>${esc(error.message || "Nao foi possivel carregar o imovel.")}</p></article>`;
+    }
+  }
+
+  function mapLinks(item) {
+    const locx = item?.localizacao || {};
+    const addr = address(item);
+    const q = text(locx.consulta || addr);
+    const enc = encodeURIComponent(q);
+    const latitude = locx.latitude ?? item?.latitude ?? "";
+    const longitude = locx.longitude ?? item?.longitude ?? "";
+    const cityQuery = [locx.bairro || item?.bairro, locx.cidade || item?.cidade, locx.estado || item?.estado].filter(Boolean).join(", ");
+    return {
+      endereco: addr,
+      cidade: [locx.bairro || item?.bairro, locx.cidade || item?.cidade, locx.estado || item?.estado].filter(Boolean).join(" - "),
+      embed: buildOsmEmbedUrl(latitude, longitude),
+      maps: locx.google_maps_url || (q ? `https://www.google.com/maps/search/?api=1&query=${enc}` : ""),
+      rota: locx.google_maps_rota_url || (q ? `https://www.google.com/maps/dir/?api=1&destination=${enc}` : ""),
+      latitude,
+      longitude,
+      lookupQueries: [q, addr, cityQuery].filter(Boolean),
+    };
+  }
+
+  async function resolveMapEmbed(mapData) {
+    const direct = buildOsmEmbedUrl(mapData.latitude, mapData.longitude);
+    if (direct) return direct;
+    for (const query of mapData.lookupQueries || []) {
+      const result = await geocodeAddress(query);
+      if (result?.lat && result?.lon) {
+        return buildOsmEmbedUrl(result.lat, result.lon);
+      }
+    }
+    return "";
+  }
+
+  async function openMapModal(item) {
+    const requestId = state.mapaRequestId + 1;
+    state.mapaRequestId = requestId;
+    state.mapaAtual = mapLinks(item);
+    if (el.mapaEndereco) el.mapaEndereco.textContent = state.mapaAtual.endereco || "Endereco nao informado.";
+    if (el.mapaCidade) el.mapaCidade.textContent = state.mapaAtual.cidade || "Cidade e bairro nao informados.";
+    if (el.btnMapaGoogle) el.btnMapaGoogle.href = state.mapaAtual.maps || "#";
+    if (el.btnMapaRota) el.btnMapaRota.href = state.mapaAtual.rota || "#";
+    setMapFrameDoc("Carregando mapa", "Localizando a unidade para exibir o mapa aqui no modal.", "", "");
+    toggleModal(el.mapaSection, true);
+
+    const embedUrl = await resolveMapEmbed(state.mapaAtual);
+    if (requestId !== state.mapaRequestId) return;
+    if (embedUrl) {
+      state.mapaAtual.embed = embedUrl;
+      setMapFrameEmbed(embedUrl, `Mapa do imovel ${item?.titulo || ""}`.trim());
+      return;
+    }
+    setMapFrameDoc(
+      "Nao foi possivel abrir o mapa aqui",
+      "Os atalhos do Google Maps continuam disponiveis no card ao lado para seguir com a localizacao desta unidade.",
+      state.mapaAtual.maps ? "Abrir no Google Maps" : "",
+      state.mapaAtual.maps || ""
+    );
+  }
+
+  async function copyText(value, success) {
+    const v = text(value);
+    if (!v) return shared.showInlineMessage(el.feedback, "warning", "Nao ha conteudo para copiar.");
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(v);
+      else {
+        const t = document.createElement("textarea");
+        t.value = v;
+        t.style.position = "fixed";
+        t.style.opacity = "0";
+        document.body.appendChild(t);
+        t.select();
+        document.execCommand("copy");
+        document.body.removeChild(t);
+      }
+      shared.showInlineMessage(el.feedback, "success", success || "Copiado com sucesso.");
+    } catch {
+      shared.showInlineMessage(el.feedback, "error", "Nao foi possivel copiar para a area de transferencia.");
+    }
+  }
+
+  function shareSummary(item) {
+    return [
+      `Unidade: ${item?.titulo || "Imovel"}`,
+      `Empreendimento: ${item?.detalhes_comerciais?.empreendimento || "-"}`,
+      `Tipo: ${item?.tipo_imovel || "-"}`,
+      `Valor: ${shared.formatCurrency(item?.valor)}`,
+      `Status: ${item?.status || "-"}`,
+      `Localizacao: ${address(item) || local(item)}`,
+      `Quartos: ${num(item?.quartos) ?? "-"}`,
+      `Banheiros: ${num(item?.banheiros) ?? "-"}`,
+      `Vagas: ${num(item?.vagas_garagem) ?? "-"}`,
+      `Area: ${area(item?.area_m2)}`,
+    ].join("\n");
+  }
+
+  async function share(item) {
+    const resumo = shareSummary(item);
+    const url = `${window.location.origin}${shared.buildPortalPath(`/comercial/imoveis/cadastro?id=${encodeURIComponent(item.id)}`)}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: item.titulo || "Imovel", text: resumo, url });
+        shared.showInlineMessage(el.feedback, "success", "Resumo compartilhado com sucesso.");
+        return;
+      } catch {}
+    }
+    await copyText(`${resumo}\n\nLink interno: ${url}`, "Resumo comercial copiado para compartilhamento.");
+  }
+
+  function sendToSimulator(item) {
+    try {
+      window.sessionStorage.setItem(
+        SIMULADOR_STORAGE_KEY,
+        JSON.stringify({
+          id: item.id,
+          titulo: item.titulo,
+          tipologia: item.tipo_imovel,
+          cidade: item.cidade,
+          bairro: item.bairro,
+          valor: item.valor,
+          status: item.status,
+          foto_principal: pth(item.foto_principal),
+        })
+      );
+    } catch {}
+    window.location.href = shared.buildPortalPath(PATH_SIMULADOR);
+  }
+
+  function payloadStatus(item, status) {
+    return {
+      titulo: item.titulo || "Imovel sem titulo",
+      descricao: item.descricao || null,
+      tipo_imovel: item.tipo_imovel || null,
+      endereco: item.endereco || null,
+      cidade: item.cidade || "",
+      bairro: item.bairro || "",
+      estado: item.estado || null,
+      cep: item.cep || null,
+      valor: item.valor ?? null,
+      quartos: item.quartos ?? null,
+      banheiros: item.banheiros ?? null,
+      vagas_garagem: item.vagas_garagem ?? null,
+      area_m2: item.area_m2 ?? null,
+      status,
+    };
+  }
+
+  async function updateStatus(id, status) {
+    if (!permissions.canEdit) return shared.showInlineMessage(el.feedback, "warning", "Seu perfil nao possui permissao para alterar status.");
+    const item = await detalhe(id, true);
+    if (!item) return shared.showInlineMessage(el.feedback, "error", "Nao foi possivel carregar o imovel.");
+    const resp = await shared.apiRequest(shared.buildEndpoint(ENDPOINT_ATUALIZAR, { id }), { method: "PUT", body: payloadStatus(item, status) });
+    if (resp?.item) state.details.set(String(id), resp.item);
+    shared.showInlineMessage(el.feedback, "success", `Status atualizado para ${status}.`);
+    await carregarImoveis();
+    if (state.showroomItem && String(state.showroomItem.id) === String(id)) {
+      const atualizado = await detalhe(id, true);
+      if (atualizado) renderShowroom(atualizado);
+    }
+  }
+
+  async function removeItem(id) {
+    if (!permissions.canDelete) return;
+    if (!window.confirm("Deseja realmente excluir este imovel? Esta acao remove tambem as midias associadas.")) return;
+    await shared.apiRequest(shared.buildEndpoint(ENDPOINT_REMOVER, { id }), { method: "DELETE" });
+    state.details.delete(String(id));
+    state.comparacao.delete(String(id));
+    state.favoritos.delete(String(id));
+    saveFavoritos();
+    renderCompareDock();
+    shared.showInlineMessage(el.feedback, "success", "Imovel excluido com sucesso.");
+    await carregarImoveis();
+    toggleModal(el.showroomSection, false);
+  }
+
+  function openEditor(id) {
+    if (!canOpenEditor()) return shared.showInlineMessage(el.feedback, "warning", "Seu perfil permite somente visualizacao.");
+    window.location.href = shared.buildPortalPath(`${PATH_CADASTRO}?id=${encodeURIComponent(id)}`);
+  }
+
+  function toggleCompare(id) {
+    const key = String(id || "");
+    if (!key) return;
+    const sizeBefore = state.comparacao.size;
+    if (state.comparacao.has(key)) {
+      state.comparacao.delete(key);
+      shared.showInlineMessage(el.feedback, "info", "Imovel removido da comparacao.");
+    } else {
+      if (state.comparacao.size >= LIMITE_COMPARACAO) return shared.showInlineMessage(el.feedback, "warning", `Voce pode comparar no maximo ${LIMITE_COMPARACAO} imoveis.`);
+      state.comparacao.add(key);
+      if (state.comparacao.size >= 2 && sizeBefore < 2) {
+        shared.showInlineMessage(el.feedback, "success", "Comparacao pronta. Abrindo painel comparativo.");
+        void openComparacao();
+      } else if (state.comparacao.size < 2) {
+        shared.showInlineMessage(el.feedback, "info", "Selecione mais 1 imovel para comparar.");
+      }
+    }
+    renderCompareDock();
+  }
+
+  function toggleFavorito(id) {
+    const key = String(id || "");
+    if (!key) return;
+    if (state.favoritos.has(key)) {
+      state.favoritos.delete(key);
+      shared.showInlineMessage(el.feedback, "info", "Imovel removido dos favoritos.");
+    } else {
+      state.favoritos.add(key);
+      shared.showInlineMessage(el.feedback, "success", "Imovel marcado como favorito.");
+    }
+    saveFavoritos();
+  }
+
+  async function openComparacao() {
+    if (state.comparacao.size < 2) return shared.showInlineMessage(el.feedback, "warning", "Selecione ao menos 2 imoveis para comparar.");
+    toggleModal(el.comparacaoSection, true);
+    if (!el.comparacaoContent) return;
+    el.comparacaoContent.innerHTML = `<article class="tl-imoveis-empty"><strong>Montando comparacao...</strong><p>Estamos carregando os detalhes das unidades.</p></article>`;
+    const ids = Array.from(state.comparacao);
+    const list = await Promise.all(ids.map(async (id) => {
+      try {
+        return await detalhe(id, false);
+      } catch {
+        return state.byId.get(id) || null;
+      }
+    }));
+    const items = list.filter(Boolean);
+    if (!items.length) {
+      el.comparacaoContent.innerHTML = `<article class="tl-imoveis-empty"><strong>Nao foi possivel montar a comparacao</strong><p>Tente novamente em instantes.</p></article>`;
+      return;
+    }
+    const min = items.map((i) => num(i.valor)).filter((x) => x !== null).sort((a, b) => a - b)[0] ?? null;
+    const maxA = items.map((i) => num(i.area_m2)).filter((x) => x !== null).sort((a, b) => b - a)[0] ?? null;
+    el.comparacaoContent.innerHTML = `<div class="tl-imoveis-compare-grid">${items.map((i) => {
+      const f = pth(i.foto_principal);
+      const badge = num(i.valor) !== null && min !== null && num(i.valor) === min ? "Menor valor" : (num(i.area_m2) !== null && maxA !== null && num(i.area_m2) === maxA ? "Maior area" : "Comparacao");
+      const dif = Array.isArray(i.diferenciais_comerciais) ? i.diferenciais_comerciais.slice(0, 3) : [];
+      return `<article class="tl-imoveis-compare-card"><div class="tl-imoveis-compare-card__media">${f ? `<img src="${esc(f)}" alt="${esc(i.titulo || "Imovel")}" loading="lazy" />` : `<div class="tl-imoveis-showcase-card__hero tl-imoveis-showcase-card__hero--empty"><span>Sem foto</span></div>`}<span class="tl-imoveis-commercial-badge">${esc(badge)}</span></div><div class="tl-imoveis-compare-card__body"><h3>${esc(i.titulo || "Imovel")}</h3><p>${esc(local(i))}</p><strong>${shared.formatCurrency(i.valor)}</strong><span class="tl-imoveis-badge tl-imoveis-badge--status tl-imoveis-badge--${esc(sKey(i.status))}">${esc(sLabel(i.status))}</span><ul><li><b>Tipo:</b> ${esc(i.tipo_imovel || "-")}</li><li><b>Quartos:</b> ${esc(String(num(i.quartos) ?? "-"))}</li><li><b>Banheiros:</b> ${esc(String(num(i.banheiros) ?? "-"))}</li><li><b>Vagas:</b> ${esc(String(num(i.vagas_garagem) ?? "-"))}</li><li><b>Area:</b> ${esc(area(i.area_m2))}</li></ul>${dif.length ? `<div class="tl-imoveis-compare-card__tags">${dif.map((d) => `<span class="tl-imoveis-chip">${esc(d)}</span>`).join("")}</div>` : ""}<div class="tl-imoveis-compare-card__actions"><button class="tl-imoveis-btn" type="button" data-action="open-showroom" data-id="${esc(i.id)}">Abrir showroom</button></div></div></article>`;
+    }).join("")}</div>`;
+  }
+
+  function listAction(action, id) {
+    if (!id) return;
+    if (action === "ver-imovel") return void openShowroom(id);
+    if (action === "editar") return openEditor(id);
+    if (action === "excluir") return void removeItem(id).catch((e) => shared.showInlineMessage(el.feedback, "error", e.message || "Nao foi possivel excluir o imovel."));
+    if (action === "favoritar") {
+      toggleFavorito(id);
+      return void rerenderCurrentList();
+    }
+    if (action === "comparar") {
+      toggleCompare(id);
+      return void rerenderCurrentList();
+    }
+  }
+
+  function showroomAction(action, data) {
+    const item = state.showroomItem;
+    if (!item) return;
+    if (action === "show-prev") {
+      state.showroomIndex = (state.showroomIndex - 1 + state.showroomMidias.length) % state.showroomMidias.length;
+      return renderCarousel();
+    }
+    if (action === "show-next") {
+      state.showroomIndex = (state.showroomIndex + 1) % state.showroomMidias.length;
+      return renderCarousel();
+    }
+    if (action === "show-go") {
+      const idx = Number(data.index);
+      if (Number.isFinite(idx)) {
+        state.showroomIndex = Math.max(0, Math.min(idx, state.showroomMidias.length - 1));
+        renderCarousel();
+      }
+      return;
+    }
+    if (action === "show-zoom") return openLightbox(state.showroomMidias, state.showroomIndex);
+    if (action === "show-map") {
+      return void openMapModal(item);
+    }
+    if (action === "show-copy") return void copyText(address(item), "Endereco copiado com sucesso.");
+    if (action === "show-share") return void share(item);
+    if (action === "show-simular") return sendToSimulator(item);
+    if (action === "show-reservar") return void updateStatus(item.id, "Reservado").catch((e) => shared.showInlineMessage(el.feedback, "error", e.message || "Nao foi possivel atualizar para reservado."));
+    if (action === "show-vender") return void updateStatus(item.id, "Vendido").catch((e) => shared.showInlineMessage(el.feedback, "error", e.message || "Nao foi possivel atualizar para vendido."));
+    if (action === "show-editar") return openEditor(item.id);
+    if (action === "show-excluir") return void removeItem(item.id).catch((e) => shared.showInlineMessage(el.feedback, "error", e.message || "Nao foi possivel excluir o imovel."));
+    if (action === "show-close") return toggleModal(el.showroomSection, false);
+  }
+
+  function bindEvents() {
+    el.btnViewComercial?.addEventListener("click", () => {
+      setViewMode("comercial");
+      void carregarImoveis();
+    });
+    el.btnViewTecnica?.addEventListener("click", () => {
+      setViewMode("tecnica");
+      void carregarImoveis();
+    });
+
+    el.btnBuscar?.addEventListener("click", () => {
+      state.pagina = 1;
+      void carregarImoveis();
+    });
+    el.btnLimpar?.addEventListener("click", () => {
+      if (el.inputBusca) el.inputBusca.value = "";
+      if (el.inputCidade) el.inputCidade.value = "";
+      if (el.inputBairro) el.inputBairro.value = "";
+      if (el.inputStatus) el.inputStatus.value = "";
+      state.pagina = 1;
+      void carregarImoveis();
+    });
+    el.btnAnterior?.addEventListener("click", () => {
+      if (state.paginacao?.tem_anterior) {
+        state.pagina = Math.max(1, Number(state.paginacao.pagina || 1) - 1);
+        void carregarImoveis();
+      }
+    });
+    el.btnProxima?.addEventListener("click", () => {
+      if (state.paginacao?.tem_proxima) {
+        state.pagina = Number(state.paginacao.pagina || 1) + 1;
+        void carregarImoveis();
+      }
+    });
+
+    el.btnImportacao?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!permissions.canCreate) return;
+      toggleModal(el.importSection, true);
+      window.requestAnimationFrame(() => el.importArquivo?.focus());
+    });
+    el.btnFecharImportacao?.addEventListener("click", () => toggleModal(el.importSection, false));
+    el.importSection?.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      if (t === el.importSection || t.closest("[data-modal-close='importacao']")) toggleModal(el.importSection, false);
+    });
+    el.importForm?.addEventListener("submit", importarPlanilha);
+
+    el.lista?.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const a = t.closest("[data-action]");
+      if (a) {
+        listAction(a.getAttribute("data-action") || "", a.getAttribute("data-id") || a.closest("[data-id]")?.getAttribute("data-id") || "");
+        return;
+      }
+      const card = t.closest(".tl-imoveis-showcase-card");
+      if (!card || state.viewMode === "tecnica") return;
+      if (t.closest("button,a,input,select,textarea")) return;
+      const id = card.getAttribute("data-id");
+      if (id) void openShowroom(id);
+    });
+
+    el.lista?.addEventListener("keydown", (e) => {
+      if (state.viewMode === "tecnica") return;
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const card = t.closest(".tl-imoveis-showcase-card");
+      if (!card) return;
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      const id = card.getAttribute("data-id");
+      if (id) void openShowroom(id);
+    });
+
+    el.lista?.addEventListener("toggle", (e) => {
+      const d = e.target;
+      if (!(d instanceof HTMLElement) || d.tagName !== "DETAILS") return;
+      if (d.classList.contains("tl-imoveis-local") && d.open) {
+        el.lista.querySelectorAll("details.tl-imoveis-local").forEach((x) => {
+          if (x !== d) x.open = false;
+        });
+      }
+      if (d.classList.contains("tl-imoveis-bloco") && d.open) {
+        d.closest(".tl-imoveis-local")?.querySelectorAll("details.tl-imoveis-bloco").forEach((x) => {
+          if (x !== d) x.open = false;
+        });
+      }
+    });
+
+    el.btnFecharShowroom?.addEventListener("click", () => toggleModal(el.showroomSection, false));
+    el.showroomSection?.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      if (t.closest("[data-modal-close='showroom']")) toggleModal(el.showroomSection, false);
+    });
+    el.showroomContent?.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const a = t.closest("[data-action]");
+      if (!a) return;
+      showroomAction(a.getAttribute("data-action") || "", a.dataset || {});
+    });
+    el.showroomContent?.addEventListener("touchstart", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      if (!t.closest("[data-showroom-stage='1']")) return;
+      state.touchX = e.changedTouches?.[0]?.clientX ?? null;
+    }, { passive: true });
+    el.showroomContent?.addEventListener("touchend", (e) => {
+      if (state.touchX === null) return;
+      const x = e.changedTouches?.[0]?.clientX ?? null;
+      const d = Number(x) - Number(state.touchX);
+      if (Math.abs(d) > 42 && state.showroomMidias.length > 1) {
+        state.showroomIndex = (state.showroomIndex + (d > 0 ? -1 : 1) + state.showroomMidias.length) % state.showroomMidias.length;
+        renderCarousel();
+      }
+      state.touchX = null;
+    }, { passive: true });
+
+    el.btnMapaCopiar?.addEventListener("click", () => void copyText(state.mapaAtual?.endereco || "", "Endereco copiado com sucesso."));
+    el.btnMapaFechar?.addEventListener("click", () => toggleModal(el.mapaSection, false));
+    el.btnFecharMapa?.addEventListener("click", () => toggleModal(el.mapaSection, false));
+    el.mapaSection?.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      if (t.closest("[data-modal-close='mapa']")) toggleModal(el.mapaSection, false);
+    });
+
+    el.btnAbrirComparacao?.addEventListener("click", () => void openComparacao());
+    el.btnLimparComparacao?.addEventListener("click", () => {
+      state.comparacao.clear();
+      renderCompareDock();
+      void carregarImoveis();
+    });
+    el.compareDock?.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const a = t.closest("[data-action='remove-compare']");
+      if (!a) return;
+      const id = a.getAttribute("data-id");
+      if (!id) return;
+      state.comparacao.delete(String(id));
+      renderCompareDock();
+      void carregarImoveis();
+    });
+    el.btnFecharComparacao?.addEventListener("click", () => toggleModal(el.comparacaoSection, false));
+    el.comparacaoSection?.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      if (t.closest("[data-modal-close='comparacao']")) return toggleModal(el.comparacaoSection, false);
+      const a = t.closest("[data-action='open-showroom']");
+      if (!a) return;
+      const id = a.getAttribute("data-id");
+      if (!id) return;
+      toggleModal(el.comparacaoSection, false);
+      void openShowroom(id);
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        if (el.mapaSection && !el.mapaSection.hidden) return toggleModal(el.mapaSection, false);
+        if (el.comparacaoSection && !el.comparacaoSection.hidden) return toggleModal(el.comparacaoSection, false);
+        if (el.showroomSection && !el.showroomSection.hidden) return toggleModal(el.showroomSection, false);
+        if (el.importSection && !el.importSection.hidden) return toggleModal(el.importSection, false);
+      }
+      if (el.showroomSection && !el.showroomSection.hidden) {
+        if (e.key === "ArrowLeft" && state.showroomMidias.length > 1) {
+          state.showroomIndex = (state.showroomIndex - 1 + state.showroomMidias.length) % state.showroomMidias.length;
+          renderCarousel();
+        }
+        if (e.key === "ArrowRight" && state.showroomMidias.length > 1) {
+          state.showroomIndex = (state.showroomIndex + 1) % state.showroomMidias.length;
+          renderCarousel();
+        }
+      }
+    });
+  }
+
+  async function init() {
+    try {
+      shared.initChrome?.();
+      state.user = await shared.ensureUser(true);
+      shared.fillUserbox?.(state.user);
+      syncPermissions();
+      loadFavoritos();
+      loadViewMode();
+      setViewMode(state.viewMode);
+      bindEvents();
+      await carregarImoveis();
+    } catch (error) {
+      shared.showInlineMessage(el.feedback, "error", error.message || "Nao foi possivel carregar a pagina de imoveis.");
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();

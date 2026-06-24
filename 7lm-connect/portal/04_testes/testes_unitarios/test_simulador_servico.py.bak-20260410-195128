@@ -1,0 +1,280 @@
+import sys
+import unittest
+from decimal import Decimal
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+API_DIR = ROOT / "01_codigo_fonte" / "api_7lm_connect"
+if str(API_DIR) not in sys.path:
+    sys.path.insert(0, str(API_DIR))
+
+from servicos.simulador import (  # noqa: E402
+    calcular_simulacao_comercial,
+    sugerir_imoveis_inteligentes,
+    validar_operacao_final,
+)
+
+
+class TesteSimuladorServico(unittest.TestCase):
+    def setUp(self):
+        self.cliente_base = {
+            "identificador_cliente": "11111111-1111-1111-1111-111111111111",
+            "nome_completo": "Cliente Teste",
+            "cpf": "111.111.111-11",
+            "cidade": "Campinas",
+            "email": "cliente@teste.com",
+            "telefone": "(19) 99999-9999",
+            "renda_principal": Decimal("5000"),
+            "renda_conjuge": Decimal("0"),
+            "outras_rendas": Decimal("0"),
+            "renda_total": Decimal("5000"),
+        }
+        self.complementos_base = [
+            {
+                "identificador_complemento": "22222222-2222-2222-2222-222222222222",
+                "identificador_cliente": "11111111-1111-1111-1111-111111111111",
+                "nome": "Complemento Ativo",
+                "cpf": "22222222222",
+                "parentesco": "Conjuge",
+                "renda": Decimal("2000"),
+                "incluir_na_analise": True,
+            },
+            {
+                "identificador_complemento": "33333333-3333-3333-3333-333333333333",
+                "identificador_cliente": "11111111-1111-1111-1111-111111111111",
+                "nome": "Complemento Inativo",
+                "cpf": "33333333333",
+                "parentesco": "Irmao",
+                "renda": Decimal("3000"),
+                "incluir_na_analise": False,
+            },
+        ]
+        self.imovel_base = {
+            "identificador_imovel": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "titulo": "Unidade 101",
+            "tipo_imovel": "Apartamento",
+            "cidade": "Campinas",
+            "bairro": "Centro",
+            "valor": Decimal("300000"),
+            "status": "Disponivel",
+        }
+
+    def _payload_base(self):
+        return {
+            "entrada": Decimal("30000"),
+            "financiamento_caixa": Decimal("240000"),
+            "fgts": Decimal("0"),
+            "subsidio": Decimal("0"),
+            "cheque_moradia": Decimal("0"),
+            "sobrepreco": Decimal("0"),
+            "meses_pre_entrega": 36,
+            "meses_pos_entrega": 24,
+            "parcela_intermediaria_valor": Decimal("0"),
+            "parcelas_intermediarias_quantidade": 0,
+            "parcela_anual_valor": Decimal("0"),
+            "parcelas_anuais_quantidade": 0,
+            "parcela_semestral_valor": Decimal("0"),
+            "parcelas_semestrais_quantidade": 0,
+            "parcela_reforco_valor": Decimal("0"),
+            "parcelas_reforco_quantidade": 0,
+        }
+
+    def test_calculo_ideal_com_fechamento_noventa(self):
+        resultado = calcular_simulacao_comercial(
+            self.cliente_base,
+            self.complementos_base,
+            self.imovel_base,
+            self._payload_base(),
+        )
+        resumo = resultado["resumo_operacao"]
+        cliente = resultado["cliente"]
+
+        self.assertEqual(cliente["renda_total"], Decimal("7000.00"))
+        self.assertEqual(resumo["classificacao_fechamento_inicial"], "ideal")
+        self.assertEqual(resumo["valor_fechamento_inicial"], Decimal("270000.00"))
+        self.assertGreaterEqual(resumo["percentual_fechamento_inicial"], Decimal("0.90"))
+        self.assertEqual(resumo["valor_projetado_entrega"], Decimal("300000.00"))
+        self.assertGreaterEqual(resumo["percentual_projetado_entrega"], Decimal("0.98"))
+        self.assertIn(resumo["status_simulacao"], ("ideal", "atencao"))
+
+    def test_trava_quarenta_cinco_invalida(self):
+        payload = self._payload_base()
+        payload["entrada"] = Decimal("15000")
+        payload["financiamento_caixa"] = Decimal("150000")
+        payload["meses_pre_entrega"] = 1
+        payload["meses_pos_entrega"] = 0
+
+        resultado = calcular_simulacao_comercial(
+            self.cliente_base,
+            [],
+            self.imovel_base,
+            payload,
+        )
+        resumo = resultado["resumo_operacao"]
+        texto_bloqueios = " ".join(resumo["bloqueios"]).lower()
+
+        self.assertEqual(resumo["status_simulacao"], "invalida")
+        self.assertGreater(resumo["percentual_comprometimento"], Decimal("0.45"))
+        self.assertIn("45%", texto_bloqueios)
+
+    def test_fechamento_aceitavel_perto_85(self):
+        payload = self._payload_base()
+        payload["entrada"] = Decimal("15000")
+        payload["financiamento_caixa"] = Decimal("240000")
+
+        resultado = calcular_simulacao_comercial(self.cliente_base, self.complementos_base, self.imovel_base, payload)
+        resumo = resultado["resumo_operacao"]
+
+        self.assertEqual(resumo["percentual_fechamento_inicial"], Decimal("0.8500"))
+        self.assertEqual(resumo["classificacao_fechamento_inicial"], "atencao")
+
+    def test_fechamento_invalido_abaixo_85(self):
+        payload = self._payload_base()
+        payload["entrada"] = Decimal("12000")
+        payload["financiamento_caixa"] = Decimal("228000")
+
+        resultado = calcular_simulacao_comercial(self.cliente_base, self.complementos_base, self.imovel_base, payload)
+        resumo = resultado["resumo_operacao"]
+
+        self.assertLess(resumo["percentual_fechamento_inicial"], Decimal("0.85"))
+        self.assertEqual(resumo["classificacao_fechamento_inicial"], "atencao")
+        self.assertEqual(resumo["status_simulacao"], "invalida")
+
+    def test_projecao_entrega_em_atencao(self):
+        cliente = dict(self.cliente_base)
+        cliente["renda_principal"] = Decimal("6000")
+        cliente["renda_total"] = Decimal("6000")
+
+        payload = self._payload_base()
+        payload["entrada"] = Decimal("15000")
+        payload["financiamento_caixa"] = Decimal("240000")
+        payload["meses_pre_entrega"] = 12
+        payload["meses_pos_entrega"] = 24
+
+        resultado = calcular_simulacao_comercial(cliente, [], self.imovel_base, payload)
+        resumo = resultado["resumo_operacao"]
+
+        self.assertGreaterEqual(resumo["percentual_projetado_entrega"], Decimal("0.90"))
+        self.assertLess(resumo["percentual_projetado_entrega"], Decimal("0.98"))
+        self.assertEqual(resumo["classificacao_projecao_entrega"], "atencao")
+
+    def test_complemento_inativo_nao_entra_na_renda(self):
+        resultado = calcular_simulacao_comercial(
+            self.cliente_base,
+            self.complementos_base,
+            self.imovel_base,
+            self._payload_base(),
+        )
+        cliente = resultado["cliente"]
+
+        self.assertEqual(cliente["renda_principal"], Decimal("5000.00"))
+        self.assertEqual(cliente["renda_complementar"], Decimal("2000.00"))
+        self.assertEqual(cliente["renda_total"], Decimal("7000.00"))
+
+    def test_valor_imovel_e_automatico_da_base(self):
+        payload = self._payload_base()
+        payload["valor_imovel"] = Decimal("999999.00")
+
+        resultado = calcular_simulacao_comercial(
+            self.cliente_base,
+            self.complementos_base,
+            self.imovel_base,
+            payload,
+        )
+        resumo = resultado["resumo_operacao"]
+
+        self.assertEqual(resumo["valor_imovel"], Decimal("300000.00"))
+
+    def test_pro_soluto_fecha_composicao(self):
+        resultado = calcular_simulacao_comercial(
+            self.cliente_base,
+            self.complementos_base,
+            self.imovel_base,
+            self._payload_base(),
+        )
+        resumo = resultado["resumo_operacao"]
+
+        composicao = (
+            resumo["financiamento_caixa"]
+            + resumo["fgts"]
+            + resumo["subsidio"]
+            + resumo["cheque_moradia"]
+            + resumo["entrada"]
+            + resumo["pro_soluto_total"]
+        )
+        self.assertEqual(composicao, resumo["valor_total_operacao"])
+
+    def test_cheque_moradia_conta_so_na_entrega(self):
+        payload = self._payload_base()
+        payload["cheque_moradia"] = Decimal("5000")
+
+        resultado = calcular_simulacao_comercial(
+            self.cliente_base,
+            self.complementos_base,
+            self.imovel_base,
+            payload,
+        )
+        resumo = resultado["resumo_operacao"]
+
+        self.assertEqual(resumo["cheque_moradia"], Decimal("5000.00"))
+        self.assertEqual(resumo["valor_fechamento_inicial"], Decimal("270000.00"))
+        self.assertEqual(resumo["percentual_fechamento_inicial"], Decimal("0.9000"))
+        self.assertEqual(resumo["valor_projetado_entrega"], Decimal("300000.00"))
+        self.assertEqual(resumo["pro_soluto_total"], Decimal("25000.00"))
+
+    def test_demonstrativo_tem_fase_pre_e_pos(self):
+        payload = self._payload_base()
+        payload["entrada"] = Decimal("15000")
+        payload["financiamento_caixa"] = Decimal("240000")
+        payload["meses_pre_entrega"] = 12
+        payload["meses_pos_entrega"] = 24
+
+        resultado = calcular_simulacao_comercial(
+            self.cliente_base,
+            self.complementos_base,
+            self.imovel_base,
+            payload,
+        )
+        fases = {item["fase"] for item in resultado["demonstrativo"]}
+
+        self.assertIn("pre_entrega", fases)
+        self.assertIn("pos_entrega", fases)
+
+    def test_ranking_prioriza_melhor_match(self):
+        imovel_alternativo = dict(self.imovel_base)
+        imovel_alternativo["identificador_imovel"] = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+        imovel_alternativo["titulo"] = "Unidade 202"
+        imovel_alternativo["valor"] = Decimal("420000")
+
+        sugestao = sugerir_imoveis_inteligentes(
+            self.cliente_base,
+            self.complementos_base,
+            [self.imovel_base, imovel_alternativo],
+            self._payload_base(),
+            limite=5,
+        )
+
+        self.assertIsNotNone(sugestao["melhor_match"])
+        self.assertEqual(
+            sugestao["melhor_match"]["imovel"]["id"],
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        )
+        self.assertGreaterEqual(sugestao["melhor_match"]["score"], Decimal("0"))
+
+    def test_validacao_final_bloqueia_venda_ruim(self):
+        valido, erros = validar_operacao_final(
+            {
+                "status_simulacao": "invalida",
+                "percentual_comprometimento": Decimal("0.62"),
+                "percentual_fechamento_inicial": Decimal("0.70"),
+                "percentual_projetado_entrega": Decimal("0.80"),
+            },
+            "vender",
+        )
+        self.assertFalse(valido)
+        self.assertGreaterEqual(len(erros), 3)
+
+
+if __name__ == "__main__":
+    unittest.main()

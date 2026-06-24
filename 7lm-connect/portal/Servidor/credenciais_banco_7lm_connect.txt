@@ -1,0 +1,25 @@
+7LM - Credenciais do Banco
+Atualizado em: 2026-03-31 22:31:00 America/Sao_Paulo
+
+Host/IP: 134.209.173.115
+Porta: 5432
+Banco: db_7lm_connect
+Usuario: usr_7lm_connect
+Senha: O1pFxDjcbNeyiAx7F7FZ5J@Ni+i!
+Schema: sevenlm_connect
+
+Status atual da configuracao:
+- PostgreSQL instalado e ativo no servidor 134.209.173.115.
+- Banco db_7lm_connect criado e acessivel.
+- Schema sevenlm_connect aplicado.
+- Registros iniciais do portal criados.
+- Subdominio planejado para o banco: db.7lm.app.br
+- IP liberado no pg_hba.conf para acesso direto: 177.1.105.201/32
+- Acesso temporariamente aberto para testes no pg_hba.conf:
+- IPv4: 0.0.0.0/0
+- IPv6: ::/0
+
+Observacao:
+- O portal web esta apontando para esse banco.
+- O certificado TLS automatico do banco depende da propagacao do DNS de db.7lm.app.br.
+- Mesmo com acesso aberto por IP, ainda continua exigindo usuario e senha.

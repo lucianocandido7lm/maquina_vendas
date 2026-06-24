@@ -1,0 +1,7715 @@
+﻿"""
+Autor: Willian Elias Franca
+Projeto: 7LM Connect - Administracao do Sistema
+Observação: tudo vindo do banco, sem mock.
+"""
+
+from __future__ import annotations
+
+from base64 import b64decode
+from binascii import Error as BinasciiError
+from datetime import date, datetime, timezone
+from typing import Optional, Any
+from uuid import UUID
+import json
+import math
+import re
+import time
+import unicodedata
+
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
+
+from configuracoes import ESQUEMA_COMERCIAL, SENHA_PADRAO_USUARIO
+from repositorios.usuarios import buscar_usuario_por_chave, listar_usuarios
+from servicos.usuarios import (
+    atualizar_usuario_manual as atualizar_usuario_manual_servico,
+    criar_usuario_manual as criar_usuario_manual_servico,
+)
+from servicos.funcionarios_acesso import (
+    atualizar_status_diario,
+    gerar_quadro_diario,
+    importar_funcionarios_planilha,
+    listar_equipes_vigencia,
+    listar_funcionarios,
+    listar_quadro_diario,
+    obter_funcionario,
+    resolver_perfil_acesso_padrao,
+    salvar_equipe_vigencia,
+    salvar_funcionario,
+    validar_funcionario_cadastro,
+)
+from utilitarios.autorizacao import obter_acessos_portal_usuario as obter_acessos_portal_usuario_compartilhado
+from utilitarios.identificacao_do_cliente import (
+    obter_agente_do_usuario,
+    obter_endereco_ip,
+)
+from utilitarios.seguranca import gerar_hash_senha, ler_token_de_acesso, validar_senha
+
+rotas_de_administracao = APIRouter()
+
+_CACHE_USUARIO_AUTENTICADO_TTL_SEGUNDOS = 30
+_CACHE_CONTEXTO_ADMIN_TTL_SEGUNDOS = 300
+_CACHE_USUARIO_AUTENTICADO: dict[str, tuple[float, dict[str, Any]]] = {}
+_CACHE_CONTEXTO_ADMIN: dict[str, tuple[float, dict[str, Any]]] = {}
+_INICIO_REGRA_FOCO_PRODUTIVIDADE_GC = date(2026, 6, 1)
+_ADMIN_PERMISSOES_VISUALIZACAO = (
+    "administracao.view",
+    "rh.admin.acessos.view",
+    "ACESSO_TOTAL",
+    "GERENCIAR_ACESSO",
+)
+_ADMIN_PERMISSOES_GERENCIAMENTO = (
+    "administracao.manage",
+    "rh.admin.acessos.manage",
+    "ACESSO_TOTAL",
+    "GERENCIAR_ACESSO",
+)
+_FUNCIONARIOS_PERMISSOES_VISUALIZACAO = (
+    "funcionarios.acesso.view",
+    "funcionarios.acesso.manage",
+    "funcionarios.validacao.view",
+    "funcionarios.validacao.manage",
+    "ACESSO_TOTAL",
+    "GERENCIAR_ACESSO",
+)
+_FUNCIONARIOS_PERMISSOES_GERENCIAMENTO = (
+    "funcionarios.acesso.manage",
+    "ACESSO_TOTAL",
+    "GERENCIAR_ACESSO",
+)
+_FUNCIONARIOS_PERMISSOES_VALIDACAO = (
+    "funcionarios.validacao.manage",
+    "ACESSO_TOTAL",
+    "GERENCIAR_ACESSO",
+)
+_ADMIN_FUNCIONARIOS_PERMISSOES_VISUALIZACAO = tuple(
+    dict.fromkeys(_ADMIN_PERMISSOES_VISUALIZACAO + _FUNCIONARIOS_PERMISSOES_VISUALIZACAO)
+)
+_ADMIN_FUNCIONARIOS_PERMISSOES_GERENCIAMENTO = tuple(
+    dict.fromkeys(_ADMIN_PERMISSOES_GERENCIAMENTO + _FUNCIONARIOS_PERMISSOES_GERENCIAMENTO)
+)
+_VAGA_STATUS_PENDENTES_APROVACAO_DASHBOARD_GC = {
+    "PENDENTE_APROVACAO_REGIONAL",
+    "PENDENTE_APROVACAO",
+}
+_VAGA_STATUS_EM_FILA_DASHBOARD_GC = {
+    "PENDENTE_APROVACAO_REGIONAL",
+    "PENDENTE_APROVACAO",
+    "EM_ANDAMENTO",
+    "TRIAGEM",
+    "ENTREVISTAS",
+    "PROPOSTA",
+}
+_GERENTE_REGIONAL_PADRAO_DASHBOARD_GC = "Marco Taveira"
+_CHAVE_CONFIG_REMUNERACAO_SOBREPRECO = "simulador.remuneracao_sobrepreco_corretor"
+_REGRA_REMUNERACAO_SOBREPRECO_PADRAO = {
+    "suggestions": [5000, 10000, 15000],
+    "tiers": [
+        {"operation": 1, "rate": 0.05, "cap": 500, "label": "1ª Reserva Ou Venda"},
+        {"operation": 2, "rate": 0.10, "cap": 1000, "label": "2ª Reserva Ou Venda"},
+        {"operation": 3, "rate": 0.10, "cap": None, "label": "3ª Reserva/Venda Em Diante"},
+    ],
+    "operationCountOverride": "",
+}
+
+
+# =========================================================
+# MODELOS
+# =========================================================
+
+class CorpoCriarUsuarioManual(BaseModel):
+    nome_completo: str = Field(..., min_length=3)
+    correio_eletronico: str = Field(..., min_length=3, max_length=255)
+    senha: str = Field(..., min_length=6)
+    matricula: Optional[str] = None
+    codigo_setor: Optional[str] = None
+    indicador_ativo: bool = True
+    indicador_precisa_trocar_senha: bool = False
+
+
+class CorpoAtualizarUsuarioManual(BaseModel):
+    nome_completo: str = Field(..., min_length=3)
+    correio_eletronico: str = Field(..., min_length=3, max_length=255)
+    matricula: Optional[str] = None
+    codigo_setor: Optional[str] = None
+    indicador_ativo: bool = True
+
+
+class CorpoAtribuirPerfilUsuario(BaseModel):
+    identificador_perfil: int
+    observacao: Optional[str] = None
+
+
+class CorpoAtribuirPermissaoUsuario(BaseModel):
+    identificador_permissao: int
+    indicador_permitido: bool
+    origem_regra: str = "MANUAL"
+    observacao: Optional[str] = None
+
+
+class CorpoAtribuirPerfilSetor(BaseModel):
+    identificador_perfil: int
+    observacao: Optional[str] = None
+
+
+class CorpoAtualizarPermissoesPerfil(BaseModel):
+    permissoes: list[int] = Field(default_factory=list)
+    observacao: Optional[str] = None
+
+
+class CorpoForcarTrocaSenha(BaseModel):
+    indicador_precisa_trocar_senha: bool = True
+
+
+class CorpoResetarSenha(BaseModel):
+    nova_senha: str = Field(..., min_length=6)
+    forcar_troca_na_proxima_entrada: bool = True
+
+
+class CorpoPerfilPrincipalUsuario(BaseModel):
+    identificador_perfil: Optional[int] = None
+    limpar_regras_diretas: bool = True
+    indicador_ativo: Optional[bool] = None
+    forcar_troca_na_proxima_entrada: bool = False
+
+
+class CorpoFuncionarioAcesso(BaseModel):
+    tipo_funcionario: str = Field("FUNCIONARIO", min_length=2, max_length=20)
+    tipo_vinculo: Optional[str] = None
+    documento: Optional[str] = None
+    cnpj: Optional[str] = None
+    nome_empresa: Optional[str] = None
+    matricula: Optional[str] = None
+    email: Optional[str] = None
+    nome: str = Field(..., min_length=2)
+    telefone: Optional[str] = None
+    cargo: Optional[str] = None
+    imobiliaria: Optional[str] = None
+    identificador_equipe_vigencia: Optional[str] = None
+    gestor_documento: Optional[str] = None
+    gestor_email: Optional[str] = None
+    gestor: Optional[str] = None
+    coordenador_documento: Optional[str] = None
+    coordenador_email: Optional[str] = None
+    coordenador: Optional[str] = None
+    gerente_documento: Optional[str] = None
+    gerente_email: Optional[str] = None
+    gerente: Optional[str] = None
+    diretor_documento: Optional[str] = None
+    diretor_email: Optional[str] = None
+    diretor: Optional[str] = None
+    regional: Optional[str] = None
+    regiao: Optional[str] = None
+    ativo_negocio: Optional[bool] = None
+    ativo: bool = True
+    ativo_login: Optional[bool] = None
+    status_operacional: Optional[str] = None
+    data_admissao: Optional[date] = None
+    data_inicio_vigencia: Optional[date] = None
+    data_fim_vigencia: Optional[date] = None
+    referencia_origem: Optional[str] = None
+    origem_planilha: Optional[str] = "MANUAL"
+    cadastrado_por: Optional[str] = None
+    observacao: Optional[str] = None
+    escopos_gestao: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class CorpoEquipeFuncionarioVigencia(BaseModel):
+    equipe: str = Field(..., min_length=1, max_length=255)
+    regiao: Optional[str] = None
+    gerente_vendas: Optional[str] = None
+    gerente_comercial: Optional[str] = None
+    gerente_regional: Optional[str] = None
+    head_comercial: Optional[str] = None
+    diretor_comercial: Optional[str] = None
+    data_inicio_vigencia: Optional[date] = None
+    data_fim_vigencia: Optional[date] = None
+    status_equipe: str = "ATIVO"
+    ativo: bool = True
+    origem_planilha: Optional[str] = "MANUAL"
+    observacao: Optional[str] = None
+    hc_planejado: int = Field(0, ge=0, le=999)
+    foco_planejado: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class CorpoImportarFuncionariosPlanilha(BaseModel):
+    nome_arquivo: Optional[str] = None
+    conteudo_base64: str = Field(..., min_length=10)
+
+
+class CorpoGerarQuadroDiario(BaseModel):
+    data_status: Optional[date] = None
+
+
+class CorpoAtualizarStatusDiario(BaseModel):
+    status_operacional: Optional[str] = None
+    status_negocio: Optional[str] = None
+    status_login: Optional[str] = None
+    observacao: Optional[str] = None
+
+
+class CorpoValidarFuncionario(BaseModel):
+    aprovado: bool = True
+    observacao: Optional[str] = None
+    identificador_perfil_excecao: Optional[int] = None
+
+
+class CorpoProvisionarFuncionario(BaseModel):
+    senha: Optional[str] = Field(None, min_length=6)
+    identificador_perfil: Optional[int] = None
+    codigo_setor: Optional[str] = None
+    indicador_ativo: bool = True
+    forcar_troca_na_proxima_entrada: bool = True
+
+
+class CorpoNivelPrioridadeVagaDashboardGc(BaseModel):
+    nivel: Optional[str] = Field(None, max_length=40)
+    prioridade: Optional[str] = Field(None, max_length=40)
+    quantidade: int = Field(..., ge=1, le=999)
+
+
+class CorpoPrioridadeVagaDashboardGc(BaseModel):
+    niveis: list[CorpoNivelPrioridadeVagaDashboardGc] = Field(default_factory=list)
+
+
+class CorpoVagaDashboardGc(BaseModel):
+    protocolo: Optional[str] = Field(None, max_length=80)
+    equipe: str = Field(..., min_length=1, max_length=255)
+    cargo: Optional[str] = Field(None, max_length=120)
+    quantidade_vagas: int = Field(1, ge=1, le=999)
+    data_abertura: date
+    data_fechamento: Optional[date] = None
+    prazo_desejado: Optional[date] = None
+    status_vaga: Optional[str] = Field(None, max_length=30)
+    tipo_solicitacao: Optional[str] = Field(None, max_length=80)
+    prioridade: Optional[str] = Field(None, max_length=40)
+    prioridade_niveis: Optional[list[CorpoNivelPrioridadeVagaDashboardGc]] = None
+    recrutadora: Optional[str] = Field(None, max_length=160)
+    solicitante: Optional[str] = Field(None, max_length=160)
+    localidade: Optional[str] = Field(None, max_length=160)
+    modalidade: Optional[str] = Field(None, max_length=80)
+    substituicao_de: Optional[str] = Field(None, max_length=160)
+    motivo_abertura: Optional[str] = Field(None, max_length=2000)
+    observacao: Optional[str] = None
+    andamento: Optional[str] = Field(None, max_length=2000)
+
+
+class CorpoFecharVagaDashboardGc(BaseModel):
+    data_fechamento: date = Field(default_factory=date.today)
+    andamento: Optional[str] = Field(None, max_length=2000)
+
+
+class CorpoExcluirVagaDashboardGc(BaseModel):
+    senha_administrador: str = Field(..., min_length=1, max_length=255)
+
+
+class CorpoAprovarVagaDashboardGc(BaseModel):
+    aprovado: bool = True
+    observacao: Optional[str] = Field(None, max_length=2000)
+
+
+class CorpoForecastDashboardGc(BaseModel):
+    mes_referencia: int = Field(..., ge=1, le=12)
+    ano_referencia: int = Field(..., ge=2000, le=2100)
+    chave_gestor: str = Field(..., min_length=1, max_length=180)
+    gestor: str = Field(..., min_length=1, max_length=255)
+    equipes: list[str] = Field(default_factory=list)
+    equipe_resumo: Optional[str] = Field(None, max_length=500)
+    forecast: int = Field(..., ge=0, le=9999)
+    forecast_padrao: Optional[int] = Field(None, ge=0, le=9999)
+    observacao: Optional[str] = Field(None, max_length=500)
+
+
+class CorpoRegraRemuneracaoSobrepreco(BaseModel):
+    suggestions: list[float] = Field(default_factory=list)
+    tiers: list[dict[str, Any]] = Field(default_factory=list)
+    operationCountOverride: Optional[str] = None
+
+
+# =========================================================
+# HELPERS
+# =========================================================
+
+def _agora_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _uuid_ou_none(valor: Optional[str]) -> Optional[UUID]:
+    if not valor:
+        return None
+    try:
+        return UUID(str(valor))
+    except Exception:
+        return None
+
+
+def _normalizar_texto(valor: Optional[str]) -> str:
+    texto = (valor or "").strip()
+    for _ in range(2):
+        if not any(marcador in texto for marcador in ("\u00c3", "\u00c2", "\ufffd", "\u0192")):
+            break
+        try:
+            corrigido = texto.encode("cp1252").decode("utf-8")
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            break
+        if corrigido == texto:
+            break
+        texto = corrigido.strip()
+    return texto
+
+
+def _slug_texto_dashboard_gc(valor: Optional[str]) -> str:
+    texto = "".join(
+        caractere
+        for caractere in unicodedata.normalize("NFD", _normalizar_texto(valor))
+        if unicodedata.category(caractere) != "Mn"
+    ).lower()
+    return re.sub(r"[^a-z0-9]+", "_", texto).strip("_")
+
+
+def _slug_corretor_produtividade_dashboard_gc(valor: Optional[str]) -> str:
+    slug = _slug_texto_dashboard_gc(valor)
+    if not slug:
+        return ""
+    for padrao in (
+        r"_(?:clt_)?desligad[oa]s?$",
+        r"_clt$",
+        r"_pj$",
+        r"_autonom[oa]$",
+    ):
+        slug = re.sub(padrao, "", slug).strip("_")
+    return slug
+
+
+def _chave_regiao_produtividade_dashboard_gc(valor: Optional[str]) -> str:
+    slug = _slug_texto_dashboard_gc(valor)
+    if not slug:
+        return ""
+    if "formosa" in slug or slug.endswith("_fsa") or "_fsa_" in slug:
+        return "formosa"
+    if "catalao" in slug or slug.endswith("_cat") or "_cat_" in slug:
+        return "catalao"
+    if ("agua" in slug and "linda" in slug) or slug.endswith("_agl") or "_agl_" in slug:
+        return "aguas_lindas"
+    if slug in {"sede", "brasilia", "df", "distrito_federal"} or "brasilia" in slug:
+        return "sede"
+    return slug
+
+
+def _metricas_contam_para_gestor_por_foco_dashboard_gc(
+    linha: dict[str, Any],
+    foco: Optional[str],
+) -> bool:
+    mes_ref = linha.get("mes_referencia")
+    if isinstance(mes_ref, date) and mes_ref < _INICIO_REGRA_FOCO_PRODUTIVIDADE_GC:
+        return True
+    chave_foco = _chave_regiao_produtividade_dashboard_gc(foco)
+    if not chave_foco:
+        return True
+    chave_resultado = _chave_regiao_produtividade_dashboard_gc(
+        linha.get("regiao_resultado") or linha.get("regiao") or linha.get("equipe")
+    )
+    if not chave_resultado:
+        return True
+    return chave_resultado == chave_foco
+
+
+def _valor_usuario(usuario: Any, *chaves: str) -> Any:
+    dados = dict(usuario or {})
+    for chave in chaves:
+        if chave in dados:
+            return dados.get(chave)
+    return None
+
+
+def _matricula_usuario(usuario: Any) -> Optional[str]:
+    return _valor_usuario(usuario, "matricula", "matrícula")
+
+
+def _decodificar_arquivo_base64(valor: str) -> bytes:
+    bruto = _normalizar_texto(valor)
+    if "," in bruto and bruto.lower().startswith("data:"):
+        bruto = bruto.split(",", 1)[1]
+    try:
+        return b64decode(bruto, validate=True)
+    except (BinasciiError, ValueError) as erro:
+        raise HTTPException(status_code=400, detail="Arquivo em base64 invalido.") from erro
+
+
+def _identificador_legivel_usuario(usuario: dict[str, Any]) -> str:
+    return (
+        _normalizar_texto(usuario.get("correio_eletronico"))
+        or _normalizar_texto(usuario.get("matricula"))
+        or _normalizar_texto(usuario.get("matrícula"))
+        or str(usuario.get("identificador_usuario") or "usuário")
+    )
+
+
+async def _garantir_setor_catalogado(
+    conexao,
+    codigo_setor: Optional[str],
+    nome_setor: Optional[str] = None,
+) -> Optional[str]:
+    codigo_normalizado = _normalizar_texto(codigo_setor)
+    if not codigo_normalizado:
+        return None
+
+    existente = await conexao.fetchval(
+        """
+        select codigo_setor
+        from sevenlm_connect.setor
+        where codigo_setor = $1
+        limit 1
+        """,
+        codigo_normalizado,
+    )
+    if existente:
+        return codigo_normalizado
+
+    nome_normalizado = _normalizar_texto(nome_setor)
+    if not nome_normalizado:
+        return None
+
+    await conexao.execute(
+        """
+        insert into sevenlm_connect.setor (codigo_setor, nome_setor)
+        values ($1, $2)
+        on conflict (codigo_setor)
+        do update set
+            nome_setor = excluded.nome_setor,
+            data_hora_atualizado_em = now()
+        """,
+        codigo_normalizado,
+        nome_normalizado,
+    )
+
+    return codigo_normalizado
+
+
+async def _garantir_perfil_existente(conexao, identificador_perfil: int) -> dict[str, Any]:
+    perfil = await conexao.fetchrow(
+        """
+        select
+            identificador_perfil,
+            nome_perfil,
+            descricao_perfil
+        from sevenlm_connect.perfil
+        where identificador_perfil = $1
+        limit 1
+        """,
+        identificador_perfil,
+    )
+    if not perfil:
+        raise HTTPException(
+            status_code=404,
+            detail="Perfil informado não foi encontrado."
+        )
+    return dict(perfil)
+
+
+async def _garantir_permissao_existente(conexao, identificador_permissao: int) -> dict[str, Any]:
+    permissao = await conexao.fetchrow(
+        """
+        select
+            identificador_permissao,
+            nome_permissao,
+            descricao_permissao
+        from sevenlm_connect.permissao
+        where identificador_permissao = $1
+        limit 1
+        """,
+        identificador_permissao,
+    )
+    if not permissao:
+        raise HTTPException(
+            status_code=404,
+            detail="Permissão informada não foi encontrada."
+        )
+    return dict(permissao)
+
+
+def _extrair_token_bearer(request: Request) -> str:
+    autorizacao = request.headers.get("authorization", "")
+    if not autorizacao.lower().startswith("bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de acesso não informado."
+        )
+    return autorizacao.split(" ", 1)[1].strip()
+
+
+def _ler_cache_temporario(cache: dict[str, tuple[float, Any]], chave: str) -> Any:
+    registro = cache.get(chave)
+    if not registro:
+        return None
+
+    expira_em, valor = registro
+    if expira_em <= time.monotonic():
+        cache.pop(chave, None)
+        return None
+
+    return valor
+
+
+def _gravar_cache_temporario(
+    cache: dict[str, tuple[float, Any]],
+    chave: str,
+    valor: Any,
+    ttl_segundos: int,
+) -> Any:
+    cache[chave] = (time.monotonic() + ttl_segundos, valor)
+    return valor
+
+
+def _chave_cache_usuario_autenticado(
+    identificador_usuario: str,
+    identificador_sessao: Optional[str],
+    exigir_gerenciamento: bool,
+) -> str:
+    return "|".join(
+        [
+            str(identificador_usuario or ""),
+            str(identificador_sessao or ""),
+            "manage" if exigir_gerenciamento else "view",
+        ]
+    )
+
+
+async def _usuario_possui_qualquer_permissao(
+    conexao,
+    identificador_usuario: str,
+    nomes_permissao: tuple[str, ...],
+) -> bool:
+    linha = await conexao.fetchrow(
+        """
+        select bool_or(
+            coalesce(
+                sevenlm_connect.fn_usuario_tem_permissao($1::uuid, permissao.nome_permissao),
+                false
+            )
+        ) as possui
+        from unnest($2::text[]) as permissao(nome_permissao)
+        """,
+        identificador_usuario,
+        list(nomes_permissao),
+    )
+    return bool(linha["possui"]) if linha else False
+
+
+async def _obter_acessos_portal_usuario(
+    conexao,
+    identificador_usuario: str,
+) -> dict[str, bool]:
+    return await obter_acessos_portal_usuario_compartilhado(conexao, identificador_usuario)
+
+
+async def _obter_catalogos_admin(pool) -> dict[str, list[dict[str, Any]]]:
+    cache = _ler_cache_temporario(_CACHE_CONTEXTO_ADMIN, "catalogos")
+    if cache is not None:
+        return cache
+
+    async with pool.acquire() as conexao:
+        perfis = await conexao.fetch(
+            """
+            select
+                identificador_perfil as id,
+                nome_perfil,
+                descricao_perfil
+            from sevenlm_connect.perfil
+            order by nome_perfil
+            """
+        )
+
+        permissoes = await conexao.fetch(
+            """
+            select
+                identificador_permissao as id,
+                nome_permissao,
+                descricao_permissao
+            from sevenlm_connect.permissao
+            order by nome_permissao
+            """
+        )
+
+        setores = await conexao.fetch(
+            """
+            select
+                s.codigo_setor,
+                coalesce(nullif(s.nome_setor, ''), s.codigo_setor) as nome_setor
+            from sevenlm_connect.setor s
+            order by nome_setor
+            """
+        )
+
+        try:
+            recursos = await conexao.fetch(
+                """
+                select
+                    identificador_recurso,
+                    codigo_modulo,
+                    codigo_recurso,
+                    nome_recurso,
+                    rota_recurso,
+                    indicador_ativo
+                from sevenlm_connect.portal_recurso
+                order by codigo_modulo, ordem_exibicao, nome_recurso
+                """
+            )
+        except Exception:
+            recursos = []
+
+    catalogos = {
+        "perfis_disponiveis": [dict(r) for r in perfis],
+        "permissoes_disponiveis": [dict(r) for r in permissoes],
+        "setores_disponiveis": [dict(r) for r in setores],
+        "recursos_disponiveis": [dict(r) for r in recursos],
+    }
+
+    return _gravar_cache_temporario(
+        _CACHE_CONTEXTO_ADMIN,
+        "catalogos",
+        catalogos,
+        _CACHE_CONTEXTO_ADMIN_TTL_SEGUNDOS,
+    )
+
+
+async def _obter_usuario_autenticado_cached(
+    request: Request,
+    exigir_gerenciamento: bool = False,
+) -> dict[str, Any]:
+    token = _extrair_token_bearer(request)
+    payload = ler_token_de_acesso(token, validar_expiracao=True)
+
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido ou expirado."
+        )
+
+    identificador_usuario = payload.get("sub")
+    identificador_sessao = payload.get("sid")
+
+    if not identificador_usuario:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token sem identificador de usuário."
+        )
+
+    chave_cache = _chave_cache_usuario_autenticado(
+        str(identificador_usuario),
+        identificador_sessao,
+        exigir_gerenciamento,
+    )
+    cache = _ler_cache_temporario(_CACHE_USUARIO_AUTENTICADO, chave_cache)
+    if cache is not None:
+        return dict(cache)
+
+    usuario = await _obter_usuario_autenticado(request, exigir_gerenciamento=exigir_gerenciamento)
+    return dict(
+        _gravar_cache_temporario(
+            _CACHE_USUARIO_AUTENTICADO,
+            chave_cache,
+            dict(usuario),
+            _CACHE_USUARIO_AUTENTICADO_TTL_SEGUNDOS,
+        )
+    )
+
+
+async def _obter_usuario_autenticado(
+    request: Request,
+    exigir_gerenciamento: bool = False,
+    permissoes_visualizacao: tuple[str, ...] = _ADMIN_PERMISSOES_VISUALIZACAO,
+    permissoes_gerenciamento: tuple[str, ...] = _ADMIN_PERMISSOES_GERENCIAMENTO,
+    nome_area: str = "Administração",
+) -> dict[str, Any]:
+    token = _extrair_token_bearer(request)
+    payload = ler_token_de_acesso(token, validar_expiracao=True)
+
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido ou expirado."
+        )
+
+    identificador_usuario = payload.get("sub")
+    identificador_sessao = payload.get("sid")
+
+    if not identificador_usuario:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token sem identificador de usuário."
+        )
+
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        usuario = await conexao.fetchrow(
+            """
+            select
+                identificador_usuario,
+                matricula,
+                nome_completo,
+                correio_eletronico::text as correio_eletronico,
+                indicador_ativo,
+                indicador_precisa_trocar_senha,
+                data_hora_ultimo_login
+            from sevenlm_connect.usuario
+            where identificador_usuario = $1::uuid
+            """,
+            identificador_usuario,
+        )
+
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuário autenticado não encontrado."
+            )
+
+        if not usuario["indicador_ativo"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Usuário autenticado está inativo."
+            )
+
+        pode_ver = await _usuario_possui_qualquer_permissao(
+            conexao,
+            str(identificador_usuario),
+            permissoes_visualizacao,
+        )
+        pode_gerenciar = await _usuario_possui_qualquer_permissao(
+            conexao,
+            str(identificador_usuario),
+            permissoes_gerenciamento,
+        )
+
+        if not pode_ver:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Usuário sem permissão para acessar {nome_area}."
+            )
+
+        if exigir_gerenciamento and not pode_gerenciar:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Usuário sem permissão de gerenciamento em {nome_area}."
+            )
+
+        return {
+            "identificador_usuario": str(usuario["identificador_usuario"]),
+            "identificador_sessao": identificador_sessao,
+            "matricula": _matricula_usuario(usuario),
+            "matrícula": _matricula_usuario(usuario),
+            "nome_completo": usuario["nome_completo"],
+            "correio_eletronico": usuario["correio_eletronico"],
+            "pode_ver": pode_ver,
+            "pode_gerenciar": pode_gerenciar,
+        }
+
+
+async def _obter_usuario_funcionarios(
+    request: Request,
+    exigir_gerenciamento: bool = False,
+) -> dict[str, Any]:
+    return await _obter_usuario_autenticado(
+        request,
+        exigir_gerenciamento=exigir_gerenciamento,
+        permissoes_visualizacao=_FUNCIONARIOS_PERMISSOES_VISUALIZACAO,
+        permissoes_gerenciamento=_FUNCIONARIOS_PERMISSOES_GERENCIAMENTO,
+        nome_area="Funcionários",
+    )
+
+
+async def _obter_usuario_validacao_funcionarios(request: Request) -> dict[str, Any]:
+    return await _obter_usuario_autenticado(
+        request,
+        exigir_gerenciamento=True,
+        permissoes_visualizacao=_FUNCIONARIOS_PERMISSOES_VISUALIZACAO,
+        permissoes_gerenciamento=_FUNCIONARIOS_PERMISSOES_VALIDACAO,
+        nome_area="Validação de Funcionários",
+    )
+
+
+async def _obter_usuario_portal_autenticado(request: Request) -> dict[str, Any]:
+    token = _extrair_token_bearer(request)
+    payload = ler_token_de_acesso(token, validar_expiracao=True)
+
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido ou expirado."
+        )
+
+    identificador_usuario = payload.get("sub")
+    identificador_sessao = payload.get("sid")
+
+    if not identificador_usuario:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token sem identificador de usuário."
+        )
+
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        usuario = await conexao.fetchrow(
+            """
+            select
+                identificador_usuario,
+                matricula,
+                nome_completo,
+                correio_eletronico::text as correio_eletronico,
+                indicador_ativo,
+                indicador_precisa_trocar_senha,
+                data_hora_ultimo_login
+            from sevenlm_connect.usuario
+            where identificador_usuario = $1::uuid
+            """,
+            identificador_usuario,
+        )
+
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuário autenticado não encontrado."
+            )
+
+        if not usuario["indicador_ativo"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Usuário autenticado está inativo."
+            )
+
+        acessos_portal = await _obter_acessos_portal_usuario(
+            conexao,
+            str(identificador_usuario),
+        )
+        pode_ver = bool(acessos_portal.get("administracao.view"))
+        pode_gerenciar = bool(acessos_portal.get("administracao.manage"))
+
+        return {
+            "identificador_usuario": str(usuario["identificador_usuario"]),
+            "identificador_sessao": identificador_sessao,
+            "matricula": _matricula_usuario(usuario),
+            "matrícula": _matricula_usuario(usuario),
+            "nome_completo": usuario["nome_completo"],
+            "correio_eletronico": usuario["correio_eletronico"],
+            "indicador_precisa_trocar_senha": bool(usuario["indicador_precisa_trocar_senha"]),
+            "pode_ver": pode_ver,
+            "pode_gerenciar": pode_gerenciar,
+            "acessos_portal": acessos_portal,
+        }
+
+
+async def _registrar_evento_auditoria(
+    conexao,
+    request: Request,
+    executor: dict[str, Any],
+    tipo_evento: str,
+    descricao_evento: str,
+    detalhes_evento: Optional[dict[str, Any]] = None,
+) -> None:
+    detalhes_evento_json = json.dumps(
+        detalhes_evento or {},
+        ensure_ascii=False,
+        default=str,
+    )
+    identificador_sessao = executor.get("identificador_sessao")
+    if identificador_sessao:
+        sessao_existe = await conexao.fetchval(
+            """
+            select 1
+            from sevenlm_connect.sessao
+            where identificador_sessao = $1::uuid
+            limit 1
+            """,
+            identificador_sessao,
+        )
+        if not sessao_existe:
+            identificador_sessao = None
+
+    await conexao.execute(
+        """
+        insert into system.auditoria_evento (
+            identificador_usuario,
+            identificador_sessao,
+            tipo_evento,
+            descricao_evento,
+            detalhes_evento,
+            endereco_ip,
+            agente_do_usuario,
+            data_hora_evento
+        )
+        values ($1::uuid, $2::uuid, $3, $4, $5::jsonb, $6, $7, now())
+        """,
+        executor["identificador_usuario"],
+        identificador_sessao,
+        tipo_evento,
+        descricao_evento,
+        detalhes_evento_json,
+        obter_endereco_ip(request),
+        obter_agente_do_usuario(request),
+    )
+
+
+async def _garantir_tabela_configuracao_operacional(conexao) -> None:
+    await conexao.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sevenlm_connect.configuracao_operacional (
+            chave_configuracao text PRIMARY KEY,
+            valor_configuracao jsonb NOT NULL DEFAULT '{}'::jsonb,
+            descricao_configuracao text,
+            criado_por uuid REFERENCES sevenlm_connect.usuario(identificador_usuario) ON DELETE SET NULL,
+            alterado_por uuid REFERENCES sevenlm_connect.usuario(identificador_usuario) ON DELETE SET NULL,
+            data_hora_criacao timestamptz NOT NULL DEFAULT now(),
+            data_hora_atualizacao timestamptz NOT NULL DEFAULT now()
+        )
+        """
+    )
+
+
+def _numero_remuneracao(valor: Any, padrao: float = 0.0) -> float:
+    if valor is None:
+        return padrao
+    if isinstance(valor, (int, float)):
+        numero = float(valor)
+    else:
+        texto = str(valor).strip()
+        if not texto:
+            return padrao
+        texto = re.sub(r"[^\d,.\-]", "", texto)
+        if "," in texto and "." in texto:
+            texto = texto.replace(".", "").replace(",", ".")
+        else:
+            texto = texto.replace(",", ".")
+        try:
+            numero = float(texto)
+        except Exception:
+            return padrao
+    if not math.isfinite(numero) or numero < 0:
+        return padrao
+    return round(numero, 2)
+
+
+def _taxa_remuneracao(valor: Any, padrao: float) -> float:
+    numero = _numero_remuneracao(valor, padrao)
+    if numero > 1:
+        numero = numero / 100
+    return round(max(numero, 0), 4)
+
+
+def _normalizar_regra_remuneracao_sobrepreco(valor: Any = None) -> dict[str, Any]:
+    if isinstance(valor, str):
+        try:
+            valor = json.loads(valor)
+        except Exception:
+            valor = {}
+    if not isinstance(valor, dict):
+        valor = {}
+
+    sugestoes_base = valor.get("suggestions")
+    if not isinstance(sugestoes_base, list):
+        sugestoes_base = []
+    sugestoes = []
+    for indice, padrao in enumerate(_REGRA_REMUNERACAO_SOBREPRECO_PADRAO["suggestions"]):
+        numero = _numero_remuneracao(sugestoes_base[indice] if indice < len(sugestoes_base) else padrao, padrao)
+        sugestoes.append(numero if numero > 0 else padrao)
+
+    tiers_base = valor.get("tiers")
+    if not isinstance(tiers_base, list):
+        tiers_base = []
+    tiers = []
+    for padrao in _REGRA_REMUNERACAO_SOBREPRECO_PADRAO["tiers"]:
+        operacao = int(padrao["operation"])
+        custom = next(
+            (item for item in tiers_base if isinstance(item, dict) and int(_numero_remuneracao(item.get("operation"), 0)) == operacao),
+            {},
+        )
+        cap_raw = custom.get("cap", padrao.get("cap"))
+        cap = None if cap_raw is None or str(cap_raw).strip() == "" else _numero_remuneracao(cap_raw, 0)
+        label = str(custom.get("label") or padrao["label"]).strip() or padrao["label"]
+        tiers.append(
+            {
+                "operation": operacao,
+                "rate": _taxa_remuneracao(custom.get("rate", padrao["rate"]), padrao["rate"]),
+                "cap": cap if cap and cap > 0 else None,
+                "label": label,
+            }
+        )
+
+    override = str(valor.get("operationCountOverride") or "").strip()
+    if override:
+        try:
+            override = str(max(int(float(override)), 0))
+        except Exception:
+            override = ""
+
+    regra = {
+        "suggestions": sugestoes,
+        "tiers": tiers,
+        "operationCountOverride": override,
+    }
+    if valor.get("updatedAt"):
+        regra["updatedAt"] = str(valor.get("updatedAt"))
+    if valor.get("updatedBy"):
+        regra["updatedBy"] = str(valor.get("updatedBy"))
+    return regra
+
+
+async def _garantir_tabela_vagas_dashboard_gc(conexao) -> None:
+    await conexao.execute(
+        """
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;
+        CREATE SCHEMA IF NOT EXISTS recrutamento_selecao;
+
+        CREATE TABLE IF NOT EXISTS recrutamento_selecao.vaga (
+          identificador_vaga uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          protocolo text NOT NULL,
+          equipe text NOT NULL,
+          cargo text,
+          quantidade_vagas integer NOT NULL DEFAULT 1,
+          data_abertura date NOT NULL,
+          data_fechamento date,
+          prazo_desejado date,
+          status_vaga text NOT NULL DEFAULT 'EM_ANDAMENTO',
+          tipo_solicitacao text,
+          prioridade text,
+          prioridade_niveis jsonb NOT NULL DEFAULT '[]'::jsonb,
+          recrutadora text,
+          solicitante text,
+          localidade text,
+          modalidade text,
+          substituicao_de text,
+          motivo_abertura text,
+          identificador_equipe_vigencia uuid REFERENCES sevenlm_connect.funcionario_equipe_vigencia(identificador_equipe_vigencia) ON DELETE SET NULL,
+          gerente_regional_aprovador text,
+          gerente_regional_aprovador_email text,
+          aprovador_regional_usuario uuid REFERENCES sevenlm_connect.usuario(identificador_usuario) ON DELETE SET NULL,
+          diretor_aprovador text,
+          diretor_aprovador_email text,
+          aprovador_usuario uuid REFERENCES sevenlm_connect.usuario(identificador_usuario) ON DELETE SET NULL,
+          identificador_forecast_origem uuid,
+          data_hora_solicitacao timestamptz NOT NULL DEFAULT NOW(),
+          data_aprovacao_regional timestamptz,
+          data_aprovacao timestamptz,
+          data_inicio_andamento timestamptz,
+          observacao text,
+          criado_por uuid REFERENCES sevenlm_connect.usuario(identificador_usuario) ON DELETE SET NULL,
+          alterado_por uuid REFERENCES sevenlm_connect.usuario(identificador_usuario) ON DELETE SET NULL,
+          data_hora_criacao timestamptz NOT NULL DEFAULT NOW(),
+          data_hora_atualizado_em timestamptz NOT NULL DEFAULT NOW(),
+          CONSTRAINT ck_dashboard_gc_vaga_manual_quantidade
+            CHECK (quantidade_vagas BETWEEN 1 AND 999),
+          CONSTRAINT ck_dashboard_gc_vaga_manual_datas
+            CHECK (data_fechamento IS NULL OR data_fechamento >= data_abertura)
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_dashboard_gc_vaga_manual_protocolo
+          ON recrutamento_selecao.vaga (lower(protocolo));
+
+        CREATE INDEX IF NOT EXISTS idx_dashboard_gc_vaga_manual_status
+          ON recrutamento_selecao.vaga (data_fechamento, data_abertura DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_dashboard_gc_vaga_manual_equipe
+          ON recrutamento_selecao.vaga (equipe);
+        """
+    )
+    await conexao.execute(
+        """
+        ALTER TABLE recrutamento_selecao.vaga
+          ADD COLUMN IF NOT EXISTS status_vaga text,
+          ADD COLUMN IF NOT EXISTS cargo text,
+          ADD COLUMN IF NOT EXISTS quantidade_vagas integer,
+          ADD COLUMN IF NOT EXISTS prazo_desejado date,
+          ADD COLUMN IF NOT EXISTS tipo_solicitacao text,
+          ADD COLUMN IF NOT EXISTS prioridade text,
+          ADD COLUMN IF NOT EXISTS prioridade_niveis jsonb,
+          ADD COLUMN IF NOT EXISTS recrutadora text,
+          ADD COLUMN IF NOT EXISTS solicitante text,
+          ADD COLUMN IF NOT EXISTS localidade text,
+          ADD COLUMN IF NOT EXISTS modalidade text,
+          ADD COLUMN IF NOT EXISTS substituicao_de text,
+          ADD COLUMN IF NOT EXISTS motivo_abertura text,
+          ADD COLUMN IF NOT EXISTS identificador_equipe_vigencia uuid,
+          ADD COLUMN IF NOT EXISTS gerente_regional_aprovador text,
+          ADD COLUMN IF NOT EXISTS gerente_regional_aprovador_email text,
+          ADD COLUMN IF NOT EXISTS aprovador_regional_usuario uuid,
+          ADD COLUMN IF NOT EXISTS diretor_aprovador text,
+          ADD COLUMN IF NOT EXISTS diretor_aprovador_email text,
+          ADD COLUMN IF NOT EXISTS aprovador_usuario uuid,
+          ADD COLUMN IF NOT EXISTS identificador_forecast_origem uuid,
+          ADD COLUMN IF NOT EXISTS data_hora_solicitacao timestamptz,
+          ADD COLUMN IF NOT EXISTS data_aprovacao_regional timestamptz,
+          ADD COLUMN IF NOT EXISTS data_aprovacao timestamptz,
+          ADD COLUMN IF NOT EXISTS data_inicio_andamento timestamptz;
+
+        UPDATE recrutamento_selecao.vaga
+           SET data_hora_solicitacao = coalesce(data_hora_criacao, now())
+         WHERE data_hora_solicitacao IS NULL;
+
+        UPDATE recrutamento_selecao.vaga
+           SET status_vaga = CASE
+                 WHEN data_fechamento IS NOT NULL AND data_fechamento <= CURRENT_DATE THEN 'FECHADA'
+                 ELSE 'EM_ANDAMENTO'
+               END
+         WHERE status_vaga IS NULL
+            OR status_vaga NOT IN (
+              'PENDENTE_APROVACAO_REGIONAL',
+              'PENDENTE_APROVACAO',
+              'EM_ANDAMENTO',
+              'TRIAGEM',
+              'ENTREVISTAS',
+              'PROPOSTA',
+              'FECHADA',
+              'CANCELADA',
+              'CONGELADA',
+              'REPROVADA'
+            );
+
+        UPDATE recrutamento_selecao.vaga
+           SET quantidade_vagas = 1
+         WHERE quantidade_vagas IS NULL
+            OR quantidade_vagas < 1
+            OR quantidade_vagas > 999;
+
+        UPDATE recrutamento_selecao.vaga
+           SET prioridade_niveis = '[]'::jsonb
+         WHERE prioridade_niveis IS NULL
+            OR jsonb_typeof(prioridade_niveis) <> 'array';
+
+        ALTER TABLE recrutamento_selecao.vaga
+          ALTER COLUMN status_vaga SET DEFAULT 'EM_ANDAMENTO';
+
+        ALTER TABLE recrutamento_selecao.vaga
+          ALTER COLUMN status_vaga SET NOT NULL;
+
+        ALTER TABLE recrutamento_selecao.vaga
+          ALTER COLUMN quantidade_vagas SET DEFAULT 1;
+
+        ALTER TABLE recrutamento_selecao.vaga
+          ALTER COLUMN quantidade_vagas SET NOT NULL;
+
+        ALTER TABLE recrutamento_selecao.vaga
+          ALTER COLUMN prioridade_niveis SET DEFAULT '[]'::jsonb;
+
+        ALTER TABLE recrutamento_selecao.vaga
+          ALTER COLUMN prioridade_niveis SET NOT NULL;
+
+        ALTER TABLE recrutamento_selecao.vaga
+          ALTER COLUMN data_hora_solicitacao SET DEFAULT now();
+
+        ALTER TABLE recrutamento_selecao.vaga
+          ALTER COLUMN data_hora_solicitacao SET NOT NULL;
+
+        ALTER TABLE recrutamento_selecao.vaga
+          DROP CONSTRAINT IF EXISTS ck_dashboard_gc_vaga_manual_status;
+
+        ALTER TABLE recrutamento_selecao.vaga
+          DROP CONSTRAINT IF EXISTS ck_recrutamento_vaga_status;
+
+        ALTER TABLE recrutamento_selecao.vaga
+          DROP CONSTRAINT IF EXISTS ck_dashboard_gc_vaga_prioridade_niveis;
+
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1
+              FROM pg_constraint
+             WHERE conname = 'ck_dashboard_gc_vaga_manual_quantidade'
+               AND conrelid = 'recrutamento_selecao.vaga'::regclass
+          ) THEN
+            ALTER TABLE recrutamento_selecao.vaga
+              ADD CONSTRAINT ck_dashboard_gc_vaga_manual_quantidade
+              CHECK (quantidade_vagas BETWEEN 1 AND 999);
+          END IF;
+        END $$;
+
+        ALTER TABLE recrutamento_selecao.vaga
+          ADD CONSTRAINT ck_dashboard_gc_vaga_manual_status
+          CHECK (status_vaga IN (
+            'PENDENTE_APROVACAO_REGIONAL',
+            'PENDENTE_APROVACAO',
+            'EM_ANDAMENTO',
+            'TRIAGEM',
+            'ENTREVISTAS',
+            'PROPOSTA',
+            'FECHADA',
+            'CANCELADA',
+            'CONGELADA',
+            'REPROVADA'
+          ));
+
+        ALTER TABLE recrutamento_selecao.vaga
+          ADD CONSTRAINT ck_dashboard_gc_vaga_prioridade_niveis
+          CHECK (jsonb_typeof(prioridade_niveis) = 'array');
+
+        CREATE INDEX IF NOT EXISTS idx_dashboard_gc_vaga_manual_status_vaga
+          ON recrutamento_selecao.vaga (status_vaga, data_abertura DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_dashboard_gc_vaga_manual_aprovacao
+          ON recrutamento_selecao.vaga (status_vaga, aprovador_usuario, data_hora_solicitacao DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_dashboard_gc_vaga_manual_aprovacao_regional
+          ON recrutamento_selecao.vaga (status_vaga, aprovador_regional_usuario, data_hora_solicitacao DESC);
+
+        CREATE TABLE IF NOT EXISTS recrutamento_selecao.vaga_andamento (
+          identificador_andamento uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          identificador_vaga uuid NOT NULL REFERENCES recrutamento_selecao.vaga(identificador_vaga) ON DELETE CASCADE,
+          descricao text NOT NULL,
+          status_vaga text,
+          criado_por uuid REFERENCES sevenlm_connect.usuario(identificador_usuario) ON DELETE SET NULL,
+          criado_por_nome text,
+          data_hora_criacao timestamptz NOT NULL DEFAULT NOW(),
+          CONSTRAINT ck_dashboard_gc_vaga_andamento_descricao
+            CHECK (length(trim(descricao)) > 0)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_dashboard_gc_vaga_andamento_vaga
+          ON recrutamento_selecao.vaga_andamento (identificador_vaga, data_hora_criacao DESC);
+        """
+    )
+
+
+def _normalizar_status_vaga_dashboard_gc(valor: Optional[str], *, padrao: str = "EM_ANDAMENTO") -> str:
+    texto = _normalizar_texto(valor).upper()
+    texto = unicodedata.normalize("NFD", texto)
+    texto = "".join(caractere for caractere in texto if unicodedata.category(caractere) != "Mn")
+    texto = re.sub(r"[^A-Z0-9]+", "_", texto).strip("_")
+    aliases = {
+        "": padrao,
+        "PENDENTE": "PENDENTE_APROVACAO",
+        "PENDENTE_REGIONAL": "PENDENTE_APROVACAO_REGIONAL",
+        "PENDENTE_APROVACAO_REGIONAL": "PENDENTE_APROVACAO_REGIONAL",
+        "PENDENTE_DE_APROVACAO_REGIONAL": "PENDENTE_APROVACAO_REGIONAL",
+        "AGUARDANDO_REGIONAL": "PENDENTE_APROVACAO_REGIONAL",
+        "AGUARDANDO_GERENTE_REGIONAL": "PENDENTE_APROVACAO_REGIONAL",
+        "PENDENTE_APROVACAO": "PENDENTE_APROVACAO",
+        "PENDENTE_APROVACAO_DIRETOR": "PENDENTE_APROVACAO",
+        "AGUARDANDO_APROVACAO": "PENDENTE_APROVACAO",
+        "AGUARDANDO_DIRETOR": "PENDENTE_APROVACAO",
+        "ABERTA": "EM_ANDAMENTO",
+        "ABERTO": "EM_ANDAMENTO",
+        "ANDAMENTO": "EM_ANDAMENTO",
+        "EM_ANDAMENTO": "EM_ANDAMENTO",
+        "EMANDAMENTO": "EM_ANDAMENTO",
+        "TRIAGEM": "TRIAGEM",
+        "ENTREVISTA": "ENTREVISTAS",
+        "ENTREVISTAS": "ENTREVISTAS",
+        "PROPOSTA": "PROPOSTA",
+        "PROPOSTA_ENVIADA": "PROPOSTA",
+        "FECHADA": "FECHADA",
+        "FECHADO": "FECHADA",
+        "FINALIZADA": "FECHADA",
+        "FINALIZADO": "FECHADA",
+        "CANCELADA": "CANCELADA",
+        "CANCELADO": "CANCELADA",
+        "CANCELAMENTO": "CANCELADA",
+        "CONGELADA": "CONGELADA",
+        "CONGELADO": "CONGELADA",
+        "REPROVADA": "REPROVADA",
+        "REPROVADO": "REPROVADA",
+    }
+    status_normalizado = aliases.get(texto)
+    if not status_normalizado:
+        raise HTTPException(status_code=422, detail="Status da vaga invalido.")
+    return status_normalizado
+
+
+def _normalizar_cargo_vaga_dashboard_gc(valor: Optional[str]) -> str:
+    texto = _normalizar_texto(valor)
+    if not texto:
+        raise HTTPException(status_code=422, detail="Informe o cargo da vaga.")
+    texto_ascii = unicodedata.normalize("NFD", texto).upper()
+    texto_ascii = "".join(caractere for caractere in texto_ascii if unicodedata.category(caractere) != "Mn")
+    chave = re.sub(r"[^A-Z0-9]+", "_", texto_ascii).strip("_")
+    aliases = {
+        "CORRETOR": "Corretor",
+        "CONSULTOR": "Consultor",
+        "FACILITADOR": "Facilitador",
+        "GERENTE_DE_VENDAS": "Gerente de vendas",
+        "GERENTE_VENDAS": "Gerente de vendas",
+        "GERENTE_COMERCIAL": "Gerente comercial",
+        "GERENTE_REGIONAL": "Gerente regional",
+        "HEAD": "Head",
+        "HEAD_COMERCIAL": "Head Comercial",
+        "DIRETOR_COMERCIAL": "Diretor comercial",
+    }
+    cargo = aliases.get(chave)
+    if not cargo:
+        raise HTTPException(status_code=422, detail="Cargo da vaga invalido.")
+    return cargo
+
+
+_PRIORIDADE_NIVEIS_DASHBOARD_GC = {
+    "CRITICA": "-1",
+    "CRITICO": "-1",
+    "NIVEL_-1": "-1",
+    "ALTA": "0",
+    "ALTO": "0",
+    "NIVEL_0": "0",
+    "MEDIA": "1",
+    "MEDIO": "1",
+    "NIVEL_1": "1",
+    "BAIXA": "2",
+    "BAIXO": "2",
+    "NIVEL_2": "2",
+    "NORMAL": "3",
+    "NIVEL_3": "3",
+    "TRANQUILA": "3",
+    "TRANQUILO": "3",
+    "SEM_PRIORIDADE": "3",
+    "SEM_PRIORIDADE_DEFINIDA": "3",
+    "DESPRIORIZADA": "3",
+    "DESPRIORIZADO": "3",
+}
+_PRIORIDADE_ORDEM_DASHBOARD_GC = ("-1", "0", "1", "2", "3")
+
+
+def _normalizar_nivel_prioridade_dashboard_gc(valor: Optional[str]) -> str:
+    texto = _normalizar_texto(valor)
+    if not texto:
+        raise HTTPException(status_code=422, detail="Informe o nivel de prioridade.")
+    if re.fullmatch(r"-?\d+", texto) and texto in _PRIORIDADE_ORDEM_DASHBOARD_GC:
+        return texto
+    texto_ascii = unicodedata.normalize("NFD", texto).upper()
+    texto_ascii = "".join(caractere for caractere in texto_ascii if unicodedata.category(caractere) != "Mn")
+    chave = re.sub(r"[^A-Z0-9-]+", "_", texto_ascii).strip("_")
+    if chave in _PRIORIDADE_ORDEM_DASHBOARD_GC:
+        return chave
+    nivel = _PRIORIDADE_NIVEIS_DASHBOARD_GC.get(chave)
+    if not nivel:
+        raise HTTPException(status_code=422, detail="Nivel de prioridade invalido.")
+    return nivel
+
+
+def _normalizar_prioridade_niveis_dashboard_gc(
+    valor: Any,
+    *,
+    quantidade_total: Optional[int] = None,
+    validar_limite: bool = True,
+) -> list[dict[str, Any]]:
+    if valor is None or valor == "":
+        return []
+    if isinstance(valor, str):
+        try:
+            valor = json.loads(valor)
+        except Exception:
+            return []
+    if not isinstance(valor, list):
+        raise HTTPException(status_code=422, detail="Informe os niveis de prioridade em lista.")
+
+    acumulado: dict[str, int] = {}
+    for item in valor:
+        if isinstance(item, BaseModel):
+            item = item.dict()
+        if not isinstance(item, dict):
+            raise HTTPException(status_code=422, detail="Nivel de prioridade invalido.")
+        nivel = _normalizar_nivel_prioridade_dashboard_gc(item.get("nivel") or item.get("prioridade") or item.get("label"))
+        try:
+            quantidade = int(item.get("quantidade") or item.get("qtd") or item.get("total") or 0)
+        except (TypeError, ValueError):
+            quantidade = 0
+        if quantidade < 1:
+            raise HTTPException(status_code=422, detail="Quantidade do nivel de prioridade deve ser maior que zero.")
+        acumulado[nivel] = acumulado.get(nivel, 0) + min(999, quantidade)
+
+    niveis = [
+        {"nivel": nivel, "quantidade": acumulado[nivel]}
+        for nivel in _PRIORIDADE_ORDEM_DASHBOARD_GC
+        if acumulado.get(nivel)
+    ]
+    total_niveis = sum(item["quantidade"] for item in niveis)
+    if validar_limite and quantidade_total is not None and total_niveis > int(quantidade_total or 0):
+        raise HTTPException(status_code=422, detail="A soma dos niveis nao pode passar da quantidade de vagas abertas.")
+    return niveis
+
+
+def _resumo_prioridade_niveis_dashboard_gc(niveis: list[dict[str, Any]]) -> str:
+    if not niveis:
+        return ""
+    return ", ".join(f"Nivel {item['nivel']} {item['quantidade']}" for item in niveis)
+
+
+def _serializar_vaga_dashboard_gc(linha: Any) -> dict[str, Any]:
+    item = dict(linha)
+    for chave in (
+        "identificador_vaga",
+        "identificador_equipe_vigencia",
+        "aprovador_regional_usuario",
+        "aprovador_usuario",
+        "identificador_forecast_origem",
+        "criado_por",
+        "alterado_por",
+    ):
+        if item.get(chave) is not None:
+            item[chave] = str(item[chave])
+    for chave in (
+        "data_abertura",
+        "data_fechamento",
+        "prazo_desejado",
+        "data_hora_solicitacao",
+        "data_aprovacao_regional",
+        "data_aprovacao",
+        "data_inicio_andamento",
+        "data_hora_criacao",
+        "data_hora_atualizado_em",
+    ):
+        if item.get(chave) is not None:
+            item[chave] = item[chave].isoformat()
+    item["status_vaga"] = _normalizar_status_vaga_dashboard_gc(
+        item.get("status_vaga"),
+        padrao="FECHADA" if item.get("data_fechamento") else "EM_ANDAMENTO",
+    )
+    item["cargo"] = _normalizar_texto(item.get("cargo")) or None
+    for chave in (
+        "tipo_solicitacao",
+        "prioridade",
+        "recrutadora",
+        "solicitante",
+        "localidade",
+        "modalidade",
+        "substituicao_de",
+        "motivo_abertura",
+        "gerente_regional_aprovador",
+        "gerente_regional_aprovador_email",
+        "diretor_aprovador",
+        "diretor_aprovador_email",
+        "observacao",
+    ):
+        item[chave] = _normalizar_texto(item.get(chave)) or None
+    try:
+        quantidade = int(item.get("quantidade_vagas") or 1)
+    except (TypeError, ValueError):
+        quantidade = 1
+    item["quantidade_vagas"] = min(999, max(1, quantidade))
+    item["prioridade_niveis"] = _normalizar_prioridade_niveis_dashboard_gc(
+        item.get("prioridade_niveis"),
+        quantidade_total=item["quantidade_vagas"],
+        validar_limite=False,
+    )
+    if item["prioridade_niveis"]:
+        item["prioridade"] = _resumo_prioridade_niveis_dashboard_gc(item["prioridade_niveis"])
+    item["andamentos"] = item.get("andamentos") if isinstance(item.get("andamentos"), list) else []
+    return item
+
+
+def _normalizar_vaga_dashboard_gc(corpo: CorpoVagaDashboardGc, *, status_padrao: str = "EM_ANDAMENTO") -> dict[str, Any]:
+    dados = corpo.dict()
+    dados["protocolo"] = _normalizar_texto(dados.get("protocolo"))
+    dados["equipe"] = _normalizar_texto(dados.get("equipe"))
+    dados["cargo"] = _normalizar_cargo_vaga_dashboard_gc(dados.get("cargo"))
+    for chave in (
+        "tipo_solicitacao",
+        "prioridade",
+        "recrutadora",
+        "solicitante",
+        "localidade",
+        "modalidade",
+        "substituicao_de",
+        "motivo_abertura",
+        "observacao",
+        "andamento",
+    ):
+        dados[chave] = _normalizar_texto(dados.get(chave)) or None
+    dados["status_vaga"] = _normalizar_status_vaga_dashboard_gc(dados.get("status_vaga"), padrao=status_padrao)
+    try:
+        dados["quantidade_vagas"] = min(999, max(1, int(dados.get("quantidade_vagas") or 1)))
+    except (TypeError, ValueError):
+        dados["quantidade_vagas"] = 1
+    if dados.get("prioridade_niveis") is None:
+        dados["prioridade_niveis"] = None
+    else:
+        dados["prioridade_niveis"] = _normalizar_prioridade_niveis_dashboard_gc(
+            dados.get("prioridade_niveis"),
+            quantidade_total=dados["quantidade_vagas"],
+        )
+        if dados["prioridade_niveis"]:
+            dados["prioridade"] = _resumo_prioridade_niveis_dashboard_gc(dados["prioridade_niveis"])
+    if not dados["equipe"]:
+        raise HTTPException(status_code=422, detail="Informe a equipe da vaga.")
+    if dados.get("data_fechamento") and dados["data_fechamento"] < dados["data_abertura"]:
+        raise HTTPException(status_code=422, detail="A data de fechamento nao pode ser anterior a abertura.")
+    if dados.get("prazo_desejado") and dados["prazo_desejado"] < dados["data_abertura"]:
+        raise HTTPException(status_code=422, detail="O prazo desejado nao pode ser anterior a abertura.")
+    if dados["status_vaga"] == "FECHADA" and not dados.get("data_fechamento"):
+        raise HTTPException(status_code=422, detail="Informe a data de fechamento para concluir a vaga.")
+    return dados
+
+
+def _status_label_vaga_dashboard_gc(status_vaga: Optional[str]) -> str:
+    labels = {
+        "PENDENTE_APROVACAO_REGIONAL": "Pendente aprovacao regional",
+        "PENDENTE_APROVACAO": "Pendente aprovacao",
+        "EM_ANDAMENTO": "Em andamento",
+        "TRIAGEM": "Triagem",
+        "ENTREVISTAS": "Entrevistas",
+        "PROPOSTA": "Proposta",
+        "FECHADA": "Fechada",
+        "CANCELADA": "Cancelada",
+        "CONGELADA": "Congelada",
+        "REPROVADA": "Reprovada",
+    }
+    return labels.get(_normalizar_status_vaga_dashboard_gc(status_vaga), "Em andamento")
+
+
+async def _gerar_protocolo_vaga_dashboard_gc(conexao, referencia: Optional[date] = None) -> str:
+    data_base = referencia or date.today()
+    prefixo = f"GC-{data_base:%Y%m}"
+    quantidade = await conexao.fetchval(
+        """
+        select count(*)
+          from recrutamento_selecao.vaga
+         where protocolo ilike $1
+        """,
+        f"{prefixo}-%",
+    )
+    sequencia = int(quantidade or 0) + 1
+    for incremento in range(0, 1000):
+        protocolo = f"{prefixo}-{sequencia + incremento:04d}"
+        existente = await conexao.fetchval(
+            """
+            select 1
+              from recrutamento_selecao.vaga
+             where lower(protocolo) = lower($1)
+             limit 1
+            """,
+            protocolo,
+        )
+        if not existente:
+            return protocolo
+    raise HTTPException(status_code=500, detail="Nao foi possivel gerar o protocolo da vaga.")
+
+
+def _lideranca_vigente_valida_dashboard_gc(valor: Optional[str]) -> bool:
+    chave = _slug_texto_dashboard_gc(valor)
+    if not chave:
+        return False
+    if chave in {"vago", "vaga", "em_aberto", "cargo_vago", "a_definir", "sem_gestor"}:
+        return False
+    return "vago" not in chave and "em_aberto" not in chave and "vaga_aberta" not in chave
+
+
+async def _resolver_usuario_aprovador_dashboard_gc(conexao, nome: Optional[str]) -> Optional[dict[str, Any]]:
+    nome_normalizado = _normalizar_texto(nome)
+    if not nome_normalizado:
+        return None
+    usuario = await conexao.fetchrow(
+        """
+        select
+            identificador_usuario,
+            nome_completo,
+            correio_eletronico::text as correio_eletronico
+          from sevenlm_connect.usuario
+         where indicador_ativo = true
+           and lower(nome_completo) = lower($1)
+         order by data_hora_ultimo_login desc nulls last, data_hora_criacao desc nulls last
+         limit 1
+        """,
+        nome_normalizado,
+    )
+    if usuario:
+        return dict(usuario)
+
+    primeiro_nome = nome_normalizado.split()[0] if nome_normalizado.split() else ""
+    if not primeiro_nome:
+        return None
+    usuario = await conexao.fetchrow(
+        """
+        select
+            identificador_usuario,
+            nome_completo,
+            correio_eletronico::text as correio_eletronico
+          from sevenlm_connect.usuario
+         where indicador_ativo = true
+           and (
+                lower(nome_completo) = lower($1)
+             or split_part(lower(correio_eletronico::text), '@', 1) = lower($1)
+           )
+         order by
+           case when lower(nome_completo) = lower($1) then 0 else 1 end,
+           data_hora_ultimo_login desc nulls last,
+           data_hora_criacao desc nulls last
+         limit 1
+        """,
+        primeiro_nome,
+    )
+    return dict(usuario) if usuario else None
+
+
+async def _resolver_aprovadores_vaga_dashboard_gc(
+    conexao,
+    *,
+    equipe: str,
+    data_referencia: Optional[date] = None,
+) -> dict[str, Any]:
+    referencia = data_referencia or date.today()
+    linha = await conexao.fetchrow(
+        """
+        select
+            identificador_equipe_vigencia,
+            equipe,
+            gerente_regional,
+            head_comercial,
+            diretor_comercial
+          from sevenlm_connect.funcionario_equipe_vigencia
+         where lower(equipe) = lower($1)
+           and ativo = true
+           and (data_inicio_vigencia is null or data_inicio_vigencia <= $2::date)
+           and (data_fim_vigencia is null or data_fim_vigencia >= $2::date)
+         order by data_inicio_vigencia desc nulls last, data_hora_atualizado_em desc
+         limit 1
+        """,
+        equipe,
+        referencia,
+    )
+    if not linha:
+        raise HTTPException(status_code=422, detail="Equipe sem vigencia ativa para aprovacao da vaga.")
+
+    diretor = _normalizar_texto(linha["diretor_comercial"])
+    if not _lideranca_vigente_valida_dashboard_gc(diretor):
+        raise HTTPException(status_code=422, detail="Equipe sem diretor comercial vigente para aprovacao da vaga.")
+
+    regional = _normalizar_texto(linha["gerente_regional"])
+    if not _lideranca_vigente_valida_dashboard_gc(regional):
+        regional = _GERENTE_REGIONAL_PADRAO_DASHBOARD_GC
+    if not regional:
+        raise HTTPException(status_code=422, detail="Equipe sem gerente regional vigente para aprovacao da vaga.")
+
+    usuario_regional = await _resolver_usuario_aprovador_dashboard_gc(conexao, regional)
+    usuario_diretor = await _resolver_usuario_aprovador_dashboard_gc(conexao, diretor)
+    return {
+        "identificador_equipe_vigencia": str(linha["identificador_equipe_vigencia"]),
+        "gerente_regional_aprovador": regional,
+        "gerente_regional_aprovador_email": _normalizar_texto(usuario_regional["correio_eletronico"]) if usuario_regional else "",
+        "aprovador_regional_usuario": str(usuario_regional["identificador_usuario"]) if usuario_regional else None,
+        "diretor_aprovador": diretor,
+        "diretor_aprovador_email": _normalizar_texto(usuario_diretor["correio_eletronico"]) if usuario_diretor else "",
+        "aprovador_usuario": str(usuario_diretor["identificador_usuario"]) if usuario_diretor else None,
+    }
+
+
+async def _resolver_diretor_aprovador_vaga_dashboard_gc(
+    conexao,
+    *,
+    equipe: str,
+    data_referencia: Optional[date] = None,
+) -> dict[str, Any]:
+    aprovadores = await _resolver_aprovadores_vaga_dashboard_gc(
+        conexao,
+        equipe=equipe,
+        data_referencia=data_referencia,
+    )
+    return {
+        "identificador_equipe_vigencia": aprovadores.get("identificador_equipe_vigencia"),
+        "diretor_aprovador": aprovadores.get("diretor_aprovador"),
+        "diretor_aprovador_email": aprovadores.get("diretor_aprovador_email"),
+        "aprovador_usuario": aprovadores.get("aprovador_usuario"),
+    }
+
+
+async def _usuario_eh_administrador_dashboard_gc(conexao, executor: dict[str, Any]) -> bool:
+    if executor.get("pode_gerenciar"):
+        return True
+    identificador_usuario = str(executor.get("identificador_usuario") or "")
+    if not identificador_usuario:
+        return False
+    return await _usuario_possui_qualquer_permissao(
+        conexao,
+        identificador_usuario,
+        _ADMIN_PERMISSOES_GERENCIAMENTO,
+    )
+
+
+def _usuario_corresponde_aprovador_dashboard_gc(
+    executor: dict[str, Any],
+    vaga: dict[str, Any],
+    *,
+    campo_usuario: str = "aprovador_usuario",
+    campo_nome: str = "diretor_aprovador",
+    campo_email: str = "diretor_aprovador_email",
+) -> bool:
+    usuario_id = str(executor.get("identificador_usuario") or "")
+    aprovador_usuario = str(vaga.get(campo_usuario) or "")
+    if usuario_id and aprovador_usuario and usuario_id == aprovador_usuario:
+        return True
+
+    nome_usuario = _slug_texto_dashboard_gc(executor.get("nome_completo"))
+    email_usuario = _slug_texto_dashboard_gc(executor.get("correio_eletronico"))
+    nome_aprovador = _slug_texto_dashboard_gc(vaga.get(campo_nome))
+    email_aprovador = _slug_texto_dashboard_gc(vaga.get(campo_email))
+    return bool(
+        (nome_usuario and nome_aprovador and nome_usuario == nome_aprovador)
+        or (email_usuario and email_aprovador and email_usuario == email_aprovador)
+    )
+
+
+def _serializar_andamento_vaga_dashboard_gc(linha: Any) -> dict[str, Any]:
+    item = dict(linha)
+    for chave in ("identificador_andamento", "identificador_vaga", "criado_por"):
+        if item.get(chave) is not None:
+            item[chave] = str(item[chave])
+    if item.get("data_hora_criacao") is not None:
+        item["data_hora_criacao"] = item["data_hora_criacao"].isoformat()
+    item["usuario_nome"] = _normalizar_texto(item.get("usuario_nome") or item.get("criado_por_nome")) or "Sistema"
+    item["usuario_email"] = _normalizar_texto(item.get("usuario_email")) or ""
+    item["status_vaga"] = _normalizar_status_vaga_dashboard_gc(item.get("status_vaga"), padrao="EM_ANDAMENTO")
+    item["descricao"] = _normalizar_texto(item.get("descricao"))
+    return item
+
+
+async def _listar_andamentos_vagas_dashboard_gc(conexao, identificadores: list[str]) -> dict[str, list[dict[str, Any]]]:
+    ids = [_uuid_ou_none(identificador) for identificador in identificadores]
+    ids = [identificador for identificador in ids if identificador]
+    if not ids:
+        return {}
+    linhas = await conexao.fetch(
+        """
+        select
+            a.*,
+            coalesce(u.nome_completo, a.criado_por_nome, 'Sistema') as usuario_nome,
+            coalesce(u.correio_eletronico::text, '') as usuario_email
+          from recrutamento_selecao.vaga_andamento a
+          left join sevenlm_connect.usuario u
+            on u.identificador_usuario = a.criado_por
+         where a.identificador_vaga = any($1::uuid[])
+         order by a.data_hora_criacao desc
+        """,
+        ids,
+    )
+    por_vaga: dict[str, list[dict[str, Any]]] = {}
+    for linha in linhas:
+        item = _serializar_andamento_vaga_dashboard_gc(linha)
+        por_vaga.setdefault(str(item["identificador_vaga"]), []).append(item)
+    return por_vaga
+
+
+async def _registrar_andamento_vaga_dashboard_gc(
+    conexao,
+    *,
+    identificador_vaga: str,
+    descricao: Optional[str],
+    status_vaga: Optional[str],
+    executor: dict[str, Any],
+) -> Optional[dict[str, Any]]:
+    descricao_normalizada = _normalizar_texto(descricao)
+    if not descricao_normalizada:
+        return None
+    linha = await conexao.fetchrow(
+        """
+        insert into recrutamento_selecao.vaga_andamento (
+            identificador_vaga,
+            descricao,
+            status_vaga,
+            criado_por,
+            criado_por_nome
+        )
+        values ($1::uuid, $2, $3, $4::uuid, $5)
+        returning *
+        """,
+        identificador_vaga,
+        descricao_normalizada,
+        _normalizar_status_vaga_dashboard_gc(status_vaga, padrao="EM_ANDAMENTO"),
+        executor.get("identificador_usuario"),
+        executor.get("nome_completo") or "Sistema",
+    )
+    return _serializar_andamento_vaga_dashboard_gc(linha)
+
+
+async def _validar_senha_administrador_dashboard_gc(conexao, executor: dict[str, Any], senha: str) -> None:
+    senha_normalizada = _normalizar_texto(senha)
+    if not senha_normalizada:
+        raise HTTPException(status_code=422, detail="Informe a senha do administrador.")
+
+    usuario = await conexao.fetchrow(
+        """
+        select senha_hash, indicador_ativo
+          from sevenlm_connect.usuario
+         where identificador_usuario = $1::uuid
+         limit 1
+        """,
+        executor["identificador_usuario"],
+    )
+    if not usuario or not usuario["indicador_ativo"]:
+        raise HTTPException(status_code=403, detail="Administrador autenticado invalido.")
+    if not validar_senha(senha_normalizada, usuario["senha_hash"]):
+        raise HTTPException(status_code=403, detail="Senha do administrador invalida.")
+
+
+async def _garantir_tabela_forecast_dashboard_gc(conexao) -> None:
+    await conexao.execute(
+        """
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+        CREATE TABLE IF NOT EXISTS sevenlm_connect.dashboard_gc_forecast_manual (
+          identificador_forecast uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          mes_referencia smallint NOT NULL,
+          ano_referencia smallint NOT NULL,
+          chave_gestor text NOT NULL,
+          gestor text NOT NULL,
+          equipes text[] NOT NULL DEFAULT '{}'::text[],
+          equipe_resumo text,
+          forecast integer NOT NULL,
+          observacao text,
+          ativo boolean NOT NULL DEFAULT true,
+          criado_por uuid REFERENCES sevenlm_connect.usuario(identificador_usuario) ON DELETE SET NULL,
+          alterado_por uuid REFERENCES sevenlm_connect.usuario(identificador_usuario) ON DELETE SET NULL,
+          data_hora_criacao timestamptz NOT NULL DEFAULT NOW(),
+          data_hora_atualizado_em timestamptz NOT NULL DEFAULT NOW(),
+          CONSTRAINT ck_dashboard_gc_forecast_mes CHECK (mes_referencia BETWEEN 1 AND 12),
+          CONSTRAINT ck_dashboard_gc_forecast_ano CHECK (ano_referencia BETWEEN 2000 AND 2100),
+          CONSTRAINT ck_dashboard_gc_forecast_valor CHECK (forecast >= 0)
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_dashboard_gc_forecast_manual_vigente
+          ON sevenlm_connect.dashboard_gc_forecast_manual (ano_referencia, mes_referencia, chave_gestor)
+          WHERE ativo = true;
+
+        CREATE INDEX IF NOT EXISTS idx_dashboard_gc_forecast_manual_periodo
+          ON sevenlm_connect.dashboard_gc_forecast_manual (ano_referencia, mes_referencia, gestor)
+          WHERE ativo = true;
+
+        CREATE TABLE IF NOT EXISTS sevenlm_connect.dashboard_gc_forecast_manual_historico (
+          identificador_historico uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          identificador_forecast uuid REFERENCES sevenlm_connect.dashboard_gc_forecast_manual(identificador_forecast) ON DELETE CASCADE,
+          acao text NOT NULL,
+          mes_referencia smallint NOT NULL,
+          ano_referencia smallint NOT NULL,
+          chave_gestor text NOT NULL,
+          gestor text NOT NULL,
+          equipes text[] NOT NULL DEFAULT '{}'::text[],
+          equipe_resumo text,
+          forecast_anterior integer,
+          forecast_novo integer NOT NULL,
+          observacao text,
+          usuario_responsavel uuid REFERENCES sevenlm_connect.usuario(identificador_usuario) ON DELETE SET NULL,
+          data_hora_evento timestamptz NOT NULL DEFAULT NOW(),
+          CONSTRAINT ck_dashboard_gc_forecast_hist_acao CHECK (acao IN ('CRIACAO', 'ALTERACAO', 'INATIVACAO')),
+          CONSTRAINT ck_dashboard_gc_forecast_hist_mes CHECK (mes_referencia BETWEEN 1 AND 12),
+          CONSTRAINT ck_dashboard_gc_forecast_hist_ano CHECK (ano_referencia BETWEEN 2000 AND 2100),
+          CONSTRAINT ck_dashboard_gc_forecast_hist_valor CHECK (forecast_novo >= 0)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_dashboard_gc_forecast_hist_periodo
+          ON sevenlm_connect.dashboard_gc_forecast_manual_historico (ano_referencia, mes_referencia, data_hora_evento DESC);
+        """
+    )
+
+
+def _normalizar_lista_texto_dashboard_gc(valores: Any) -> list[str]:
+    vistos: set[str] = set()
+    resultado: list[str] = []
+    for valor in valores or []:
+        texto = _normalizar_texto(str(valor))
+        chave = _slug_texto_dashboard_gc(texto)
+        if not texto or not chave or chave in vistos:
+            continue
+        vistos.add(chave)
+        resultado.append(texto)
+    return resultado
+
+
+def _normalizar_forecast_dashboard_gc(corpo: CorpoForecastDashboardGc) -> dict[str, Any]:
+    dados = corpo.dict()
+    dados["gestor"] = _normalizar_texto(dados.get("gestor"))
+    dados["chave_gestor"] = _slug_texto_dashboard_gc(dados.get("chave_gestor")) or _slug_texto_dashboard_gc(dados["gestor"])
+    dados["equipes"] = _normalizar_lista_texto_dashboard_gc(dados.get("equipes"))
+    dados["equipe_resumo"] = _normalizar_texto(dados.get("equipe_resumo")) or ", ".join(dados["equipes"][:3]) or "-"
+    dados["observacao"] = _normalizar_texto(dados.get("observacao")) or None
+    if not dados["gestor"]:
+        raise HTTPException(status_code=422, detail="Informe o gestor do forecast.")
+    if not dados["chave_gestor"]:
+        raise HTTPException(status_code=422, detail="Informe a chave do gestor.")
+    return dados
+
+
+def _serializar_forecast_dashboard_gc(linha: Any) -> dict[str, Any]:
+    item = dict(linha)
+    for chave in ("identificador_forecast", "criado_por", "alterado_por"):
+        if item.get(chave) is not None:
+            item[chave] = str(item[chave])
+    for chave in ("data_hora_criacao", "data_hora_atualizado_em"):
+        if item.get(chave) is not None:
+            item[chave] = item[chave].isoformat()
+    item["equipes"] = list(item.get("equipes") or [])
+    return item
+
+
+def _serializar_historico_forecast_dashboard_gc(linha: Any) -> dict[str, Any]:
+    item = dict(linha)
+    for chave in ("identificador_historico", "identificador_forecast", "usuario_responsavel"):
+        if item.get(chave) is not None:
+            item[chave] = str(item[chave])
+    if item.get("data_hora_evento") is not None:
+        item["data_hora_evento"] = item["data_hora_evento"].isoformat()
+    item["equipes"] = list(item.get("equipes") or [])
+    item["usuario_nome"] = _normalizar_texto(item.get("usuario_nome")) or "Sistema"
+    item["usuario_email"] = _normalizar_texto(item.get("usuario_email")) or ""
+    return item
+
+
+async def _registrar_historico_forecast_dashboard_gc(
+    conexao,
+    *,
+    forecast: Any,
+    acao: str,
+    forecast_anterior: Optional[int],
+    forecast_novo: int,
+    executor: dict[str, Any],
+) -> None:
+    await conexao.execute(
+        """
+        insert into sevenlm_connect.dashboard_gc_forecast_manual_historico (
+            identificador_forecast,
+            acao,
+            mes_referencia,
+            ano_referencia,
+            chave_gestor,
+            gestor,
+            equipes,
+            equipe_resumo,
+            forecast_anterior,
+            forecast_novo,
+            observacao,
+            usuario_responsavel
+        )
+        values ($1::uuid, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10, $11, $12::uuid)
+        """,
+        forecast["identificador_forecast"],
+        acao,
+        forecast["mes_referencia"],
+        forecast["ano_referencia"],
+        forecast["chave_gestor"],
+        forecast["gestor"],
+        list(forecast["equipes"] or []),
+        forecast["equipe_resumo"],
+        forecast_anterior,
+        forecast_novo,
+        forecast.get("observacao"),
+        executor.get("identificador_usuario"),
+    )
+
+
+async def _vigencias_equipes_dashboard_gc(
+    conexao,
+    equipes: list[str],
+    data_referencia: Optional[date] = None,
+) -> dict[str, dict[str, Any]]:
+    equipes_normalizadas = _normalizar_lista_texto_dashboard_gc(equipes)
+    if not equipes_normalizadas:
+        return {}
+    referencia = data_referencia or date.today()
+    linhas = await conexao.fetch(
+        """
+        select
+            identificador_equipe_vigencia,
+            equipe,
+            gerente_regional,
+            head_comercial,
+            diretor_comercial
+          from sevenlm_connect.funcionario_equipe_vigencia
+         where lower(equipe) = any($1::text[])
+           and ativo = true
+           and data_inicio_vigencia <= $2::date
+           and (data_fim_vigencia is null or data_fim_vigencia >= $2::date)
+         order by data_inicio_vigencia desc, data_hora_atualizado_em desc
+        """,
+        [equipe.lower() for equipe in equipes_normalizadas],
+        referencia,
+    )
+    resultado: dict[str, dict[str, Any]] = {}
+    for linha in linhas:
+        chave = _slug_texto_dashboard_gc(linha["equipe"])
+        if chave and chave not in resultado:
+            resultado[chave] = dict(linha)
+    return resultado
+
+
+async def _validar_permissao_forecast_dashboard_gc(
+    conexao,
+    *,
+    executor: dict[str, Any],
+    equipes: list[str],
+) -> None:
+    if await _usuario_eh_administrador_dashboard_gc(conexao, executor):
+        return
+
+    equipes_normalizadas = _normalizar_lista_texto_dashboard_gc(equipes)
+    if not equipes_normalizadas:
+        raise HTTPException(status_code=403, detail="Somente gerente regional ou administrador pode ajustar forecast.")
+
+    vigencias = await _vigencias_equipes_dashboard_gc(conexao, equipes_normalizadas)
+    usuario_keys = {
+        _slug_texto_dashboard_gc(executor.get("nome_completo")),
+        _slug_texto_dashboard_gc(executor.get("correio_eletronico")),
+        _slug_texto_dashboard_gc(executor.get("identificador_usuario")),
+    }
+    usuario_keys = {chave for chave in usuario_keys if chave}
+    for equipe in equipes_normalizadas:
+        vigencia = vigencias.get(_slug_texto_dashboard_gc(equipe))
+        if not vigencia:
+            raise HTTPException(status_code=403, detail="Equipe sem vigencia comercial para validar ajuste de forecast.")
+        aprovadores: set[str] = set()
+        for nome_lideranca in (
+            vigencia.get("gerente_regional"),
+            vigencia.get("head_comercial"),
+            vigencia.get("diretor_comercial"),
+        ):
+            if not _lideranca_vigente_valida_dashboard_gc(nome_lideranca):
+                continue
+            aprovadores.add(_slug_texto_dashboard_gc(nome_lideranca))
+            usuario_lideranca = await _resolver_usuario_aprovador_dashboard_gc(conexao, nome_lideranca)
+            if usuario_lideranca:
+                aprovadores.add(_slug_texto_dashboard_gc(usuario_lideranca.get("identificador_usuario")))
+                aprovadores.add(_slug_texto_dashboard_gc(usuario_lideranca.get("nome_completo")))
+                aprovadores.add(_slug_texto_dashboard_gc(usuario_lideranca.get("correio_eletronico")))
+        aprovadores = {chave for chave in aprovadores if chave}
+        if not usuario_keys.intersection(aprovadores):
+            raise HTTPException(status_code=403, detail="Somente gerente regional, head/diretor comercial ou administrador pode ajustar forecast.")
+
+
+async def _contar_headcount_equipe_dashboard_gc(conexao, equipe: str) -> int:
+    total = await conexao.fetchval(
+        """
+        select count(distinct coalesce(
+                   f.identificador_funcionario::text,
+                   lower(f.email::text),
+                   nullif(trim(f.documento), ''),
+                   nullif(trim(f.nome), '')
+               ))::integer
+          from sevenlm_connect.funcionario_acesso f
+          left join sevenlm_connect.funcionario_equipe_vigencia ev
+            on ev.identificador_equipe_vigencia = f.identificador_equipe_vigencia
+         where lower(coalesce(ev.equipe, f.imobiliaria, f.regional, f.regiao, '')) = lower($1)
+           and upper(coalesce(f.tipo_funcionario, '')) in ('CORRETOR', 'SDR')
+           and coalesce(f.ativo, true) = true
+           and coalesce(f.ativo_negocio, true) = true
+        """,
+        equipe,
+    )
+    return int(total or 0)
+
+
+async def _quantidade_vagas_em_fila_equipe_dashboard_gc(conexao, equipe: str) -> int:
+    total = await conexao.fetchval(
+        """
+        select coalesce(sum(quantidade_vagas), 0)::integer
+          from recrutamento_selecao.vaga
+         where lower(equipe) = lower($1)
+           and status_vaga = any($2::text[])
+           and lower(coalesce(cargo, '')) in ('corretor', 'consultor')
+        """,
+        equipe,
+        list(_VAGA_STATUS_EM_FILA_DASHBOARD_GC),
+    )
+    return int(total or 0)
+
+
+async def _criar_vaga_automatica_forecast_dashboard_gc(
+    conexao,
+    *,
+    forecast: dict[str, Any],
+    executor: dict[str, Any],
+    request: Request,
+) -> Optional[dict[str, Any]]:
+    equipes = _normalizar_lista_texto_dashboard_gc(forecast.get("equipes") or [])
+    if len(equipes) != 1:
+        return None
+
+    equipe = equipes[0]
+    await _garantir_tabela_vagas_dashboard_gc(conexao)
+    hc = await _contar_headcount_equipe_dashboard_gc(conexao, equipe)
+    vagas_em_fila = await _quantidade_vagas_em_fila_equipe_dashboard_gc(conexao, equipe)
+    forecast_valor = max(0, int(forecast.get("forecast") or 0))
+    quantidade_necessaria = forecast_valor - hc - vagas_em_fila
+    if quantidade_necessaria <= 0:
+        return None
+
+    data_abertura = date.today()
+    aprovador = await _resolver_aprovadores_vaga_dashboard_gc(
+        conexao,
+        equipe=equipe,
+        data_referencia=data_abertura,
+    )
+    protocolo = await _gerar_protocolo_vaga_dashboard_gc(conexao, data_abertura)
+    observacao = (
+        f"Abertura automatica por ajuste de forecast. "
+        f"Forecast {forecast_valor}, HC {hc}, vagas em fila {vagas_em_fila}."
+    )
+    linha = await conexao.fetchrow(
+        """
+        insert into recrutamento_selecao.vaga (
+            protocolo,
+            equipe,
+            cargo,
+            quantidade_vagas,
+            data_abertura,
+            status_vaga,
+            tipo_solicitacao,
+            prioridade,
+            solicitante,
+            motivo_abertura,
+            identificador_equipe_vigencia,
+            gerente_regional_aprovador,
+            gerente_regional_aprovador_email,
+            aprovador_regional_usuario,
+            diretor_aprovador,
+            diretor_aprovador_email,
+            aprovador_usuario,
+            identificador_forecast_origem,
+            data_hora_solicitacao,
+            observacao,
+            criado_por,
+            alterado_por
+        )
+        values (
+            $1, $2, 'Corretor', $3, $4, 'PENDENTE_APROVACAO_REGIONAL',
+            'FORECAST_AUTOMATICO', null, $5, $6, $7::uuid, $8, $9, $10::uuid,
+            $11, $12, $13::uuid, $14::uuid, now(), $15, $16::uuid, $16::uuid
+        )
+        returning *
+        """,
+        protocolo,
+        equipe,
+        quantidade_necessaria,
+        data_abertura,
+        executor.get("nome_completo"),
+        "Gap entre HC e forecast ajustado manualmente.",
+        aprovador.get("identificador_equipe_vigencia"),
+        aprovador.get("gerente_regional_aprovador"),
+        aprovador.get("gerente_regional_aprovador_email"),
+        aprovador.get("aprovador_regional_usuario"),
+        aprovador.get("diretor_aprovador"),
+        aprovador.get("diretor_aprovador_email"),
+        aprovador.get("aprovador_usuario"),
+        forecast.get("identificador_forecast"),
+        observacao,
+        executor.get("identificador_usuario"),
+    )
+    vaga = _serializar_vaga_dashboard_gc(linha)
+    await _registrar_andamento_vaga_dashboard_gc(
+        conexao,
+        identificador_vaga=vaga["identificador_vaga"],
+        descricao=(
+            f"Vaga automatica criada por ajuste de forecast e enviada para aprovacao "
+            f"do gerente regional {vaga.get('gerente_regional_aprovador') or 'vigente'}."
+        ),
+        status_vaga=vaga["status_vaga"],
+        executor=executor,
+    )
+    vaga["andamentos"] = (await _listar_andamentos_vagas_dashboard_gc(conexao, [vaga["identificador_vaga"]])).get(vaga["identificador_vaga"], [])
+    await _registrar_evento_auditoria(
+        conexao=conexao,
+        request=request,
+        executor=executor,
+        tipo_evento="DASHBOARD_GC_VAGA_CRIADA_AUTOMATICA_FORECAST",
+        descricao_evento=f"Vaga {vaga.get('protocolo')} criada automaticamente por ajuste de forecast.",
+        detalhes_evento=vaga,
+    )
+    return vaga
+
+
+def _equipe_eh_imobiliaria_dashboard_gc(equipe: Optional[str]) -> bool:
+    chave = _slug_texto_dashboard_gc(equipe)
+    return bool(chave and "imobiliaria" in chave)
+
+
+def _status_movimento_funcionario_dashboard_gc(
+    funcionario: Optional[dict[str, Any]],
+    status_operacional: Optional[str] = None,
+) -> str:
+    if not funcionario:
+        return "INATIVO"
+    if funcionario.get("ativo") is False:
+        return "INATIVO"
+    status_normalizado = _normalizar_status_cadastro_funcionario(
+        status_operacional or funcionario.get("status_operacional")
+    )
+    return status_normalizado or "ATIVO"
+
+
+async def _status_diario_funcionario_dashboard_gc(
+    conexao,
+    funcionario: Optional[dict[str, Any]],
+) -> str:
+    if not funcionario:
+        return "INATIVO"
+    if funcionario.get("ativo") is False:
+        return "INATIVO"
+    await gerar_quadro_diario(conexao, date.today())
+    status_operacional = await conexao.fetchval(
+        """
+        select status_operacional
+          from sevenlm_connect.funcionario_status_diario
+         where identificador_funcionario = $1::uuid
+           and data_status = current_date
+         limit 1
+        """,
+        funcionario.get("identificador_funcionario"),
+    )
+    return _status_movimento_funcionario_dashboard_gc(funcionario, status_operacional)
+
+
+def _funcionario_conta_como_ativo_vaga_dashboard_gc(
+    funcionario: Optional[dict[str, Any]],
+    status_operacional: Optional[str] = None,
+) -> bool:
+    if not funcionario or funcionario.get("ativo") is False:
+        return False
+    status_atual = _status_movimento_funcionario_dashboard_gc(funcionario, status_operacional)
+    return status_atual not in {"INATIVO", "AFASTADO"}
+
+
+def _funcionario_conta_como_inativo_vaga_dashboard_gc(
+    funcionario: Optional[dict[str, Any]],
+    status_operacional: Optional[str] = None,
+) -> bool:
+    if not funcionario:
+        return False
+    return _status_movimento_funcionario_dashboard_gc(funcionario, status_operacional) == "INATIVO"
+
+
+def _cargo_vaga_por_funcionario_dashboard_gc(funcionario: Optional[dict[str, Any]]) -> Optional[str]:
+    if not funcionario:
+        return None
+    tipo_funcionario = _normalizar_texto(funcionario.get("tipo_funcionario")).upper()
+    cargo = _normalizar_texto(funcionario.get("cargo") or funcionario.get("funcao"))
+    chave_cargo = _slug_texto_dashboard_gc(cargo)
+    if tipo_funcionario in {"CORRETOR", "SDR"} or "corretor" in chave_cargo or "consultor" in chave_cargo:
+        return "Corretor"
+    if "gerente_comercial" in chave_cargo:
+        return "Gerente comercial"
+    if "gerente_regional" in chave_cargo:
+        return "Gerente regional"
+    if "gerente_de_vendas" in chave_cargo or ("gerente" in chave_cargo and "vendas" in chave_cargo):
+        return "Gerente de vendas"
+    if "head" in chave_cargo:
+        return "Head Comercial"
+    if "diretor" in chave_cargo:
+        return "Diretor comercial"
+    return None
+
+
+async def _equipe_vaga_por_funcionario_dashboard_gc(
+    conexao,
+    funcionario: Optional[dict[str, Any]],
+) -> Optional[str]:
+    if not funcionario:
+        return None
+    equipe = _normalizar_texto(
+        funcionario.get("equipe_vigencia_nome")
+        or funcionario.get("imobiliaria")
+        or funcionario.get("equipe")
+    )
+    if equipe:
+        return equipe
+
+    identificador_equipe = _uuid_ou_none(funcionario.get("identificador_equipe_vigencia"))
+    if not identificador_equipe:
+        return None
+    equipe = await conexao.fetchval(
+        """
+        select equipe
+          from sevenlm_connect.funcionario_equipe_vigencia
+         where identificador_equipe_vigencia = $1::uuid
+         limit 1
+        """,
+        identificador_equipe,
+    )
+    return _normalizar_texto(equipe) or None
+
+
+def _ajustar_prioridade_niveis_quantidade_dashboard_gc(
+    prioridade_niveis: Any,
+    quantidade_total: int,
+) -> list[dict[str, Any]]:
+    quantidade_restante = max(0, int(quantidade_total or 0))
+    if quantidade_restante <= 0:
+        return []
+    try:
+        niveis = _normalizar_prioridade_niveis_dashboard_gc(
+            prioridade_niveis,
+            quantidade_total=None,
+            validar_limite=False,
+        )
+    except HTTPException:
+        return []
+    ajustados: list[dict[str, Any]] = []
+    for nivel in _PRIORIDADE_ORDEM_DASHBOARD_GC:
+        quantidade_nivel = sum(
+            int(item.get("quantidade") or 0)
+            for item in niveis
+            if str(item.get("nivel")) == nivel
+        )
+        if quantidade_nivel <= 0:
+            continue
+        quantidade_usada = min(quantidade_nivel, quantidade_restante)
+        if quantidade_usada > 0:
+            ajustados.append({"nivel": nivel, "quantidade": quantidade_usada})
+            quantidade_restante -= quantidade_usada
+        if quantidade_restante <= 0:
+            break
+    return ajustados
+
+
+async def _criar_vaga_reposicao_funcionario_dashboard_gc(
+    conexao,
+    *,
+    funcionario: dict[str, Any],
+    executor: dict[str, Any],
+    request: Request,
+) -> Optional[dict[str, Any]]:
+    equipe = await _equipe_vaga_por_funcionario_dashboard_gc(conexao, funcionario)
+    cargo = _cargo_vaga_por_funcionario_dashboard_gc(funcionario)
+    if not equipe or not cargo or _equipe_eh_imobiliaria_dashboard_gc(equipe):
+        return None
+
+    await _garantir_tabela_vagas_dashboard_gc(conexao)
+    data_abertura = date.today()
+    aprovador = await _resolver_aprovadores_vaga_dashboard_gc(
+        conexao,
+        equipe=equipe,
+        data_referencia=data_abertura,
+    )
+    protocolo = await _gerar_protocolo_vaga_dashboard_gc(conexao, data_abertura)
+    nome_funcionario = _normalizar_texto(funcionario.get("nome")) or "Pessoa inativada"
+    observacao = (
+        f"Vaga aberta automaticamente pela inativacao de {nome_funcionario} "
+        f"no cadastro de Pessoas."
+    )
+    linha = await conexao.fetchrow(
+        """
+        insert into recrutamento_selecao.vaga (
+            protocolo,
+            equipe,
+            cargo,
+            quantidade_vagas,
+            data_abertura,
+            status_vaga,
+            tipo_solicitacao,
+            prioridade,
+            prioridade_niveis,
+            solicitante,
+            substituicao_de,
+            motivo_abertura,
+            identificador_equipe_vigencia,
+            gerente_regional_aprovador,
+            gerente_regional_aprovador_email,
+            aprovador_regional_usuario,
+            diretor_aprovador,
+            diretor_aprovador_email,
+            aprovador_usuario,
+            data_hora_solicitacao,
+            observacao,
+            criado_por,
+            alterado_por
+        )
+        values (
+            $1, $2, $3, 1, $4, 'PENDENTE_APROVACAO_REGIONAL',
+            'REPOSICAO_AUTOMATICA', null, '[]'::jsonb, $5, $6, $7,
+            $8::uuid, $9, $10, $11::uuid, $12, $13, $14::uuid,
+            now(), $15, $16::uuid, $16::uuid
+        )
+        returning *
+        """,
+        protocolo,
+        equipe,
+        cargo,
+        data_abertura,
+        executor.get("nome_completo"),
+        nome_funcionario,
+        "Reposicao automatica por inativacao de pessoa.",
+        aprovador.get("identificador_equipe_vigencia"),
+        aprovador.get("gerente_regional_aprovador"),
+        aprovador.get("gerente_regional_aprovador_email"),
+        aprovador.get("aprovador_regional_usuario"),
+        aprovador.get("diretor_aprovador"),
+        aprovador.get("diretor_aprovador_email"),
+        aprovador.get("aprovador_usuario"),
+        observacao,
+        executor.get("identificador_usuario"),
+    )
+    vaga = _serializar_vaga_dashboard_gc(linha)
+    await _registrar_andamento_vaga_dashboard_gc(
+        conexao,
+        identificador_vaga=vaga["identificador_vaga"],
+        descricao=(
+            f"Vaga aberta automaticamente por inativacao de {nome_funcionario} "
+            f"e enviada para aprovacao do gerente regional "
+            f"{vaga.get('gerente_regional_aprovador') or 'vigente'}."
+        ),
+        status_vaga=vaga["status_vaga"],
+        executor=executor,
+    )
+    vaga["andamentos"] = (await _listar_andamentos_vagas_dashboard_gc(conexao, [vaga["identificador_vaga"]])).get(vaga["identificador_vaga"], [])
+    await _registrar_evento_auditoria(
+        conexao=conexao,
+        request=request,
+        executor=executor,
+        tipo_evento="DASHBOARD_GC_VAGA_CRIADA_REPOSICAO_FUNCIONARIO",
+        descricao_evento=f"Vaga {vaga.get('protocolo')} criada por inativacao de pessoa.",
+        detalhes_evento={
+            "vaga": vaga,
+            "funcionario": {
+                "identificador_funcionario": funcionario.get("identificador_funcionario"),
+                "nome": funcionario.get("nome"),
+                "cargo": funcionario.get("cargo"),
+                "equipe": equipe,
+            },
+        },
+    )
+    return vaga
+
+
+async def _buscar_vaga_consumivel_funcionario_dashboard_gc(
+    conexao,
+    *,
+    equipe: str,
+    cargo: str,
+):
+    return await conexao.fetchrow(
+        """
+        select *
+          from recrutamento_selecao.vaga
+         where lower(equipe) = lower($1)
+           and lower(coalesce(cargo, '')) = lower($2)
+           and status_vaga = any($3::text[])
+           and quantidade_vagas > 0
+         order by
+           case status_vaga
+             when 'EM_ANDAMENTO' then 0
+             when 'TRIAGEM' then 1
+             when 'ENTREVISTAS' then 2
+             when 'PROPOSTA' then 3
+             when 'PENDENTE_APROVACAO' then 4
+             when 'PENDENTE_APROVACAO_REGIONAL' then 5
+             else 9
+           end,
+           data_abertura asc,
+           protocolo asc
+         limit 1
+        """,
+        equipe,
+        cargo,
+        list(_VAGA_STATUS_EM_FILA_DASHBOARD_GC),
+    )
+
+
+async def _consumir_vaga_por_funcionario_dashboard_gc(
+    conexao,
+    *,
+    funcionario: dict[str, Any],
+    executor: dict[str, Any],
+    request: Request,
+) -> Optional[dict[str, Any]]:
+    equipe = await _equipe_vaga_por_funcionario_dashboard_gc(conexao, funcionario)
+    cargo = _cargo_vaga_por_funcionario_dashboard_gc(funcionario)
+    if not equipe or not cargo or _equipe_eh_imobiliaria_dashboard_gc(equipe):
+        return None
+
+    await _garantir_tabela_vagas_dashboard_gc(conexao)
+    vaga_atual = await _buscar_vaga_consumivel_funcionario_dashboard_gc(
+        conexao,
+        equipe=equipe,
+        cargo=cargo,
+    )
+    if not vaga_atual:
+        return None
+
+    quantidade_atual = max(1, int(vaga_atual["quantidade_vagas"] or 1))
+    nome_funcionario = _normalizar_texto(funcionario.get("nome")) or "Pessoa ativada"
+    if quantidade_atual <= 1:
+        linha = await conexao.fetchrow(
+            """
+            update recrutamento_selecao.vaga
+               set status_vaga = 'FECHADA',
+                   data_fechamento = current_date,
+                   alterado_por = $2::uuid,
+                   data_hora_atualizado_em = now()
+             where identificador_vaga = $1::uuid
+             returning *
+            """,
+            vaga_atual["identificador_vaga"],
+            executor.get("identificador_usuario"),
+        )
+        descricao = f"Vaga fechada automaticamente pela entrada de {nome_funcionario}."
+    else:
+        nova_quantidade = quantidade_atual - 1
+        prioridade_niveis = _ajustar_prioridade_niveis_quantidade_dashboard_gc(
+            vaga_atual.get("prioridade_niveis"),
+            nova_quantidade,
+        )
+        linha = await conexao.fetchrow(
+            """
+            update recrutamento_selecao.vaga
+               set quantidade_vagas = $2,
+                   prioridade_niveis = $3::jsonb,
+                   prioridade = $4,
+                   alterado_por = $5::uuid,
+                   data_hora_atualizado_em = now()
+             where identificador_vaga = $1::uuid
+             returning *
+            """,
+            vaga_atual["identificador_vaga"],
+            nova_quantidade,
+            json.dumps(prioridade_niveis, ensure_ascii=False),
+            _resumo_prioridade_niveis_dashboard_gc(prioridade_niveis) or vaga_atual.get("prioridade"),
+            executor.get("identificador_usuario"),
+        )
+        descricao = (
+            f"Entrada de {nome_funcionario} consumiu 1 vaga do protocolo. "
+            f"Quantidade restante: {nova_quantidade}."
+        )
+
+    vaga = _serializar_vaga_dashboard_gc(linha)
+    await _registrar_andamento_vaga_dashboard_gc(
+        conexao,
+        identificador_vaga=vaga["identificador_vaga"],
+        descricao=descricao,
+        status_vaga=vaga["status_vaga"],
+        executor=executor,
+    )
+    vaga["andamentos"] = (await _listar_andamentos_vagas_dashboard_gc(conexao, [vaga["identificador_vaga"]])).get(vaga["identificador_vaga"], [])
+    await _registrar_evento_auditoria(
+        conexao=conexao,
+        request=request,
+        executor=executor,
+        tipo_evento="DASHBOARD_GC_VAGA_CONSUMIDA_FUNCIONARIO",
+        descricao_evento=f"Vaga {vaga.get('protocolo')} consumida por entrada de pessoa.",
+        detalhes_evento={
+            "vaga": vaga,
+            "funcionario": {
+                "identificador_funcionario": funcionario.get("identificador_funcionario"),
+                "nome": funcionario.get("nome"),
+                "cargo": funcionario.get("cargo"),
+                "equipe": equipe,
+            },
+        },
+    )
+    return vaga
+
+
+async def _sincronizar_vaga_movimento_funcionario_dashboard_gc(
+    conexao,
+    *,
+    funcionario_anterior: Optional[dict[str, Any]],
+    status_anterior: Optional[str],
+    funcionario_atual: dict[str, Any],
+    status_atual: Optional[str],
+    executor: dict[str, Any],
+    request: Request,
+) -> Optional[dict[str, Any]]:
+    anterior_ativo = _funcionario_conta_como_ativo_vaga_dashboard_gc(funcionario_anterior, status_anterior)
+    atual_ativo = _funcionario_conta_como_ativo_vaga_dashboard_gc(funcionario_atual, status_atual)
+    atual_inativo = _funcionario_conta_como_inativo_vaga_dashboard_gc(funcionario_atual, status_atual)
+
+    if funcionario_anterior and anterior_ativo and atual_inativo:
+        return await _criar_vaga_reposicao_funcionario_dashboard_gc(
+            conexao,
+            funcionario=funcionario_anterior,
+            executor=executor,
+            request=request,
+        )
+
+    if atual_ativo and (not funcionario_anterior or not anterior_ativo):
+        return await _consumir_vaga_por_funcionario_dashboard_gc(
+            conexao,
+            funcionario=funcionario_atual,
+            executor=executor,
+            request=request,
+        )
+
+    return None
+
+
+async def _buscar_vaga_dashboard_gc(conexao, identificador_vaga: str):
+    linha = await conexao.fetchrow(
+        """
+        select *
+          from recrutamento_selecao.vaga
+         where identificador_vaga = $1::uuid
+         limit 1
+        """,
+        identificador_vaga,
+    )
+    return linha
+
+
+def _ident_sql_dashboard_gc(valor: str) -> str:
+    return '"' + str(valor).replace('"', '""') + '"'
+
+
+def _tabela_produtividade_dashboard_gc(nome_tabela: str) -> str:
+    return f"{_ident_sql_dashboard_gc(ESQUEMA_COMERCIAL)}.{_ident_sql_dashboard_gc(nome_tabela)}"
+
+
+def _somar_meses_dashboard_gc(referencia: date, deslocamento: int) -> date:
+    indice = referencia.year * 12 + (referencia.month - 1) + deslocamento
+    return date(indice // 12, (indice % 12) + 1, 1)
+
+
+def _meses_entre_dashboard_gc(inicio: Optional[date], fim: date) -> Optional[float]:
+    if not inicio:
+        return None
+    dias = (fim - inicio).days
+    return round(max(0.0, dias / 30.4375), 1)
+
+
+def _tempo_casa_label_dashboard_gc(meses: Optional[float]) -> str:
+    if meses is None:
+        return "Nao informado"
+    meses_float = round(max(0.0, float(meses)), 1)
+    if meses_float <= 0:
+        return "Recente"
+    if meses_float < 12:
+        valor = f"{meses_float:.1f}".replace(".", ",")
+        return "1,0 mes" if meses_float == 1 else f"{valor} meses"
+    meses_int = int(round(meses_float))
+    anos = meses_int // 12
+    meses_resto = meses_int % 12
+    texto_anos = "1 ano" if anos == 1 else f"{anos} anos"
+    if not meses_resto:
+        return texto_anos
+    texto_meses = "1 mes" if meses_resto == 1 else f"{meses_resto} meses"
+    return f"{texto_anos} e {texto_meses}"
+
+
+def _novo_metricas_produtividade_dashboard_gc() -> dict[str, int]:
+    return {
+        "repasses": 0,
+        "reservas": 0,
+        "pastas": 0,
+        "vendas": 0,
+        "leads": 0,
+        "visitas": 0,
+        "propostas_aprovadas": 0,
+        "propostas_condicionadas": 0,
+        "propostas_reprovadas": 0,
+        "propostas_total": 0,
+        "cancelamentos": 0,
+        "distratos": 0,
+    }
+
+
+def _somar_metricas_produtividade_dashboard_gc(destino: dict[str, int], origem: dict[str, Any]) -> None:
+    for chave in (
+        "repasses",
+        "reservas",
+        "pastas",
+        "vendas",
+        "leads",
+        "visitas",
+        "propostas_aprovadas",
+        "propostas_condicionadas",
+        "propostas_reprovadas",
+        "propostas_total",
+        "cancelamentos",
+        "distratos",
+    ):
+        destino[chave] = int(destino.get(chave) or 0) + int(origem.get(chave) or 0)
+
+
+def _metricas_intervalo_dashboard_gc(
+    metricas_por_mes: dict[date, dict[str, int]],
+    inicio: date,
+    fim_exclusivo: date,
+) -> dict[str, int]:
+    total = _novo_metricas_produtividade_dashboard_gc()
+    for mes_ref, metricas in metricas_por_mes.items():
+        if inicio <= mes_ref < fim_exclusivo:
+            _somar_metricas_produtividade_dashboard_gc(total, metricas)
+    return total
+
+
+def _denominador_intervalo_produtividade_dashboard_gc(
+    denominadores_por_mes: dict[date, float],
+    inicio: date,
+    fim_exclusivo: date,
+) -> float:
+    return float(
+        sum(
+            float(valor or 0)
+            for mes_ref, valor in denominadores_por_mes.items()
+            if inicio <= mes_ref < fim_exclusivo
+        )
+    )
+
+
+def _meta_repasse_corretor_dashboard_gc(meses_casa: Optional[float]) -> Optional[float]:
+    if meses_casa is None:
+        return None
+    if meses_casa <= 3:
+        return 0.66
+    if meses_casa <= 6:
+        return 1.33
+    if meses_casa <= 9:
+        return 1.66
+    return 2.0
+
+
+def _meta_ipc_label_dashboard_gc(meses_casa: Optional[float]) -> str:
+    if meses_casa is None:
+        return "sem base"
+    if meses_casa <= 3:
+        return "0-3m"
+    if meses_casa <= 6:
+        return "3-6m"
+    if meses_casa <= 9:
+        return "6-9m"
+    return "9m+"
+
+
+def _meses_ativos_ipc_dashboard_gc(inicio: Optional[date], periodo_inicio: date, periodo_fim: date) -> float:
+    if inicio and inicio >= periodo_fim:
+        return 0.0
+    inicio_base = date(periodo_inicio.year, 1, 1)
+    if inicio:
+        inicio_base = max(inicio_base, date(inicio.year, inicio.month, 1))
+    if periodo_fim <= inicio_base:
+        return 0.0
+    return float((periodo_fim.year - inicio_base.year) * 12 + periodo_fim.month - inicio_base.month)
+
+
+def _meses_corte_ipc_dashboard_gc(ano_inicio: date, periodo_fim: date) -> float:
+    return float(max(1, (periodo_fim.year - ano_inicio.year) * 12 + periodo_fim.month - ano_inicio.month))
+
+
+def _fim_base_ipc_ano_dashboard_gc(periodo_inicio: date, periodo_fim: date) -> date:
+    trimestre_inicio_mes = ((periodo_inicio.month - 1) // 3) * 3 + 1
+    trimestre_inicio = date(periodo_inicio.year, trimestre_inicio_mes, 1)
+    ano_inicio = date(periodo_inicio.year, 1, 1)
+    if trimestre_inicio > ano_inicio:
+        return trimestre_inicio
+    return periodo_fim
+
+
+def _primeira_competencia_produtiva_dashboard_gc(metricas_por_mes: dict[date, dict[str, int]]) -> Optional[date]:
+    meses_produtivos = [
+        mes
+        for mes, metricas in metricas_por_mes.items()
+        if int(metricas.get("repasses") or 0) > 0
+        or int(metricas.get("reservas") or metricas.get("vendas") or 0) > 0
+    ]
+    return min(meses_produtivos) if meses_produtivos else None
+
+
+def _linha_sem_base_ipc_dashboard_gc(linha: dict[str, Any]) -> bool:
+    equipe = _slug_texto_dashboard_gc(linha.get("equipe"))
+    tipo = _slug_texto_dashboard_gc(linha.get("tipo"))
+    return "imobiliaria" in equipe or tipo in {"imobiliaria", "imobiliarias"}
+
+
+def _diferenca_ipc_dashboard_gc(ipc: Optional[float], meta: Optional[float]) -> Optional[float]:
+    if ipc is None or meta is None:
+        return None
+    return round(float(ipc) - float(meta), 2)
+
+
+def _classificacao_produtividade_dashboard_gc(
+    *,
+    ipc: Optional[float],
+    meta: Optional[float],
+    meses_casa: Optional[float],
+    repasses_ano: int,
+    reservas_mes: int,
+    ativo: bool,
+) -> dict[str, str]:
+    if not ativo:
+        return {"situacao": "Sem meta", "perfil": "Afastado", "acao": "Sem meta no periodo"}
+    if meta is None:
+        perfil = "Sem base" if repasses_ano > 0 or reservas_mes > 0 else "Sem dados"
+        return {
+            "situacao": perfil,
+            "perfil": perfil,
+            "acao": "Cadastrar ou vincular na base de metas" if perfil == "Sem base" else "Definir proxima acao",
+        }
+    if meses_casa is not None and meses_casa <= 3 and ipc is None:
+        return {"situacao": "admissao", "perfil": "admissao", "acao": "Acompanhar integracao"}
+    if ipc is None:
+        return {"situacao": "Sem dados", "perfil": "Sem dados", "acao": "Definir proxima acao"}
+
+    diferenca = _diferenca_ipc_dashboard_gc(ipc, meta) or 0.0
+    if diferenca >= 0:
+        perfil = "Alta performance" if diferenca >= 0.25 else "Estavel"
+        acao = "Replicar rotina e usar como referencia" if perfil == "Alta performance" else "Manter cadencia e gerar novas reservas"
+        return {"situacao": "OK", "perfil": perfil, "acao": acao}
+    if diferenca <= -1:
+        acao = "Atacar reservas do mes com gerente" if reservas_mes > 0 else "Plano de recuperacao individual"
+        return {"situacao": "Critico", "perfil": "Critico", "acao": acao}
+    acao = "Atacar reservas do mes com gerente" if reservas_mes > 0 else "Plano semanal com o gerente"
+    return {"situacao": "Analisar", "perfil": "Em recuperacao", "acao": acao}
+
+
+def _meta_pasta_dashboard_gc(meta_repasse: Optional[float], metricas_por_mes: dict[date, dict[str, int]]) -> int:
+    if meta_repasse is None:
+        return 0
+    historico = _metricas_intervalo_dashboard_gc(metricas_por_mes, date(2000, 1, 1), date(2200, 1, 1))
+    repasses = historico["repasses"]
+    pastas = historico["pastas"]
+    fator = 1.5
+    if repasses > 0 and pastas > 0:
+        fator = min(3.0, max(0.75, pastas / repasses))
+    return int(math.ceil(max(0, meta_repasse) * fator))
+
+
+def _serie_produtividade_dashboard_gc(
+    metricas_por_mes: dict[date, dict[str, int]],
+    meses: list[date],
+    ipc_denominador: float,
+    denominadores_por_mes: Optional[dict[date, float]] = None,
+) -> list[dict[str, Any]]:
+    serie: list[dict[str, Any]] = []
+    for mes_ref in meses:
+        metricas = metricas_por_mes.get(mes_ref) or _novo_metricas_produtividade_dashboard_gc()
+        repasses = int(metricas.get("repasses") or 0)
+        reservas = int(metricas.get("reservas") or metricas.get("vendas") or 0)
+        pastas = int(metricas.get("pastas") or 0)
+        denominador_mes = (
+            float((denominadores_por_mes or {}).get(mes_ref) or 0)
+            if denominadores_por_mes is not None
+            else float(ipc_denominador or 0)
+        )
+        serie.append(
+            {
+                "mes": mes_ref.month,
+                "ano": mes_ref.year,
+                "label": f"{mes_ref.month:02d}/{str(mes_ref.year)[-2:]}",
+                "repasses": repasses,
+                "reservas": reservas,
+                "pastas": pastas,
+                "ipc": round(repasses / max(1.0, denominador_mes), 2),
+            }
+        )
+    return serie
+
+
+def _resumo_no_produtividade_dashboard_gc(
+    *,
+    chave: str,
+    nome: str,
+    nivel: str,
+    filhos: list[dict[str, Any]],
+    periodo_inicio: date,
+    periodo_fim: date,
+    ano_inicio: date,
+    ano_fim: date,
+    ano_anterior_inicio: date,
+    ano_anterior_fim: date,
+    meses_serie: list[date],
+    complemento: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    metricas_por_mes: dict[date, dict[str, int]] = {}
+    denominadores_por_mes: dict[date, float] = {}
+    for filho in filhos:
+        metricas_filho = filho.get("_metricas_por_mes_consolidado")
+        if metricas_filho is None:
+            metricas_filho = filho.get("_metricas_por_mes") or {}
+        for mes_ref, metricas in metricas_filho.items():
+            acumulado = metricas_por_mes.setdefault(mes_ref, _novo_metricas_produtividade_dashboard_gc())
+            _somar_metricas_produtividade_dashboard_gc(acumulado, metricas)
+        for mes_ref, denominador in (filho.get("_denominadores_por_mes") or {}).items():
+            denominadores_por_mes[mes_ref] = denominadores_por_mes.get(mes_ref, 0.0) + float(denominador or 0)
+
+    pessoas = int(round(float(denominadores_por_mes.get(periodo_inicio) or 0)))
+    if not pessoas:
+        pessoas = sum(int(filho.get("pessoas") or 0) for filho in filhos)
+    if not pessoas and filhos:
+        pessoas = len(filhos)
+    mes_atual = metricas_por_mes.get(periodo_inicio) or _novo_metricas_produtividade_dashboard_gc()
+    ano_vigente = _metricas_intervalo_dashboard_gc(metricas_por_mes, ano_inicio, periodo_fim)
+    ano_anterior = _metricas_intervalo_dashboard_gc(metricas_por_mes, ano_anterior_inicio, ano_anterior_fim)
+    tempos = [
+        float(filho["tempo_casa_meses"])
+        for filho in filhos
+        if filho.get("tempo_casa_meses") is not None
+    ]
+    tempo_medio = (sum(tempos) / len(tempos)) if tempos else None
+    meta_repasse = round(sum(float(filho.get("meta_repasse_sugerida") or 0) for filho in filhos), 2)
+    meta_pasta = sum(int(filho.get("meta_pasta_sugerida") or 0) for filho in filhos)
+    ipc_denominador_mes = float(max(1, denominadores_por_mes.get(periodo_inicio) or pessoas))
+    ipc_denominador_ano = _denominador_intervalo_produtividade_dashboard_gc(denominadores_por_mes, ano_inicio, periodo_fim)
+    if ipc_denominador_ano <= 0:
+        ipc_denominador_ano = float(max(1, pessoas))
+    ipc_denominador_ano_anterior = _denominador_intervalo_produtividade_dashboard_gc(
+        denominadores_por_mes,
+        ano_anterior_inicio,
+        ano_anterior_fim,
+    )
+    if ipc_denominador_ano_anterior <= 0:
+        ipc_denominador_ano_anterior = float(max(1, pessoas))
+    ipc_ano_vigente = round(int(ano_vigente["repasses"]) / ipc_denominador_ano, 2)
+    ipc_mes = round(int(mes_atual["repasses"]) / ipc_denominador_mes, 2)
+    meta_ipc = round(meta_repasse / ipc_denominador_mes, 2) if meta_repasse > 0 else None
+    situacoes = [str(filho.get("situacao") or "") for filho in filhos]
+    resposta = {
+        "key": chave,
+        "nome": nome,
+        "nivel": nivel,
+        "pessoas": pessoas,
+        "tempo_casa_meses": round(tempo_medio, 1) if tempo_medio is not None else None,
+        "tempo_casa_label": _tempo_casa_label_dashboard_gc(tempo_medio),
+        "ipc_ano_anterior": round(ano_anterior["repasses"] / max(1.0, ipc_denominador_ano_anterior), 2),
+        "ipc_ano_vigente": ipc_ano_vigente,
+        "ipc_mes": ipc_mes,
+        "repasses_mes": int(mes_atual["repasses"]),
+        "reservas_mes": int(mes_atual.get("reservas") or mes_atual.get("vendas") or 0),
+        "pastas_mes": int(mes_atual["pastas"]),
+        "leads_mes": int(mes_atual.get("leads") or 0),
+        "visitas_mes": int(mes_atual.get("visitas") or 0),
+        "vendas_mes": int(mes_atual.get("vendas") or 0),
+        "propostas_aprovadas_mes": int(mes_atual.get("propostas_aprovadas") or 0),
+        "propostas_condicionadas_mes": int(mes_atual.get("propostas_condicionadas") or 0),
+        "propostas_reprovadas_mes": int(mes_atual.get("propostas_reprovadas") or 0),
+        "propostas_total_mes": int(mes_atual.get("propostas_total") or mes_atual.get("pastas") or 0),
+        "cancelamentos_mes": int(mes_atual.get("cancelamentos") or 0),
+        "distratos_mes": int(mes_atual.get("distratos") or 0),
+        "repasses_ano_anterior": int(ano_anterior["repasses"]),
+        "repasses_ano_vigente": int(ano_vigente["repasses"]),
+        "reservas_ano_vigente": int(ano_vigente.get("reservas") or ano_vigente.get("vendas") or 0),
+        "pastas_ano_vigente": int(ano_vigente["pastas"]),
+        "leads_ano_vigente": int(ano_vigente.get("leads") or 0),
+        "visitas_ano_vigente": int(ano_vigente.get("visitas") or 0),
+        "vendas_ano_vigente": int(ano_vigente.get("vendas") or 0),
+        "propostas_aprovadas_ano_vigente": int(ano_vigente.get("propostas_aprovadas") or 0),
+        "propostas_condicionadas_ano_vigente": int(ano_vigente.get("propostas_condicionadas") or 0),
+        "propostas_reprovadas_ano_vigente": int(ano_vigente.get("propostas_reprovadas") or 0),
+        "propostas_total_ano_vigente": int(ano_vigente.get("propostas_total") or ano_vigente.get("pastas") or 0),
+        "meta_repasse_sugerida": meta_repasse,
+        "meta_repasse_efetiva": meta_repasse,
+        "meta_ipc": meta_ipc,
+        "meta_pasta_sugerida": meta_pasta,
+        "meta_pasta_efetiva": meta_pasta,
+        "atingimento_repasse": round((int(mes_atual["repasses"]) / meta_repasse) * 100, 1) if meta_repasse > 0 else 0,
+        "acima_meta": sum(1 for situacao in situacoes if situacao == "OK"),
+        "abaixo_meta": sum(1 for situacao in situacoes if situacao in {"Analisar", "Critico"}),
+        "criticos": sum(1 for situacao in situacoes if situacao == "Critico"),
+        "ipc_denominador_ano_vigente": ipc_denominador_ano,
+        "serie_6_meses": _serie_produtividade_dashboard_gc(
+            metricas_por_mes,
+            meses_serie,
+            max(1.0, ipc_denominador_ano),
+            denominadores_por_mes,
+        ),
+        "_metricas_por_mes": metricas_por_mes,
+        "_metricas_por_mes_consolidado": metricas_por_mes,
+        "_denominadores_por_mes": denominadores_por_mes,
+        "_ipc_denominador_ano_vigente": ipc_denominador_ano,
+        "_ipc_media_soma": ipc_ano_vigente,
+        "_ipc_media_contagem": 1,
+    }
+    if complemento:
+        resposta.update(complemento)
+    return resposta
+
+
+def _serializar_no_produtividade_dashboard_gc(no: dict[str, Any]) -> dict[str, Any]:
+    return {chave: valor for chave, valor in no.items() if not chave.startswith("_")}
+
+
+def _opcoes_filtro_produtividade_dashboard_gc(linhas: list[dict[str, Any]], campo: str) -> list[dict[str, str]]:
+    opcoes: dict[str, str] = {}
+    for linha in linhas:
+        label = _normalizar_texto(linha.get(campo))
+        chave = _slug_texto_dashboard_gc(label)
+        if not label or not chave:
+            continue
+        opcoes.setdefault(chave, label)
+    return [
+        {"key": chave, "label": label}
+        for chave, label in sorted(opcoes.items(), key=lambda item: item[1].lower())
+    ]
+
+
+def _status_cv_produtividade_dashboard_gc(linha: dict[str, Any]) -> str:
+    observacao = _normalizar_texto(linha.get("observacao") or linha.get("observacoes") or linha.get("descricao_status"))
+    match = re.search(r"status\s*cv\s*:\s*([^|]+)", observacao, flags=re.IGNORECASE)
+    return _slug_texto_dashboard_gc(match.group(1)) if match else ""
+
+
+def _funcionario_ativo_produtividade_dashboard_gc(linha: dict[str, Any]) -> bool:
+    status_cv = _status_cv_produtividade_dashboard_gc(linha)
+    if status_cv:
+        if status_cv in {"ativo", "active"}:
+            return True
+        return False
+
+    status_keys = [
+        _slug_texto_dashboard_gc(linha.get("status_operacional")),
+        _slug_texto_dashboard_gc(linha.get("status_negocio")),
+        _slug_texto_dashboard_gc(linha.get("status_cadastro")),
+        _slug_texto_dashboard_gc(linha.get("situacao")),
+        _slug_texto_dashboard_gc(linha.get("situacao_negocio")),
+    ]
+    if any(
+        chave
+        for chave in status_keys
+        if any(marcador in chave for marcador in ("inativo", "desligado", "desligamento", "demitido", "rescindido"))
+    ):
+        return False
+    if any(
+        chave
+        for chave in status_keys
+        if any(marcador in chave for marcador in ("afastado", "ausente", "ferias", "licenca"))
+    ):
+        return False
+
+    for campo in ("ativo", "ativo_negocio", "ativo_no_negocio", "ativo_cadastro", "indicador_ativo"):
+        valor = linha.get(campo)
+        if valor is False:
+            return False
+        if isinstance(valor, (int, float)) and not bool(valor):
+            return False
+        if isinstance(valor, str) and _slug_texto_dashboard_gc(valor) in {"false", "0", "nao", "n", "no", "inativo", "inactive", "desativado", "desligado"}:
+            return False
+    return True
+
+
+def _flag_ativo_produtividade_dashboard_gc(valor: Any) -> Optional[bool]:
+    if valor is None or valor == "":
+        return None
+    if isinstance(valor, bool):
+        return valor
+    if isinstance(valor, (int, float)):
+        return bool(valor)
+    chave = _slug_texto_dashboard_gc(str(valor))
+    if chave in {"true", "1", "sim", "s", "yes", "y", "ativo", "active", "liberado"}:
+        return True
+    if chave in {"false", "0", "nao", "n", "no", "inativo", "inactive", "desativado", "desligado", "bloqueado"}:
+        return False
+    return None
+
+
+def _data_produtividade_dashboard_gc(valor: Any) -> Optional[date]:
+    if isinstance(valor, date) and not isinstance(valor, datetime):
+        return valor
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, str) and valor.strip():
+        try:
+            return date.fromisoformat(valor.strip()[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def _linha_hierarquia_ativa_produtividade_dashboard_gc(linha: dict[str, Any], periodo_inicio: date, periodo_fim: date) -> bool:
+    inicio = (
+        _data_produtividade_dashboard_gc(linha.get("data_inicio_vigencia_data"))
+        or _data_produtividade_dashboard_gc(linha.get("data_inicio_vigencia"))
+        or _data_produtividade_dashboard_gc(linha.get("dt_admissao"))
+    )
+    fim = (
+        _data_produtividade_dashboard_gc(linha.get("data_fim_vigencia_data"))
+        or _data_produtividade_dashboard_gc(linha.get("data_fim_vigencia"))
+        or _data_produtividade_dashboard_gc(linha.get("dt_demissao"))
+    )
+    if inicio and inicio >= periodo_fim:
+        return False
+    if fim and fim < periodo_inicio:
+        return False
+    if inicio or fim:
+        return True
+
+    for campo in ("ativo", "ativo_login", "ativo_negocio"):
+        flag = _flag_ativo_produtividade_dashboard_gc(linha.get(campo))
+        if flag is False:
+            return False
+    return True
+
+
+def _chaves_funcionario_produtividade_dashboard_gc(linha: dict[str, Any]) -> tuple[str, set[str]]:
+    nome = _slug_texto_dashboard_gc(linha.get("nome"))
+    equipes = {
+        _slug_texto_dashboard_gc(linha.get("imobiliaria")),
+        _slug_texto_dashboard_gc(linha.get("equipe_vigencia_nome")),
+        _slug_texto_dashboard_gc(linha.get("setor")),
+        _slug_texto_dashboard_gc(linha.get("equipe")),
+    }
+    equipes.discard("")
+    return nome, equipes
+
+
+def _filtrar_hierarquia_por_funcionarios_ativos_dashboard_gc(
+    linhas_hierarquia: list[dict[str, Any]],
+    linhas_funcionarios: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    ativos_por_nome: set[str] = set()
+    equipes_ativas_por_nome: dict[str, set[str]] = {}
+    for linha in linhas_funcionarios:
+        tipo = _normalizar_texto(linha.get("tipo_funcionario")).upper()
+        if tipo not in {"CORRETOR", "SDR"}:
+            continue
+        if not _funcionario_ativo_produtividade_dashboard_gc(linha):
+            continue
+        nome, equipes = _chaves_funcionario_produtividade_dashboard_gc(linha)
+        if not nome:
+            continue
+        ativos_por_nome.add(nome)
+        equipes_ativas_por_nome.setdefault(nome, set()).update(equipes)
+
+    if not ativos_por_nome:
+        return []
+
+    filtradas: list[dict[str, Any]] = []
+    vistos: set[tuple[str, str]] = set()
+    for linha in linhas_hierarquia:
+        nome = _slug_texto_dashboard_gc(linha.get("corretor"))
+        if not nome or nome not in ativos_por_nome:
+            continue
+        equipe = _slug_texto_dashboard_gc(linha.get("equipe"))
+        equipes_ativas = equipes_ativas_por_nome.get(nome) or set()
+        if equipes_ativas and equipe and equipe not in equipes_ativas:
+            continue
+        chave = (nome, equipe)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        filtradas.append(linha)
+    return filtradas
+
+
+async def _obter_quadro_mais_recente_por_matricula(conexao, matricula: str):
+    matricula_normalizada = _normalizar_texto(matricula)
+    if not matricula_normalizada:
+        return None
+
+    linha = await conexao.fetchrow(
+        """
+        select
+            identificador_funcionario::text as identificador_funcionario,
+            coalesce(matricula, documento) as cd_matricula,
+            nome as no_nome,
+            tipo_funcionario as no_cargo,
+            tipo_funcionario as no_cargo_resumido,
+            data_hora_atualizado_em::date as dt_data,
+            case when coalesce(ativo, true) then 'ATIVO' else 'INATIVO' end as no_status_operacional,
+            case when ativo_login is true then 'LIBERADO' when ativo_login is false then 'BLOQUEADO' else 'PENDENTE' end as no_status_gip,
+            case when ativo_negocio is true then 'SIM' when ativo_negocio is false then 'NAO' else 'PENDENTE' end as no_gh_ativo,
+            gestor as no_setor,
+            regional as no_subsetor,
+            regiao as no_site_nome
+        from sevenlm_connect.funcionario_acesso
+        where matricula = $1
+           or documento = regexp_replace($1, '\\D', '', 'g')
+           or lower(coalesce(email::text, '')) = lower($1)
+        order by data_hora_atualizado_em desc
+        limit 1
+        """,
+        matricula_normalizada,
+    )
+    return dict(linha) if linha else None
+
+
+async def _resolver_usuario_ou_colaborador(conexao, chave: str) -> dict[str, Any]:
+    chave = _normalizar_texto(chave)
+    if not chave:
+        raise HTTPException(status_code=400, detail="Chave do usuário não informada.")
+
+    usuario = await buscar_usuario_por_chave(conexao, "sevenlm_connect", chave)
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado."
+        )
+
+    quadro = await _obter_quadro_mais_recente_por_matricula(
+        conexao,
+        _matricula_usuario(usuario) or usuario["correio_eletronico"] or "",
+    )
+
+    return {
+        "usuário": dict(usuario),
+        "quadro": quadro,
+        "matricula_referência": _matricula_usuario(usuario) or usuario["identificador_usuario"],
+    }
+
+
+async def _garantir_usuario_existente(conexao, chave: str) -> dict[str, Any]:
+    resolvido = await _resolver_usuario_ou_colaborador(conexao, chave)
+    usuario = resolvido["usuário"]
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado."
+        )
+    return resolvido
+
+
+async def _listar_setores_usuario(conexao, identificador_usuario: Optional[str], matricula_referência: Optional[str]):
+    if not identificador_usuario:
+        return []
+
+    linhas = await conexao.fetch(
+        """
+        select distinct
+            us.codigo_setor,
+            coalesce(s.nome_setor, us.codigo_setor) as nome_setor
+        from sevenlm_connect.usuario_setor us
+        left join sevenlm_connect.setor s
+          on s.codigo_setor = us.codigo_setor
+        where us.identificador_usuario = $1::uuid
+        order by nome_setor
+        """,
+        identificador_usuario,
+    )
+
+    return [dict(l) for l in linhas]
+
+
+async def _listar_perfis_usuario(conexao, identificador_usuario: str):
+    linhas = await conexao.fetch(
+        """
+        select
+            up.identificador_perfil,
+            p.nome_perfil,
+            p.descricao_perfil,
+            'USUARIO' as origem,
+            up.data_hora_concedido_em
+        from sevenlm_connect.usuario_perfil up
+        join sevenlm_connect.perfil p
+          on p.identificador_perfil = up.identificador_perfil
+        where up.identificador_usuario = $1::uuid
+        order by p.nome_perfil
+        """,
+        identificador_usuario,
+    )
+    return [dict(l) for l in linhas]
+
+
+async def _listar_permissoes_diretas(conexao, identificador_usuario: str):
+    linhas = await conexao.fetch(
+        """
+        select
+            up.identificador_permissao,
+            p.nome_permissao,
+            p.descricao_permissao,
+            up.indicador_permitido,
+            up.origem_regra,
+            up.observacao,
+            up.data_hora_concedido_em,
+            up.data_hora_revogado_em
+        from sevenlm_connect.usuario_permissao up
+        join sevenlm_connect.permissao p
+          on p.identificador_permissao = up.identificador_permissao
+        where up.identificador_usuario = $1::uuid
+          and up.data_hora_revogado_em is null
+        order by p.nome_permissao
+        """,
+        identificador_usuario,
+    )
+    return [dict(l) for l in linhas]
+
+
+async def _listar_setores_perfis(conexao, setores: list[dict[str, Any]]):
+    resultado = []
+
+    for setor in setores:
+        linhas = await conexao.fetch(
+            """
+            select
+                p.nome_perfil
+            from sevenlm_connect.setor_perfil sp
+            join sevenlm_connect.perfil p
+              on p.identificador_perfil = sp.identificador_perfil
+            where sp.codigo_setor = $1
+              and coalesce(sp.indicador_ativo, true) = true
+            order by p.nome_perfil
+            """,
+            setor["codigo_setor"],
+        )
+
+        resultado.append({
+            "codigo_setor": setor["codigo_setor"],
+            "nome_setor": setor["nome_setor"],
+            "perfis": [l["nome_perfil"] for l in linhas]
+        })
+
+    return resultado
+
+
+async def _listar_acesso_efetivo(conexao, identificador_usuario: str):
+    try:
+        linhas = await conexao.fetch(
+            """
+            select
+                pr.codigo_modulo,
+                pr.codigo_recurso,
+                pr.nome_recurso,
+                pr.rota_recurso,
+                pr.indicador_em_construcao,
+                pr.icone_recurso,
+                sevenlm_connect.fn_usuario_pode_visualizar_recurso($1::uuid, pr.codigo_modulo, pr.codigo_recurso) as pode_visualizar,
+                case
+                    when pr.identificador_permissao_gerenciar is not null
+                    then sevenlm_connect.fn_usuario_tem_permissao($1::uuid, pmg.nome_permissao)
+                    else false
+                end as pode_gerenciar
+            from sevenlm_connect.portal_recurso pr
+            left join sevenlm_connect.permissao pmg
+              on pmg.identificador_permissao = pr.identificador_permissao_gerenciar
+            where pr.indicador_ativo = true
+            order by pr.codigo_modulo, pr.ordem_exibicao, pr.nome_recurso
+            """,
+            identificador_usuario,
+        )
+    except Exception:
+        return []
+
+    resposta = []
+    for linha in linhas:
+        item = dict(linha)
+        acoes = []
+        if item.get("pode_visualizar"):
+            acoes.append("view")
+        if item.get("pode_gerenciar"):
+            acoes.append("manage")
+        item["acoes"] = acoes
+        resposta.append(item)
+
+    return resposta
+
+
+# =========================================================
+# ROTAS AUXILIARES
+# =========================================================
+
+@rotas_de_administracao.get("/me")
+async def me(request: Request):
+    usuario = await _obter_usuario_portal_autenticado(request)
+    return {"usuario": usuario, "usuário": usuario}
+
+
+@rotas_de_administracao.get("/admin/configuracoes/remuneracao-sobrepreco")
+async def obter_configuracao_remuneracao_sobrepreco(request: Request):
+    await _obter_usuario_autenticado(
+        request,
+        exigir_gerenciamento=False,
+        permissoes_visualizacao=_ADMIN_FUNCIONARIOS_PERMISSOES_VISUALIZACAO,
+        permissoes_gerenciamento=_ADMIN_FUNCIONARIOS_PERMISSOES_GERENCIAMENTO,
+        nome_area="Administração ou Funcionários",
+    )
+    async with request.app.state.pool.acquire() as conexao:
+        await _garantir_tabela_configuracao_operacional(conexao)
+        valor = await conexao.fetchval(
+            """
+            select valor_configuracao
+              from sevenlm_connect.configuracao_operacional
+             where chave_configuracao = $1
+            """,
+            _CHAVE_CONFIG_REMUNERACAO_SOBREPRECO,
+        )
+
+    return {"regra": _normalizar_regra_remuneracao_sobrepreco(valor)}
+
+
+@rotas_de_administracao.put("/admin/configuracoes/remuneracao-sobrepreco")
+async def salvar_configuracao_remuneracao_sobrepreco(
+    corpo: CorpoRegraRemuneracaoSobrepreco,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(
+        request,
+        exigir_gerenciamento=True,
+        permissoes_visualizacao=_ADMIN_FUNCIONARIOS_PERMISSOES_VISUALIZACAO,
+        permissoes_gerenciamento=_ADMIN_FUNCIONARIOS_PERMISSOES_GERENCIAMENTO,
+        nome_area="Administração ou Funcionários",
+    )
+    dados = corpo.model_dump() if hasattr(corpo, "model_dump") else corpo.dict()
+    regra = _normalizar_regra_remuneracao_sobrepreco(dados)
+    regra["updatedAt"] = _agora_utc().isoformat()
+    regra["updatedBy"] = executor.get("nome_completo") or executor.get("correio_eletronico") or "Administrador"
+    regra_json = json.dumps(regra, ensure_ascii=False, default=str)
+
+    async with request.app.state.pool.acquire() as conexao:
+        await _garantir_tabela_configuracao_operacional(conexao)
+        await conexao.execute(
+            """
+            insert into sevenlm_connect.configuracao_operacional (
+                chave_configuracao,
+                valor_configuracao,
+                descricao_configuracao,
+                criado_por,
+                alterado_por,
+                data_hora_criacao,
+                data_hora_atualizacao
+            )
+            values ($1, $2::jsonb, $3, $4::uuid, $4::uuid, now(), now())
+            on conflict (chave_configuracao) do update
+               set valor_configuracao = excluded.valor_configuracao,
+                   descricao_configuracao = excluded.descricao_configuracao,
+                   alterado_por = excluded.alterado_por,
+                   data_hora_atualizacao = now()
+            """,
+            _CHAVE_CONFIG_REMUNERACAO_SOBREPRECO,
+            regra_json,
+            "Regra flexível de remuneração do corretor por sobrepreço no simulador comercial.",
+            executor["identificador_usuario"],
+        )
+        await _registrar_evento_auditoria(
+            conexao,
+            request,
+            executor,
+            "CONFIGURACAO_REMUNERACAO_SOBREPRECO",
+            "Regra de remuneração por sobrepreço atualizada.",
+            {"regra": regra},
+        )
+
+    return {"regra": regra}
+
+
+@rotas_de_administracao.get("/admin/contexto")
+async def admin_contexto(request: Request):
+    usuario = await _obter_usuario_autenticado(
+        request,
+        exigir_gerenciamento=False,
+        permissoes_visualizacao=_ADMIN_FUNCIONARIOS_PERMISSOES_VISUALIZACAO,
+        permissoes_gerenciamento=_ADMIN_FUNCIONARIOS_PERMISSOES_GERENCIAMENTO,
+        nome_area="Administração ou Funcionários",
+    )
+    pool = request.app.state.pool
+    catalogos = await _obter_catalogos_admin(pool)
+    async with pool.acquire() as conexao:
+        acessos_portal = await _obter_acessos_portal_usuario(
+            conexao,
+            usuario["identificador_usuario"],
+        )
+
+    return {
+        "allowed": True,
+        "manage": usuario["pode_gerenciar"],
+        "acessos_portal": acessos_portal,
+        "usuario_logado": usuario,
+        **catalogos,
+    }
+
+
+# =========================================================
+# DASHBOARD G&C / VAGAS MANUAIS
+# =========================================================
+
+@rotas_de_administracao.get("/gente-cultura/produtividade")
+async def obter_produtividade_dashboard_gc(
+    request: Request,
+    mes: int = Query(..., ge=1, le=12),
+    ano: int = Query(..., ge=2020, le=2100),
+    coordenador: str = Query("", description="Chave do coordenador"),
+    gerente: str = Query("", description="Chave do gerente"),
+    equipe: str = Query("", description="Chave da equipe"),
+    corretor: str = Query("", description="Chave do corretor"),
+    visao: str = Query("produtividade", description="produtividade ou comercial"),
+    limite_corretores: int = Query(300, ge=0, le=5000),
+):
+    await _obter_usuario_funcionarios(request, exigir_gerenciamento=False)
+    periodo_inicio = date(ano, mes, 1)
+    periodo_fim = _somar_meses_dashboard_gc(periodo_inicio, 1)
+    ano_inicio = date(ano, 1, 1)
+    ipc_periodo_fim = periodo_fim
+    ano_fim = date(ano + 1, 1, 1)
+    ano_anterior_inicio = date(ano - 1, 1, 1)
+    ano_anterior_fim = date(ano, 1, 1)
+    meses_serie = [_somar_meses_dashboard_gc(periodo_inicio, deslocamento) for deslocamento in range(-5, 1)]
+    inicio_consulta = min(ano_anterior_inicio, meses_serie[0])
+
+    filtros = {
+        "coordenador": _slug_texto_dashboard_gc(coordenador),
+        "gerente": _slug_texto_dashboard_gc(gerente),
+        "equipe": _slug_texto_dashboard_gc(equipe),
+        "corretor": _slug_texto_dashboard_gc(corretor),
+    }
+    visao_normalizada = _slug_texto_dashboard_gc(visao) or "produtividade"
+    visao_comercial = visao_normalizada in {"comercial", "dashboard_comercial", "gente_cultura_comercial"}
+
+    pool = request.app.state.pool
+    async with pool.acquire() as conexao:
+        tabelas = await conexao.fetchrow(
+            """
+            select
+              to_regclass($1) is not null as kpi_ok,
+              to_regclass($2) is not null as hierarquia_ok,
+              to_regclass($3) is not null as log_ok,
+              to_regclass($4) is not null as repasses_importados_ok,
+              to_regclass($5) is not null as historico_manual_ok
+            """,
+            f"{ESQUEMA_COMERCIAL}.dashboard_gc_produtividade_kpi_daily",
+            f"{ESQUEMA_COMERCIAL}.dashboard_gc_produtividade_hierarquia",
+            f"{ESQUEMA_COMERCIAL}.dashboard_gc_produtividade_sync_log",
+            f"{ESQUEMA_COMERCIAL}.dashboard_gc_produtividade_repasses_importados",
+            f"{ESQUEMA_COMERCIAL}.dashboard_gc_produtividade_historico_corretor_equipe",
+        )
+        if not tabelas or not tabelas["kpi_ok"] or not tabelas["hierarquia_ok"]:
+            return {
+                "periodo": {"mes": mes, "ano": ano},
+                "ultima_sincronizacao": None,
+                "status_sync": {"status": "missing", "message": "Base de produtividade ainda nao sincronizada."},
+                "filtros": {"coordenadores": [], "gerentes": [], "equipes": [], "corretores": []},
+                "resumo": {},
+                "coordenadores": [],
+                "gerentes": [],
+                "corretores": [],
+            }
+
+        ultima_sync = None
+        if tabelas["log_ok"]:
+            ultima_sync = await conexao.fetchrow(
+                f"""
+                select started_at, finished_at, status, table_counts, message
+                  from {_tabela_produtividade_dashboard_gc("dashboard_gc_produtividade_sync_log")}
+                 order by started_at desc
+                 limit 1
+                """
+            )
+
+        mes_hierarquia = await conexao.fetchval(
+            f"""
+            select max(mes_referencia)
+              from {_tabela_produtividade_dashboard_gc("dashboard_gc_produtividade_hierarquia")}
+             where mes_referencia <= $1
+            """,
+            periodo_inicio,
+        )
+        if mes_hierarquia is None:
+            mes_hierarquia = await conexao.fetchval(
+                f"""
+                select max(mes_referencia)
+                  from {_tabela_produtividade_dashboard_gc("dashboard_gc_produtividade_hierarquia")}
+                """
+            )
+
+        if mes_hierarquia is None:
+            return {
+                "periodo": {"mes": mes, "ano": ano},
+                "ultima_sincronizacao": ultima_sync["finished_at"].isoformat() if ultima_sync and ultima_sync["finished_at"] else None,
+                "status_sync": dict(ultima_sync) if ultima_sync else {"status": "empty", "message": "Hierarquia sem dados."},
+                "filtros": {"coordenadores": [], "gerentes": [], "equipes": [], "corretores": []},
+                "resumo": {},
+                "coordenadores": [],
+                "gerentes": [],
+                "corretores": [],
+            }
+
+        linhas_hierarquia = [
+            dict(linha)
+            for linha in await conexao.fetch(
+                f"""
+                select
+                  mes_referencia,
+                  coalesce(nullif(trim(coordenador_nome), ''), nullif(trim(coordenador_corretor), ''), 'Sem coordenador') as coordenador,
+                  coalesce(nullif(trim(gerente_nome), ''), nullif(trim(gestor_corretor), ''), 'Sem gerente') as gerente,
+                  coalesce(nullif(trim(imobiliaria_corretor), ''), 'Sem equipe') as equipe,
+                  coalesce(nullif(trim(corretor_ativo_nome), ''), 'Sem corretor') as corretor,
+                  coalesce(nullif(trim(regiao_corretor), ''), 'Sem regiao') as regiao,
+                  coalesce(nullif(trim(tipo_corretor), ''), 'Sem tipo') as tipo,
+                  corretor_hierarquia_key,
+                  corretor_ativo_mes_key,
+                  coordenador_email,
+                  gerente_email,
+                  ativo_negocio,
+                  ativo,
+                  ativo_login,
+                  data_inicio_vigencia,
+                  data_fim_vigencia,
+                  data_inicio_vigencia_data,
+                  data_fim_vigencia_data,
+                  referencia,
+                  dt_admissao,
+                  dt_demissao
+                from {_tabela_produtividade_dashboard_gc("dashboard_gc_produtividade_hierarquia")}
+                where mes_referencia = $1
+                order by coordenador, gerente, equipe, corretor
+                """,
+                mes_hierarquia,
+            )
+        ]
+
+        linhas_hierarquia_periodo = [
+            dict(linha)
+            for linha in await conexao.fetch(
+                f"""
+                select
+                  mes_referencia,
+                  coalesce(nullif(trim(coordenador_nome), ''), nullif(trim(coordenador_corretor), ''), 'Sem coordenador') as coordenador,
+                  coalesce(nullif(trim(gerente_nome), ''), nullif(trim(gestor_corretor), ''), 'Sem gerente') as gerente,
+                  coalesce(nullif(trim(imobiliaria_corretor), ''), 'Sem equipe') as equipe,
+                  coalesce(nullif(trim(corretor_ativo_nome), ''), 'Sem corretor') as corretor,
+                  coalesce(nullif(trim(regiao_corretor), ''), 'Sem regiao') as regiao,
+                  coalesce(nullif(trim(tipo_corretor), ''), 'Sem tipo') as tipo,
+                  corretor_hierarquia_key,
+                  corretor_ativo_mes_key,
+                  coordenador_email,
+                  gerente_email,
+                  ativo_negocio,
+                  ativo,
+                  ativo_login,
+                  data_inicio_vigencia,
+                  data_fim_vigencia,
+                  data_inicio_vigencia_data,
+                  data_fim_vigencia_data,
+                  referencia,
+                  dt_admissao,
+                  dt_demissao
+                from {_tabela_produtividade_dashboard_gc("dashboard_gc_produtividade_hierarquia")}
+                where mes_referencia >= $1
+                  and mes_referencia < $2
+                order by mes_referencia, coordenador, gerente, equipe, corretor
+                """,
+                ano_inicio,
+                ipc_periodo_fim,
+            )
+        ]
+
+        linhas_historico_manual = []
+        if tabelas["historico_manual_ok"]:
+            linhas_historico_manual = [
+                dict(linha)
+                for linha in await conexao.fetch(
+                    f"""
+                    select
+                      mes_referencia,
+                      coalesce(nullif(trim(coordenador), ''), 'Sem coordenador') as coordenador,
+                      coalesce(nullif(trim(gerente), ''), 'Sem gerente') as gerente,
+                      coalesce(nullif(trim(equipe), ''), 'Sem equipe') as equipe,
+                      coalesce(nullif(trim(corretor), ''), 'Sem corretor') as corretor,
+                      coalesce(nullif(trim(regiao), ''), 'Sem regiao') as regiao,
+                      coalesce(nullif(trim(tipo), ''), 'Sem tipo') as tipo,
+                      corretor_key as corretor_hierarquia_key,
+                      concat(corretor_key, '_', equipe_key, '_', to_char(mes_referencia, 'YYYYMM')) as corretor_ativo_mes_key,
+                      null::text as coordenador_email,
+                      null::text as gerente_email,
+                      'true'::text as ativo_negocio,
+                      case when ativo_no_mes then 'true' else 'false' end as ativo,
+                      'true'::text as ativo_login,
+                      mes_referencia as data_inicio_vigencia,
+                      (mes_referencia + interval '1 month' - interval '1 day')::date as data_fim_vigencia,
+                      mes_referencia as data_inicio_vigencia_data,
+                      (mes_referencia + interval '1 month' - interval '1 day')::date as data_fim_vigencia_data,
+                      origem_planilha as referencia,
+                      null::date as dt_admissao,
+                      null::date as dt_demissao
+                    from {_tabela_produtividade_dashboard_gc("dashboard_gc_produtividade_historico_corretor_equipe")}
+                    where mes_referencia >= $1
+                      and mes_referencia < $2
+                    order by mes_referencia, coordenador, gerente, equipe, corretor
+                    """,
+                    ano_inicio,
+                    ipc_periodo_fim,
+                )
+            ]
+
+        def chave_corretor_mes_hierarquia(linha: dict[str, Any]) -> tuple[Any, str]:
+            return (
+                linha.get("mes_referencia"),
+                _slug_corretor_produtividade_dashboard_gc(linha.get("corretor")),
+            )
+
+        def chave_linha_hierarquia(linha: dict[str, Any]) -> tuple[Any, str, str, str, str]:
+            return (
+                linha.get("mes_referencia"),
+                _slug_corretor_produtividade_dashboard_gc(linha.get("corretor")),
+                _slug_texto_dashboard_gc(linha.get("equipe")),
+                _slug_texto_dashboard_gc(linha.get("gerente")),
+                _slug_texto_dashboard_gc(linha.get("coordenador")),
+            )
+
+        def combinar_hierarquia(
+            linhas_sistema: list[dict[str, Any]],
+            linhas_manuais: list[dict[str, Any]],
+        ) -> list[dict[str, Any]]:
+            meses_manuais = {
+                linha.get("mes_referencia")
+                for linha in linhas_manuais
+                if linha.get("mes_referencia") is not None
+            }
+            resultado: list[dict[str, Any]] = []
+            vistos: set[tuple[Any, str, str, str, str]] = set()
+            for linha in linhas_manuais:
+                chave = chave_linha_hierarquia(linha)
+                if chave in vistos:
+                    continue
+                vistos.add(chave)
+                resultado.append(linha)
+            for linha in linhas_sistema:
+                if linha.get("mes_referencia") in meses_manuais:
+                    continue
+                chave = chave_linha_hierarquia(linha)
+                if chave in vistos:
+                    continue
+                vistos.add(chave)
+                resultado.append(linha)
+            return resultado
+
+        linhas_hierarquia = combinar_hierarquia(
+            linhas_hierarquia,
+            [linha for linha in linhas_historico_manual if linha.get("mes_referencia") == periodo_inicio],
+        )
+        linhas_hierarquia_periodo = combinar_hierarquia(linhas_hierarquia_periodo, linhas_historico_manual)
+
+        possui_status_hierarquia = any(
+            any(linha.get(campo) is not None for campo in ("ativo", "ativo_login", "ativo_negocio"))
+            for linha in linhas_hierarquia
+        )
+        if possui_status_hierarquia:
+            linhas_hierarquia = [
+                linha
+                for linha in linhas_hierarquia
+                if _linha_hierarquia_ativa_produtividade_dashboard_gc(linha, periodo_inicio, periodo_fim)
+            ]
+            linhas_hierarquia_periodo = [
+                linha
+                for linha in linhas_hierarquia_periodo
+                if _linha_hierarquia_ativa_produtividade_dashboard_gc(
+                    linha,
+                    linha.get("mes_referencia") or periodo_inicio,
+                    _somar_meses_dashboard_gc(linha.get("mes_referencia") or periodo_inicio, 1),
+                )
+            ]
+        else:
+            linhas_funcionarios_produtividade = [
+                dict(linha)
+                for linha in await conexao.fetch(
+                    """
+                    select
+                      nome,
+                      tipo_funcionario,
+                      imobiliaria,
+                      imobiliaria as equipe_vigencia_nome,
+                      gestor,
+                      gerente,
+                      ativo,
+                      ativo_negocio,
+                      ativo_login,
+                      status_operacional,
+                      observacao
+                    from sevenlm_connect.funcionario_acesso
+                    where nome is not null
+                    """
+                )
+            ]
+            linhas_hierarquia = _filtrar_hierarquia_por_funcionarios_ativos_dashboard_gc(
+                linhas_hierarquia,
+                linhas_funcionarios_produtividade,
+            )
+
+        if tabelas["repasses_importados_ok"]:
+            linhas_kpi = [
+                dict(linha)
+                for linha in await conexao.fetch(
+                    f"""
+                    with base as (
+                        select
+                          date_trunc('month', data)::date as mes_referencia,
+                          coalesce(nullif(trim(corretor), ''), 'Sem corretor') as corretor,
+                          coalesce(nullif(trim(imobiliaria), ''), 'Sem equipe') as equipe,
+                          coalesce(nullif(trim(cidade), ''), 'Sem regiao') as regiao_resultado,
+                          sum(coalesce(repasses, 0))::bigint as repasses,
+                          sum(coalesce(vendas, 0))::bigint as reservas,
+                          sum(coalesce(propostas_total, 0))::bigint as pastas,
+                          sum(coalesce(vendas, 0))::bigint as vendas,
+                          sum(coalesce(leads, 0))::bigint as leads,
+                          sum(coalesce(visitas, 0))::bigint as visitas,
+                          sum(coalesce(propostas_aprovadas, 0))::bigint as propostas_aprovadas,
+                          sum(coalesce(propostas_condicionadas, 0))::bigint as propostas_condicionadas,
+                          sum(coalesce(propostas_reprovadas, 0))::bigint as propostas_reprovadas,
+                          sum(coalesce(propostas_total, 0))::bigint as propostas_total,
+                          sum(coalesce(cancelamentos, 0))::bigint as cancelamentos,
+                          sum(coalesce(distratos, 0))::bigint as distratos
+                        from {_tabela_produtividade_dashboard_gc("dashboard_gc_produtividade_kpi_daily")}
+                        where data >= $1
+                          and data < $2
+                        group by 1, 2, 3, 4
+                    ),
+                    importado as (
+                        select
+                          mes_referencia,
+                          coalesce(nullif(trim(corretor), ''), 'Sem corretor') as corretor,
+                          coalesce(nullif(trim(imobiliaria), ''), 'Sem equipe') as equipe,
+                          coalesce(nullif(trim(regiao), ''), 'Sem regiao') as regiao_resultado,
+                          count(*)::bigint as repasses
+                        from {_tabela_produtividade_dashboard_gc("dashboard_gc_produtividade_repasses_importados")}
+                        where data_assinatura >= $1
+                          and data_assinatura < $2
+                        group by 1, 2, 3, 4
+                    ),
+                    meses_importados as (
+                        select distinct mes_referencia from importado
+                    ),
+                    combinado as (
+                        select
+                          base.mes_referencia,
+                          base.corretor,
+                          base.equipe,
+                          base.regiao_resultado,
+                          case when meses_importados.mes_referencia is null then base.repasses else 0 end as repasses,
+                          base.reservas,
+                          base.pastas,
+                          base.vendas,
+                          base.leads,
+                          base.visitas,
+                          base.propostas_aprovadas,
+                          base.propostas_condicionadas,
+                          base.propostas_reprovadas,
+                          base.propostas_total,
+                          base.cancelamentos,
+                          base.distratos
+                        from base
+                        left join meses_importados
+                          on meses_importados.mes_referencia = base.mes_referencia
+                        union all
+                        select
+                          mes_referencia,
+                          corretor,
+                          equipe,
+                          regiao_resultado,
+                          repasses,
+                          0::bigint as reservas,
+                          0::bigint as pastas,
+                          0::bigint as vendas,
+                          0::bigint as leads,
+                          0::bigint as visitas,
+                          0::bigint as propostas_aprovadas,
+                          0::bigint as propostas_condicionadas,
+                          0::bigint as propostas_reprovadas,
+                          0::bigint as propostas_total,
+                          0::bigint as cancelamentos,
+                          0::bigint as distratos
+                        from importado
+                    )
+                    select
+                      mes_referencia,
+                      corretor,
+                      equipe,
+                      regiao_resultado,
+                      sum(repasses)::bigint as repasses,
+                      sum(reservas)::bigint as reservas,
+                      sum(pastas)::bigint as pastas,
+                      sum(vendas)::bigint as vendas,
+                      sum(leads)::bigint as leads,
+                      sum(visitas)::bigint as visitas,
+                      sum(propostas_aprovadas)::bigint as propostas_aprovadas,
+                      sum(propostas_condicionadas)::bigint as propostas_condicionadas,
+                      sum(propostas_reprovadas)::bigint as propostas_reprovadas,
+                      sum(propostas_total)::bigint as propostas_total,
+                      sum(cancelamentos)::bigint as cancelamentos,
+                      sum(distratos)::bigint as distratos
+                    from combinado
+                    group by 1, 2, 3, 4
+                    """,
+                    inicio_consulta,
+                    ano_fim,
+                )
+            ]
+        else:
+            linhas_kpi = [
+                dict(linha)
+                for linha in await conexao.fetch(
+                    f"""
+                    select
+                      date_trunc('month', data)::date as mes_referencia,
+                      coalesce(nullif(trim(corretor), ''), 'Sem corretor') as corretor,
+                      coalesce(nullif(trim(imobiliaria), ''), 'Sem equipe') as equipe,
+                      coalesce(nullif(trim(cidade), ''), 'Sem regiao') as regiao_resultado,
+                      sum(coalesce(repasses, 0))::bigint as repasses,
+                      sum(coalesce(vendas, 0))::bigint as reservas,
+                      sum(coalesce(propostas_total, 0))::bigint as pastas,
+                      sum(coalesce(vendas, 0))::bigint as vendas,
+                      sum(coalesce(leads, 0))::bigint as leads,
+                      sum(coalesce(visitas, 0))::bigint as visitas,
+                      sum(coalesce(propostas_aprovadas, 0))::bigint as propostas_aprovadas,
+                      sum(coalesce(propostas_condicionadas, 0))::bigint as propostas_condicionadas,
+                      sum(coalesce(propostas_reprovadas, 0))::bigint as propostas_reprovadas,
+                      sum(coalesce(propostas_total, 0))::bigint as propostas_total,
+                      sum(coalesce(cancelamentos, 0))::bigint as cancelamentos,
+                      sum(coalesce(distratos, 0))::bigint as distratos
+                    from {_tabela_produtividade_dashboard_gc("dashboard_gc_produtividade_kpi_daily")}
+                    where data >= $1
+                      and data < $2
+                    group by 1, 2, 3, 4
+                    """,
+                    inicio_consulta,
+                    ano_fim,
+                )
+            ]
+
+        linhas_admissao = [
+            dict(linha)
+            for linha in await conexao.fetch(
+                """
+                select nome, data_admissao
+                  from sevenlm_connect.funcionario_acesso
+                 where nome is not null
+                   and data_admissao is not null
+                """
+            )
+        ]
+        linhas_foco_produtividade = [
+            dict(linha)
+            for linha in await conexao.fetch(
+                """
+                select nome, foco
+                  from sevenlm_connect.funcionario_acesso
+                 where nome is not null
+                   and nullif(trim(coalesce(foco, '')), '') is not null
+                 order by ativo desc nulls last, ativo_negocio desc nulls last, nome
+                """
+            )
+        ]
+
+    admissao_por_nome: dict[str, date] = {}
+    for linha in linhas_admissao:
+        chave_nome = _slug_corretor_produtividade_dashboard_gc(linha.get("nome"))
+        if chave_nome and linha.get("data_admissao"):
+            admissao_por_nome.setdefault(chave_nome, linha["data_admissao"])
+
+    foco_por_corretor: dict[str, str] = {}
+    foco_label_por_corretor: dict[str, str] = {}
+    for linha in linhas_foco_produtividade:
+        chave_nome = _slug_corretor_produtividade_dashboard_gc(linha.get("nome"))
+        foco_label = _normalizar_texto(linha.get("foco"))
+        if chave_nome and foco_label:
+            foco_por_corretor.setdefault(chave_nome, foco_label)
+            foco_label_por_corretor.setdefault(chave_nome, foco_label)
+
+    metricas_por_corretor: dict[str, dict[date, dict[str, int]]] = {}
+    metricas_por_corretor_consolidado: dict[str, dict[date, dict[str, int]]] = {}
+    metricas_por_membro: dict[tuple[str, str], dict[date, dict[str, int]]] = {}
+    for linha in linhas_kpi:
+        chave_corretor = _slug_corretor_produtividade_dashboard_gc(linha.get("corretor"))
+        if not chave_corretor:
+            continue
+        chave_equipe = _slug_texto_dashboard_gc(linha.get("equipe"))
+        mes_ref = linha["mes_referencia"]
+        destino = metricas_por_corretor.setdefault(chave_corretor, {}).setdefault(mes_ref, _novo_metricas_produtividade_dashboard_gc())
+        _somar_metricas_produtividade_dashboard_gc(destino, linha)
+        if _metricas_contam_para_gestor_por_foco_dashboard_gc(linha, foco_por_corretor.get(chave_corretor)):
+            destino_consolidado = metricas_por_corretor_consolidado.setdefault(chave_corretor, {}).setdefault(
+                mes_ref,
+                _novo_metricas_produtividade_dashboard_gc(),
+            )
+            _somar_metricas_produtividade_dashboard_gc(destino_consolidado, linha)
+        destino_membro = metricas_por_membro.setdefault((chave_corretor, chave_equipe), {}).setdefault(
+            mes_ref,
+            _novo_metricas_produtividade_dashboard_gc(),
+        )
+        _somar_metricas_produtividade_dashboard_gc(destino_membro, linha)
+
+    def passa_filtros(linha: dict[str, Any]) -> bool:
+        for campo in ("coordenador", "gerente", "equipe", "corretor"):
+            if filtros[campo] and _slug_texto_dashboard_gc(linha.get(campo)) != filtros[campo]:
+                return False
+        return True
+
+    linhas_filtradas = [linha for linha in linhas_hierarquia if passa_filtros(linha)]
+    linhas_periodo_filtradas = [linha for linha in linhas_hierarquia_periodo if passa_filtros(linha)]
+    if not linhas_periodo_filtradas:
+        linhas_periodo_filtradas = linhas_filtradas
+
+    def chave_folha_corretor(linha: dict[str, Any]) -> str:
+        nome_corretor = _normalizar_texto(linha.get("corretor")) or "Sem corretor"
+        chave_metricas = _slug_corretor_produtividade_dashboard_gc(nome_corretor)
+        chave_base = (
+            _slug_texto_dashboard_gc(linha.get("corretor_hierarquia_key"))
+            or _slug_texto_dashboard_gc(linha.get("corretor_ativo_mes_key"))
+            or chave_metricas
+        )
+        return "::".join(
+            [
+                _slug_texto_dashboard_gc(linha.get("coordenador")) or "sem_coordenador",
+                _slug_texto_dashboard_gc(linha.get("gerente")) or "sem_gerente",
+                _slug_texto_dashboard_gc(linha.get("equipe")) or "sem_equipe",
+                chave_base or "sem_corretor",
+            ]
+        )
+
+    chaves_selecionadas = {chave_folha_corretor(linha) for linha in linhas_filtradas}
+    linhas_selecionadas_por_chave = {chave_folha_corretor(linha): linha for linha in linhas_filtradas}
+    corretores_acumulados: dict[str, dict[str, Any]] = {}
+
+    def metricas_membro_mes(chave_corretor: str, chave_equipe: str, mes_ref: date) -> dict[str, int]:
+        return metricas_por_corretor.get(chave_corretor, {}).get(mes_ref) or _novo_metricas_produtividade_dashboard_gc()
+
+    for linha in linhas_periodo_filtradas:
+        mes_ref = linha.get("mes_referencia") or periodo_inicio
+        if not isinstance(mes_ref, date) or not (ano_anterior_inicio <= mes_ref < ipc_periodo_fim):
+            continue
+        nome_corretor = _normalizar_texto(linha.get("corretor")) or "Sem corretor"
+        chave_metricas = _slug_corretor_produtividade_dashboard_gc(nome_corretor)
+        chave_equipe = _slug_texto_dashboard_gc(linha.get("equipe"))
+        chave = chave_folha_corretor(linha)
+        acumulado = corretores_acumulados.setdefault(
+            chave,
+            {
+                "linha": linha,
+                "linha_selecionada": linhas_selecionadas_por_chave.get(chave),
+                "metricas_por_mes": {},
+                "metricas_consolidado_por_mes": {},
+                "denominadores_por_mes": {},
+            },
+        )
+        if chave in linhas_selecionadas_por_chave:
+            acumulado["linha_selecionada"] = linhas_selecionadas_por_chave[chave]
+        metricas_mes_linha = metricas_membro_mes(chave_metricas, chave_equipe, mes_ref)
+        destino_metricas = acumulado["metricas_por_mes"].setdefault(mes_ref, _novo_metricas_produtividade_dashboard_gc())
+        destino_metricas_consolidado = acumulado["metricas_consolidado_por_mes"].setdefault(
+            mes_ref,
+            _novo_metricas_produtividade_dashboard_gc(),
+        )
+        if int(acumulado["denominadores_por_mes"].get(mes_ref) or 0) <= 0:
+            _somar_metricas_produtividade_dashboard_gc(destino_metricas, metricas_mes_linha)
+            if _metricas_contam_para_gestor_por_foco_dashboard_gc(
+                {
+                    "mes_referencia": mes_ref,
+                    "regiao_resultado": linha.get("regiao"),
+                    "equipe": linha.get("equipe"),
+                },
+                foco_por_corretor.get(chave_metricas),
+            ):
+                _somar_metricas_produtividade_dashboard_gc(destino_metricas_consolidado, metricas_mes_linha)
+        acumulado["denominadores_por_mes"][mes_ref] = max(
+            float(acumulado["denominadores_por_mes"].get(mes_ref) or 0),
+            1.0,
+        )
+
+    corretores_por_chave: dict[str, dict[str, Any]] = {}
+    for chave, acumulado in corretores_acumulados.items():
+        linha = acumulado.get("linha_selecionada") or acumulado["linha"]
+        nome_corretor = _normalizar_texto(linha.get("corretor")) or "Sem corretor"
+        chave_metricas = _slug_corretor_produtividade_dashboard_gc(nome_corretor)
+
+        metricas_mes = acumulado["metricas_por_mes"]
+        metricas_consolidado_mes = acumulado["metricas_consolidado_por_mes"]
+        denominadores_por_mes = acumulado["denominadores_por_mes"]
+        if chave in chaves_selecionadas:
+            metricas_corretor = metricas_por_corretor.get(chave_metricas) or {}
+            if metricas_corretor:
+                metricas_mes = metricas_corretor
+                for mes_ref in metricas_corretor:
+                    denominadores_por_mes.setdefault(mes_ref, 1.0)
+            metricas_corretor_consolidado = metricas_por_corretor_consolidado.get(chave_metricas) or {}
+            if metricas_corretor_consolidado:
+                metricas_consolidado_mes = metricas_corretor_consolidado
+            elif metricas_corretor:
+                metricas_consolidado_mes = {}
+        sem_base_ipc = False
+        primeira_competencia_produtiva = _primeira_competencia_produtiva_dashboard_gc(metricas_mes)
+        primeira_competencia_historica = min(denominadores_por_mes) if denominadores_por_mes else None
+        inicio_vigencia = (
+            _data_produtividade_dashboard_gc(linha.get("dt_admissao"))
+            or admissao_por_nome.get(chave_metricas)
+            or primeira_competencia_produtiva
+            or primeira_competencia_historica
+            or _data_produtividade_dashboard_gc(linha.get("data_inicio_vigencia_data"))
+            or _data_produtividade_dashboard_gc(linha.get("data_inicio_vigencia"))
+        )
+        if sem_base_ipc:
+            inicio_vigencia = None
+        fim_vigencia = (
+            _data_produtividade_dashboard_gc(linha.get("data_fim_vigencia_data"))
+            or _data_produtividade_dashboard_gc(linha.get("data_fim_vigencia"))
+            or _data_produtividade_dashboard_gc(linha.get("dt_demissao"))
+        )
+        meses_casa = _meses_entre_dashboard_gc(inicio_vigencia, periodo_inicio)
+        meta_repasse = None if sem_base_ipc else _meta_repasse_corretor_dashboard_gc(meses_casa)
+        meta_pasta = _meta_pasta_dashboard_gc(meta_repasse, metricas_mes)
+        metricas_periodo = metricas_mes.get(periodo_inicio) or _novo_metricas_produtividade_dashboard_gc()
+        ano_vigente = _metricas_intervalo_dashboard_gc(metricas_mes, ano_inicio, ipc_periodo_fim)
+        ano_anterior = _metricas_intervalo_dashboard_gc(metricas_mes, ano_anterior_inicio, ano_anterior_fim)
+        reservas_mes = int(metricas_periodo.get("reservas") or metricas_periodo.get("vendas") or 0)
+        meses_ativos_ipc = 0.0 if sem_base_ipc else _denominador_intervalo_produtividade_dashboard_gc(
+            denominadores_por_mes,
+            ano_inicio,
+            ipc_periodo_fim,
+        )
+        if meses_ativos_ipc <= 0 and not sem_base_ipc:
+            meses_ativos_ipc = _meses_ativos_ipc_dashboard_gc(inicio_vigencia, periodo_inicio, ipc_periodo_fim)
+        ipc_ano_vigente = (
+            round(int(ano_vigente["repasses"]) / meses_ativos_ipc, 2)
+            if meses_ativos_ipc > 0
+            else None
+        )
+        denominador_mes = float(denominadores_por_mes.get(periodo_inicio) or 0)
+        ipc_mes = round(int(metricas_periodo["repasses"]) / max(1.0, denominador_mes), 2)
+        diferenca_ipc = _diferenca_ipc_dashboard_gc(ipc_ano_vigente, meta_repasse)
+        ativo_produtividade = chave in chaves_selecionadas and denominador_mes > 0
+        if sem_base_ipc and ativo_produtividade:
+            classificacao = {
+                "situacao": "Sem base",
+                "perfil": "Sem base",
+                "acao": "Cadastrar ou vincular na base de metas",
+            }
+        else:
+            classificacao = _classificacao_produtividade_dashboard_gc(
+                ipc=ipc_ano_vigente,
+                meta=meta_repasse,
+                meses_casa=meses_casa,
+                repasses_ano=int(ano_vigente["repasses"]),
+                reservas_mes=reservas_mes,
+                ativo=ativo_produtividade,
+            )
+        ipc_valido_media = ipc_ano_vigente is not None and meta_repasse is not None
+        meta_repasse_resumo = meta_repasse if ativo_produtividade else 0
+        meta_pasta_resumo = meta_pasta if ativo_produtividade else 0
+        corretores_por_chave[chave] = {
+            "key": chave,
+            "nome": nome_corretor,
+            "nivel": "corretor",
+            "pessoas": 1 if ativo_produtividade else 0,
+            "coordenador": linha.get("coordenador"),
+            "gerente": linha.get("gerente"),
+            "equipe": linha.get("equipe"),
+            "regiao": linha.get("regiao"),
+            "tipo": linha.get("tipo"),
+            "foco": foco_label_por_corretor.get(chave_metricas),
+            "data_inicio_vigencia": inicio_vigencia.isoformat() if inicio_vigencia else None,
+            "data_fim_vigencia": fim_vigencia.isoformat() if fim_vigencia else None,
+            "referencia": linha.get("referencia"),
+            "tempo_casa_meses": meses_casa,
+            "tempo_casa_label": _tempo_casa_label_dashboard_gc(meses_casa),
+            "ipc_ano_anterior": round(ano_anterior["repasses"], 2),
+            "ipc_ano_vigente": ipc_ano_vigente,
+            "ipc_mes": ipc_mes,
+            "ipc_denominador_ano_vigente": meses_ativos_ipc,
+            "repasses_mes": int(metricas_periodo["repasses"]),
+            "reservas_mes": reservas_mes,
+            "pastas_mes": int(metricas_periodo["pastas"]),
+            "leads_mes": int(metricas_periodo.get("leads") or 0),
+            "visitas_mes": int(metricas_periodo.get("visitas") or 0),
+            "vendas_mes": int(metricas_periodo.get("vendas") or 0),
+            "propostas_aprovadas_mes": int(metricas_periodo.get("propostas_aprovadas") or 0),
+            "propostas_condicionadas_mes": int(metricas_periodo.get("propostas_condicionadas") or 0),
+            "propostas_reprovadas_mes": int(metricas_periodo.get("propostas_reprovadas") or 0),
+            "propostas_total_mes": int(metricas_periodo.get("propostas_total") or metricas_periodo.get("pastas") or 0),
+            "cancelamentos_mes": int(metricas_periodo.get("cancelamentos") or 0),
+            "distratos_mes": int(metricas_periodo.get("distratos") or 0),
+            "repasses_ano_anterior": int(ano_anterior["repasses"]),
+            "repasses_ano_vigente": int(ano_vigente["repasses"]),
+            "reservas_ano_vigente": int(ano_vigente.get("reservas") or ano_vigente.get("vendas") or 0),
+            "pastas_ano_vigente": int(ano_vigente["pastas"]),
+            "leads_ano_vigente": int(ano_vigente.get("leads") or 0),
+            "visitas_ano_vigente": int(ano_vigente.get("visitas") or 0),
+            "vendas_ano_vigente": int(ano_vigente.get("vendas") or 0),
+            "propostas_aprovadas_ano_vigente": int(ano_vigente.get("propostas_aprovadas") or 0),
+            "propostas_condicionadas_ano_vigente": int(ano_vigente.get("propostas_condicionadas") or 0),
+            "propostas_reprovadas_ano_vigente": int(ano_vigente.get("propostas_reprovadas") or 0),
+            "propostas_total_ano_vigente": int(ano_vigente.get("propostas_total") or ano_vigente.get("pastas") or 0),
+            "meta_repasse_sugerida": meta_repasse_resumo,
+            "meta_repasse_efetiva": meta_repasse_resumo,
+            "meta_ipc": meta_repasse if ativo_produtividade else None,
+            "meta_faixa": "sem base" if sem_base_ipc else _meta_ipc_label_dashboard_gc(meses_casa),
+            "diferenca_ipc": diferenca_ipc,
+            **classificacao,
+            "meta_pasta_sugerida": meta_pasta_resumo,
+            "meta_pasta_efetiva": meta_pasta_resumo,
+            "atingimento_repasse": round((int(metricas_periodo["repasses"]) / meta_repasse) * 100, 1) if meta_repasse and meta_repasse > 0 else 0,
+            "serie_6_meses": _serie_produtividade_dashboard_gc(
+                metricas_mes,
+                meses_serie,
+                max(1.0, meses_ativos_ipc),
+                denominadores_por_mes,
+            ),
+            "_metricas_por_mes": metricas_mes,
+            "_metricas_por_mes_consolidado": metricas_consolidado_mes,
+            "_denominadores_por_mes": denominadores_por_mes,
+            "_ipc_denominador_ano_vigente": meses_ativos_ipc,
+            "_ipc_media_soma": float(ipc_ano_vigente or 0) if ipc_valido_media else 0.0,
+            "_ipc_media_contagem": 1 if ipc_valido_media else 0,
+        }
+
+    corretores = [
+        item
+        for item in corretores_por_chave.values()
+        if int(item.get("pessoas") or 0) > 0
+    ]
+
+    equipes_map: dict[str, list[dict[str, Any]]] = {}
+    for corretor_item in corretores:
+        chave = "::".join(
+            [
+                _slug_texto_dashboard_gc(corretor_item.get("regiao")) or "sem_regiao",
+                _slug_texto_dashboard_gc(corretor_item.get("coordenador")) or "sem_coordenador",
+                _slug_texto_dashboard_gc(corretor_item.get("gerente")) or "sem_gerente",
+                _slug_texto_dashboard_gc(corretor_item.get("equipe")) or "sem_equipe",
+            ]
+        )
+        equipes_map.setdefault(chave, []).append(corretor_item)
+
+    equipes: list[dict[str, Any]] = []
+    for chave_equipe, filhos in equipes_map.items():
+        nome_equipe = _normalizar_texto(filhos[0].get("equipe")) or "Sem equipe"
+        complemento_equipe = {
+            "equipe": nome_equipe,
+            "gerente": filhos[0].get("gerente"),
+            "coordenador": filhos[0].get("coordenador"),
+            "regiao": filhos[0].get("regiao"),
+            "tipo": filhos[0].get("tipo"),
+            "corretores_total": len(filhos),
+        }
+        if not visao_comercial:
+            complemento_equipe["corretores"] = [
+                _serializar_no_produtividade_dashboard_gc(item)
+                for item in sorted(filhos, key=lambda item: item["nome"].lower())
+            ]
+        equipe_no = _resumo_no_produtividade_dashboard_gc(
+            chave=chave_equipe,
+            nome=nome_equipe,
+            nivel="equipe",
+            filhos=filhos,
+            periodo_inicio=periodo_inicio,
+            periodo_fim=ipc_periodo_fim,
+            ano_inicio=ano_inicio,
+            ano_fim=ano_fim,
+            ano_anterior_inicio=ano_anterior_inicio,
+            ano_anterior_fim=ano_anterior_fim,
+            meses_serie=meses_serie,
+            complemento=complemento_equipe,
+        )
+        equipes.append(equipe_no)
+
+    gerentes_map: dict[str, list[dict[str, Any]]] = {}
+    for corretor_item in corretores:
+        chave = _slug_texto_dashboard_gc(corretor_item.get("gerente")) or "sem_gerente"
+        gerentes_map.setdefault(chave, []).append(corretor_item)
+
+    gerentes: list[dict[str, Any]] = []
+    for chave_gerente, filhos in gerentes_map.items():
+        nome_gerente = _normalizar_texto(filhos[0].get("gerente")) or "Sem gerente"
+        equipes_gerente = sorted({_normalizar_texto(item.get("equipe")) for item in filhos if _normalizar_texto(item.get("equipe"))})
+        regioes = sorted({_normalizar_texto(item.get("regiao")) for item in filhos if _normalizar_texto(item.get("regiao"))})
+        complemento_gerente = {
+            "coordenador": filhos[0].get("coordenador"),
+            "equipe_resumo": ", ".join(equipes_gerente[:3]) + (f" +{len(equipes_gerente) - 3}" if len(equipes_gerente) > 3 else ""),
+            "equipes": equipes_gerente,
+            "regioes": regioes,
+        }
+        if not visao_comercial:
+            complemento_gerente["corretores"] = [
+                _serializar_no_produtividade_dashboard_gc(item)
+                for item in sorted(filhos, key=lambda item: item["nome"].lower())
+            ]
+        gerente_no = _resumo_no_produtividade_dashboard_gc(
+            chave=chave_gerente,
+            nome=nome_gerente,
+            nivel="gerente",
+            filhos=filhos,
+            periodo_inicio=periodo_inicio,
+            periodo_fim=ipc_periodo_fim,
+            ano_inicio=ano_inicio,
+            ano_fim=ano_fim,
+            ano_anterior_inicio=ano_anterior_inicio,
+            ano_anterior_fim=ano_anterior_fim,
+            meses_serie=meses_serie,
+            complemento=complemento_gerente,
+        )
+        gerentes.append(gerente_no)
+
+    coordenadores_map: dict[str, list[dict[str, Any]]] = {}
+    for gerente_item in gerentes:
+        chave = _slug_texto_dashboard_gc(gerente_item.get("coordenador")) or "sem_coordenador"
+        coordenadores_map.setdefault(chave, []).append(gerente_item)
+
+    coordenadores: list[dict[str, Any]] = []
+    for chave_coord, filhos in coordenadores_map.items():
+        nome_coord = _normalizar_texto(filhos[0].get("coordenador")) or "Sem coordenador"
+        complemento_coord = {"gerentes_total": len(filhos)}
+        if not visao_comercial:
+            complemento_coord["gerentes"] = [
+                _serializar_no_produtividade_dashboard_gc(item)
+                for item in sorted(filhos, key=lambda item: item["nome"].lower())
+            ]
+        coord_no = _resumo_no_produtividade_dashboard_gc(
+            chave=chave_coord,
+            nome=nome_coord,
+            nivel="coordenador",
+            filhos=filhos,
+            periodo_inicio=periodo_inicio,
+            periodo_fim=ipc_periodo_fim,
+            ano_inicio=ano_inicio,
+            ano_fim=ano_fim,
+            ano_anterior_inicio=ano_anterior_inicio,
+            ano_anterior_fim=ano_anterior_fim,
+            meses_serie=meses_serie,
+            complemento=complemento_coord,
+        )
+        coordenadores.append(coord_no)
+
+    resumo = _resumo_no_produtividade_dashboard_gc(
+        chave="geral",
+        nome="Geral",
+        nivel="geral",
+        filhos=coordenadores,
+        periodo_inicio=periodo_inicio,
+        periodo_fim=ipc_periodo_fim,
+        ano_inicio=ano_inicio,
+        ano_fim=ano_fim,
+        ano_anterior_inicio=ano_anterior_inicio,
+        ano_anterior_fim=ano_anterior_fim,
+        meses_serie=meses_serie,
+        complemento={
+            "coordenadores_total": len(coordenadores),
+            "gerentes_total": len(gerentes),
+            "corretores_total": len(corretores),
+        },
+    )
+
+    gerentes_serializados = [
+        _serializar_no_produtividade_dashboard_gc(item)
+        for item in sorted(
+            gerentes,
+            key=lambda no: (
+                -float(no.get("ipc_ano_vigente") or 0),
+                -int(no.get("repasses_ano_vigente") or 0),
+                no["nome"].lower(),
+            ),
+        )
+    ]
+    coordenadores_serializados = [
+        _serializar_no_produtividade_dashboard_gc(item)
+        for item in sorted(
+            coordenadores,
+            key=lambda no: (
+                -float(no.get("ipc_ano_vigente") or 0),
+                -int(no.get("repasses_ano_vigente") or 0),
+                no["nome"].lower(),
+            ),
+        )
+    ]
+    equipes_serializadas = [
+        _serializar_no_produtividade_dashboard_gc(item)
+        for item in sorted(
+            equipes,
+            key=lambda no: (
+                -float(no.get("ipc_ano_vigente") or 0),
+                -int(no.get("repasses_ano_vigente") or 0),
+                no["nome"].lower(),
+            ),
+        )
+    ]
+    corretores_serializados = [
+        _serializar_no_produtividade_dashboard_gc(item)
+        for item in sorted(
+            corretores,
+            key=lambda no: (
+                -float(no.get("ipc_ano_vigente") or 0),
+                -int(no.get("repasses_ano_vigente") or 0),
+                no["nome"].lower(),
+            ),
+        )
+    ]
+    corretores_total = len(corretores_serializados)
+
+    if visao_comercial:
+        def _remover_filhos_pesados(no: dict[str, Any]) -> dict[str, Any]:
+            return {
+                chave: valor
+                for chave, valor in no.items()
+                if chave not in {"corretores", "gerentes"}
+            }
+
+        coordenadores_serializados = [_remover_filhos_pesados(item) for item in coordenadores_serializados]
+        gerentes_serializados = [_remover_filhos_pesados(item) for item in gerentes_serializados]
+        equipes_serializadas = [_remover_filhos_pesados(item) for item in equipes_serializadas]
+        corretores_serializados = corretores_serializados[:limite_corretores] if limite_corretores else []
+
+    status_sync = dict(ultima_sync) if ultima_sync else {"status": "unknown", "message": ""}
+    for chave_data in ("started_at", "finished_at"):
+        if status_sync.get(chave_data) is not None:
+            status_sync[chave_data] = status_sync[chave_data].isoformat()
+
+    filtros_corretores = _opcoes_filtro_produtividade_dashboard_gc(linhas_hierarquia, "corretor")
+    if visao_comercial:
+        filtros_corretores = filtros_corretores[:limite_corretores] if limite_corretores else []
+
+    return {
+        "periodo": {"mes": mes, "ano": ano, "hierarquia": mes_hierarquia.isoformat()},
+        "ultima_sincronizacao": status_sync.get("finished_at"),
+        "status_sync": status_sync,
+        "visao": "comercial" if visao_comercial else "produtividade",
+        "corretores_total": corretores_total,
+        "corretores_renderizados": len(corretores_serializados),
+        "corretores_limitados": corretores_total > len(corretores_serializados),
+        "filtros": {
+            "coordenadores": _opcoes_filtro_produtividade_dashboard_gc(linhas_hierarquia, "coordenador"),
+            "gerentes": _opcoes_filtro_produtividade_dashboard_gc(linhas_hierarquia, "gerente"),
+            "equipes": _opcoes_filtro_produtividade_dashboard_gc(linhas_hierarquia, "equipe"),
+            "corretores": filtros_corretores,
+        },
+        "resumo": _serializar_no_produtividade_dashboard_gc(resumo),
+        "coordenadores": coordenadores_serializados,
+        "gerentes": gerentes_serializados,
+        "equipes": equipes_serializadas,
+        "corretores": corretores_serializados,
+    }
+
+
+@rotas_de_administracao.get("/gente-cultura/vagas")
+async def listar_vagas_dashboard_gc(
+    request: Request,
+    q: str = Query("", description="Busca por protocolo, equipe, cargo, RH ou observacao"),
+    status_vaga: str = Query("", description="Status da vaga"),
+    equipe: str = Query("", description="Filtro por equipe"),
+    limite: int = Query(500, ge=1, le=1000),
+):
+    await _obter_usuario_funcionarios(request, exigir_gerenciamento=False)
+    pool = request.app.state.pool
+    termo = f"%{_normalizar_texto(q)}%"
+    status_normalizado = (
+        _normalizar_status_vaga_dashboard_gc(status_vaga)
+        if _normalizar_texto(status_vaga)
+        else ""
+    )
+    equipe_filtro = f"%{_normalizar_texto(equipe)}%"
+
+    async with pool.acquire() as conexao:
+        await _garantir_tabela_vagas_dashboard_gc(conexao)
+        linhas = await conexao.fetch(
+            """
+            select v.*
+              from recrutamento_selecao.vaga v
+             where (
+                    $1 = '%%'
+                    or v.protocolo ilike $1
+                    or v.equipe ilike $1
+                    or coalesce(v.cargo, '') ilike $1
+                    or coalesce(v.tipo_solicitacao, '') ilike $1
+                    or coalesce(v.prioridade, '') ilike $1
+                    or coalesce(v.recrutadora, '') ilike $1
+                    or coalesce(v.solicitante, '') ilike $1
+                    or coalesce(v.localidade, '') ilike $1
+                    or coalesce(v.modalidade, '') ilike $1
+                    or coalesce(v.substituicao_de, '') ilike $1
+                    or coalesce(v.motivo_abertura, '') ilike $1
+                    or coalesce(v.diretor_aprovador, '') ilike $1
+                    or coalesce(v.observacao, '') ilike $1
+                    or exists (
+                         select 1
+                           from recrutamento_selecao.vaga_andamento andamento
+                          where andamento.identificador_vaga = v.identificador_vaga
+                            and andamento.descricao ilike $1
+                    )
+                  )
+               and (
+                    $2 = ''
+                    or v.status_vaga = $2
+                  )
+               and ($3 = '%%' or v.equipe ilike $3)
+             order by
+               case v.status_vaga
+                 when 'PENDENTE_APROVACAO_REGIONAL' then 0
+                 when 'PENDENTE_APROVACAO' then 1
+                 when 'EM_ANDAMENTO' then 2
+                 when 'TRIAGEM' then 3
+                 when 'ENTREVISTAS' then 4
+                 when 'PROPOSTA' then 5
+                 when 'CONGELADA' then 6
+                 when 'CANCELADA' then 7
+                 when 'REPROVADA' then 8
+                 when 'FECHADA' then 9
+                 else 10
+               end,
+               v.data_abertura desc,
+               v.data_hora_criacao desc
+             limit $4
+            """,
+            termo,
+            status_normalizado,
+            equipe_filtro,
+            limite,
+        )
+        items = [_serializar_vaga_dashboard_gc(linha) for linha in linhas]
+        andamentos = await _listar_andamentos_vagas_dashboard_gc(conexao, [item["identificador_vaga"] for item in items])
+        for item in items:
+            item["andamentos"] = andamentos.get(item["identificador_vaga"], [])
+
+    pendentes_aprovacao = sum(item["quantidade_vagas"] for item in items if item["status_vaga"] in _VAGA_STATUS_PENDENTES_APROVACAO_DASHBOARD_GC)
+    abertas = sum(item["quantidade_vagas"] for item in items if item["status_vaga"] in {"EM_ANDAMENTO", "TRIAGEM", "ENTREVISTAS", "PROPOSTA"})
+    triagem = sum(item["quantidade_vagas"] for item in items if item["status_vaga"] == "TRIAGEM")
+    entrevistas = sum(item["quantidade_vagas"] for item in items if item["status_vaga"] == "ENTREVISTAS")
+    proposta = sum(item["quantidade_vagas"] for item in items if item["status_vaga"] == "PROPOSTA")
+    fechadas = sum(item["quantidade_vagas"] for item in items if item["status_vaga"] == "FECHADA")
+    canceladas = sum(item["quantidade_vagas"] for item in items if item["status_vaga"] == "CANCELADA")
+    congeladas = sum(item["quantidade_vagas"] for item in items if item["status_vaga"] == "CONGELADA")
+    reprovadas = sum(item["quantidade_vagas"] for item in items if item["status_vaga"] == "REPROVADA")
+    return {
+        "items": items,
+        "total": len(items),
+        "total_vagas": sum(item["quantidade_vagas"] for item in items),
+        "resumo": {
+            "pendentes_aprovacao": pendentes_aprovacao,
+            "abertas": abertas,
+            "em_andamento": abertas,
+            "triagem": triagem,
+            "entrevistas": entrevistas,
+            "proposta": proposta,
+            "fechadas": fechadas,
+            "canceladas": canceladas,
+            "congeladas": congeladas,
+            "reprovadas": reprovadas,
+        },
+    }
+
+
+@rotas_de_administracao.post("/gente-cultura/vagas", status_code=status.HTTP_201_CREATED)
+async def criar_vaga_dashboard_gc(
+    corpo: CorpoVagaDashboardGc,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=True)
+    dados = _normalizar_vaga_dashboard_gc(corpo, status_padrao="PENDENTE_APROVACAO_REGIONAL")
+    dados["status_vaga"] = "PENDENTE_APROVACAO_REGIONAL"
+    andamento = dados.pop("andamento", None)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            await _garantir_tabela_vagas_dashboard_gc(conexao)
+            aprovador = await _resolver_aprovadores_vaga_dashboard_gc(
+                conexao,
+                equipe=dados["equipe"],
+                data_referencia=dados["data_abertura"],
+            )
+            if not dados.get("protocolo"):
+                dados["protocolo"] = await _gerar_protocolo_vaga_dashboard_gc(conexao, dados["data_abertura"])
+            else:
+                existente = await conexao.fetchval(
+                    """
+                    select identificador_vaga
+                      from recrutamento_selecao.vaga
+                     where lower(protocolo) = lower($1)
+                     limit 1
+                    """,
+                    dados["protocolo"],
+                )
+                if existente:
+                    raise HTTPException(status_code=409, detail="Ja existe uma vaga com este protocolo.")
+            linha = await conexao.fetchrow(
+                """
+                insert into recrutamento_selecao.vaga (
+                    protocolo,
+                    equipe,
+                    cargo,
+                    quantidade_vagas,
+                    data_abertura,
+                    data_fechamento,
+                    prazo_desejado,
+                    status_vaga,
+                    tipo_solicitacao,
+                    prioridade,
+                    prioridade_niveis,
+                    recrutadora,
+                    solicitante,
+                    localidade,
+                    modalidade,
+                    substituicao_de,
+                    motivo_abertura,
+                    identificador_equipe_vigencia,
+                    gerente_regional_aprovador,
+                    gerente_regional_aprovador_email,
+                    aprovador_regional_usuario,
+                    diretor_aprovador,
+                    diretor_aprovador_email,
+                    aprovador_usuario,
+                    data_hora_solicitacao,
+                    observacao,
+                    criado_por,
+                    alterado_por
+                )
+                values (
+                    $1, $2, $3, $4, $5, $6, $7, $8,
+                    $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17,
+                    $18::uuid, $19, $20, $21::uuid, $22, $23, $24::uuid,
+                    now(), $25, $26::uuid, $26::uuid
+                )
+                returning *
+                """,
+                dados["protocolo"],
+                dados["equipe"],
+                dados.get("cargo"),
+                dados["quantidade_vagas"],
+                dados["data_abertura"],
+                dados.get("data_fechamento"),
+                dados.get("prazo_desejado"),
+                dados["status_vaga"],
+                dados.get("tipo_solicitacao"),
+                dados.get("prioridade"),
+                json.dumps(dados.get("prioridade_niveis") or [], ensure_ascii=False),
+                dados.get("recrutadora"),
+                dados.get("solicitante") or executor.get("nome_completo"),
+                dados.get("localidade"),
+                dados.get("modalidade"),
+                dados.get("substituicao_de"),
+                dados.get("motivo_abertura"),
+                aprovador.get("identificador_equipe_vigencia"),
+                aprovador.get("gerente_regional_aprovador"),
+                aprovador.get("gerente_regional_aprovador_email"),
+                aprovador.get("aprovador_regional_usuario"),
+                aprovador.get("diretor_aprovador"),
+                aprovador.get("diretor_aprovador_email"),
+                aprovador.get("aprovador_usuario"),
+                dados.get("observacao"),
+                executor["identificador_usuario"],
+            )
+            vaga = _serializar_vaga_dashboard_gc(linha)
+            await _registrar_andamento_vaga_dashboard_gc(
+                conexao,
+                identificador_vaga=vaga["identificador_vaga"],
+                descricao=(
+                    f"Solicitacao criada e enviada para aprovacao do gerente regional "
+                    f"{vaga.get('gerente_regional_aprovador') or 'vigente'}."
+                ),
+                status_vaga=vaga["status_vaga"],
+                executor=executor,
+            )
+            if andamento:
+                await _registrar_andamento_vaga_dashboard_gc(
+                    conexao,
+                    identificador_vaga=vaga["identificador_vaga"],
+                    descricao=andamento,
+                    status_vaga=vaga["status_vaga"],
+                    executor=executor,
+                )
+            vaga["andamentos"] = (await _listar_andamentos_vagas_dashboard_gc(conexao, [vaga["identificador_vaga"]])).get(vaga["identificador_vaga"], [])
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="DASHBOARD_GC_VAGA_CRIADA",
+                descricao_evento=f"Vaga {vaga.get('protocolo')} criada no Dashboard G&C.",
+                detalhes_evento=vaga,
+            )
+
+    return {"mensagem": "Vaga criada com sucesso.", "vaga": vaga}
+
+
+@rotas_de_administracao.put("/gente-cultura/vagas/{identificador_vaga}")
+async def atualizar_vaga_dashboard_gc(
+    identificador_vaga: str,
+    corpo: CorpoVagaDashboardGc,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=True)
+    dados = _normalizar_vaga_dashboard_gc(corpo, status_padrao="EM_ANDAMENTO")
+    andamento = dados.pop("andamento", None)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            await _garantir_tabela_vagas_dashboard_gc(conexao)
+            atual = await _buscar_vaga_dashboard_gc(conexao, identificador_vaga)
+            if not atual:
+                raise HTTPException(status_code=404, detail="Vaga nao encontrada.")
+            status_anterior = _normalizar_status_vaga_dashboard_gc(atual["status_vaga"], padrao="EM_ANDAMENTO")
+            if (
+                status_anterior in _VAGA_STATUS_PENDENTES_APROVACAO_DASHBOARD_GC
+                and dados["status_vaga"] != status_anterior
+            ):
+                raise HTTPException(status_code=409, detail="Vaga pendente deve ser aprovada pela etapa vigente antes de mudar de etapa.")
+            aprovador = await _resolver_aprovadores_vaga_dashboard_gc(
+                conexao,
+                equipe=dados["equipe"],
+                data_referencia=dados["data_abertura"],
+            )
+            if not dados.get("protocolo"):
+                dados["protocolo"] = str(atual["protocolo"])
+            duplicado = await conexao.fetchval(
+                """
+                select identificador_vaga
+                  from recrutamento_selecao.vaga
+                 where lower(protocolo) = lower($1)
+                   and identificador_vaga <> $2::uuid
+                 limit 1
+                """,
+                dados["protocolo"],
+                identificador_vaga,
+            )
+            if duplicado:
+                raise HTTPException(status_code=409, detail="Ja existe outra vaga com este protocolo.")
+            linha = await conexao.fetchrow(
+                """
+                update recrutamento_selecao.vaga
+                   set protocolo = $2,
+                       equipe = $3,
+                       cargo = $4,
+                       quantidade_vagas = $5,
+                       data_abertura = $6,
+                       data_fechamento = $7,
+                       prazo_desejado = $8,
+                       status_vaga = $9,
+                       tipo_solicitacao = $10,
+                       prioridade = case
+                         when $27::jsonb is null
+                              and jsonb_array_length(coalesce(prioridade_niveis, '[]'::jsonb)) > 0
+                           then prioridade
+                         else $11
+                       end,
+                       prioridade_niveis = coalesce($27::jsonb, prioridade_niveis),
+                       recrutadora = $12,
+                       solicitante = $13,
+                       localidade = $14,
+                       modalidade = $15,
+                       substituicao_de = $16,
+                       motivo_abertura = $17,
+                       identificador_equipe_vigencia = $18::uuid,
+                       gerente_regional_aprovador = $19,
+                       gerente_regional_aprovador_email = $20,
+                       aprovador_regional_usuario = $21::uuid,
+                       diretor_aprovador = $22,
+                       diretor_aprovador_email = $23,
+                       aprovador_usuario = $24::uuid,
+                       observacao = $25,
+                       alterado_por = $26::uuid,
+                       data_hora_atualizado_em = now()
+                 where identificador_vaga = $1::uuid
+                 returning *
+                """,
+                identificador_vaga,
+                dados["protocolo"],
+                dados["equipe"],
+                dados.get("cargo"),
+                dados["quantidade_vagas"],
+                dados["data_abertura"],
+                dados.get("data_fechamento"),
+                dados.get("prazo_desejado"),
+                dados["status_vaga"],
+                dados.get("tipo_solicitacao"),
+                dados.get("prioridade"),
+                dados.get("recrutadora"),
+                dados.get("solicitante"),
+                dados.get("localidade"),
+                dados.get("modalidade"),
+                dados.get("substituicao_de"),
+                dados.get("motivo_abertura"),
+                aprovador.get("identificador_equipe_vigencia"),
+                aprovador.get("gerente_regional_aprovador"),
+                aprovador.get("gerente_regional_aprovador_email"),
+                aprovador.get("aprovador_regional_usuario"),
+                aprovador.get("diretor_aprovador"),
+                aprovador.get("diretor_aprovador_email"),
+                aprovador.get("aprovador_usuario"),
+                dados.get("observacao"),
+                executor["identificador_usuario"],
+                json.dumps(dados.get("prioridade_niveis"), ensure_ascii=False) if dados.get("prioridade_niveis") is not None else None,
+            )
+            vaga = _serializar_vaga_dashboard_gc(linha)
+            if status_anterior != vaga["status_vaga"]:
+                await _registrar_andamento_vaga_dashboard_gc(
+                    conexao,
+                    identificador_vaga=vaga["identificador_vaga"],
+                    descricao=f"Status alterado de {_status_label_vaga_dashboard_gc(status_anterior)} para {_status_label_vaga_dashboard_gc(vaga['status_vaga'])}.",
+                    status_vaga=vaga["status_vaga"],
+                    executor=executor,
+                )
+            if andamento:
+                await _registrar_andamento_vaga_dashboard_gc(
+                    conexao,
+                    identificador_vaga=vaga["identificador_vaga"],
+                    descricao=andamento,
+                    status_vaga=vaga["status_vaga"],
+                    executor=executor,
+                )
+            vaga["andamentos"] = (await _listar_andamentos_vagas_dashboard_gc(conexao, [vaga["identificador_vaga"]])).get(vaga["identificador_vaga"], [])
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="DASHBOARD_GC_VAGA_ATUALIZADA",
+                descricao_evento=f"Vaga {vaga.get('protocolo')} atualizada no Dashboard G&C.",
+                detalhes_evento=vaga,
+            )
+
+    return {"mensagem": "Vaga atualizada com sucesso.", "vaga": vaga}
+
+
+@rotas_de_administracao.patch("/gente-cultura/vagas/{identificador_vaga}/prioridade")
+async def atualizar_prioridade_vaga_dashboard_gc(
+    identificador_vaga: str,
+    corpo: CorpoPrioridadeVagaDashboardGc,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            await _garantir_tabela_vagas_dashboard_gc(conexao)
+            atual = await _buscar_vaga_dashboard_gc(conexao, identificador_vaga)
+            if not atual:
+                raise HTTPException(status_code=404, detail="Vaga nao encontrada.")
+            quantidade_vagas = min(999, max(1, int(atual["quantidade_vagas"] or 1)))
+            niveis = _normalizar_prioridade_niveis_dashboard_gc(
+                corpo.niveis,
+                quantidade_total=quantidade_vagas,
+            )
+            resumo = _resumo_prioridade_niveis_dashboard_gc(niveis) or "Nivel 3"
+            linha = await conexao.fetchrow(
+                """
+                update recrutamento_selecao.vaga
+                   set prioridade = $2,
+                       prioridade_niveis = $3::jsonb,
+                       alterado_por = $4::uuid,
+                       data_hora_atualizado_em = now()
+                 where identificador_vaga = $1::uuid
+                 returning *
+                """,
+                identificador_vaga,
+                resumo,
+                json.dumps(niveis, ensure_ascii=False),
+                executor["identificador_usuario"],
+            )
+            vaga = _serializar_vaga_dashboard_gc(linha)
+            await _registrar_andamento_vaga_dashboard_gc(
+                conexao,
+                identificador_vaga=vaga["identificador_vaga"],
+                descricao=f"Prioridade atualizada: {resumo}.",
+                status_vaga=vaga["status_vaga"],
+                executor=executor,
+            )
+            vaga["andamentos"] = (await _listar_andamentos_vagas_dashboard_gc(conexao, [vaga["identificador_vaga"]])).get(vaga["identificador_vaga"], [])
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="DASHBOARD_GC_VAGA_PRIORIDADE_ATUALIZADA",
+                descricao_evento=f"Prioridade da vaga {vaga.get('protocolo')} atualizada no Dashboard G&C.",
+                detalhes_evento={"vaga": vaga, "prioridade_niveis": niveis},
+            )
+
+    return {"mensagem": "Prioridade atualizada com sucesso.", "vaga": vaga}
+
+
+@rotas_de_administracao.post("/gente-cultura/vagas/{identificador_vaga}/fechar")
+async def fechar_vaga_dashboard_gc(
+    identificador_vaga: str,
+    corpo: CorpoFecharVagaDashboardGc,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            await _garantir_tabela_vagas_dashboard_gc(conexao)
+            atual = await _buscar_vaga_dashboard_gc(conexao, identificador_vaga)
+            if not atual:
+                raise HTTPException(status_code=404, detail="Vaga nao encontrada.")
+            status_anterior = _normalizar_status_vaga_dashboard_gc(atual["status_vaga"], padrao="EM_ANDAMENTO")
+            if status_anterior in (_VAGA_STATUS_PENDENTES_APROVACAO_DASHBOARD_GC | {"REPROVADA"}):
+                raise HTTPException(status_code=409, detail="A vaga precisa estar aprovada antes de ser fechada.")
+            if corpo.data_fechamento < atual["data_abertura"]:
+                raise HTTPException(status_code=422, detail="A data de fechamento nao pode ser anterior a abertura.")
+            linha = await conexao.fetchrow(
+                """
+                update recrutamento_selecao.vaga
+                   set data_fechamento = $2,
+                       status_vaga = 'FECHADA',
+                       alterado_por = $3::uuid,
+                       data_hora_atualizado_em = now()
+                 where identificador_vaga = $1::uuid
+                 returning *
+                """,
+                identificador_vaga,
+                corpo.data_fechamento,
+                executor["identificador_usuario"],
+            )
+            vaga = _serializar_vaga_dashboard_gc(linha)
+            await _registrar_andamento_vaga_dashboard_gc(
+                conexao,
+                identificador_vaga=vaga["identificador_vaga"],
+                descricao=f"Status alterado de {_status_label_vaga_dashboard_gc(status_anterior)} para Fechada.",
+                status_vaga=vaga["status_vaga"],
+                executor=executor,
+            )
+            if corpo.andamento:
+                await _registrar_andamento_vaga_dashboard_gc(
+                    conexao,
+                    identificador_vaga=vaga["identificador_vaga"],
+                    descricao=corpo.andamento,
+                    status_vaga=vaga["status_vaga"],
+                    executor=executor,
+                )
+            vaga["andamentos"] = (await _listar_andamentos_vagas_dashboard_gc(conexao, [vaga["identificador_vaga"]])).get(vaga["identificador_vaga"], [])
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="DASHBOARD_GC_VAGA_FECHADA",
+                descricao_evento=f"Vaga {vaga.get('protocolo')} fechada no Dashboard G&C.",
+                detalhes_evento=vaga,
+            )
+
+    return {"mensagem": "Vaga fechada com sucesso.", "vaga": vaga}
+
+
+@rotas_de_administracao.post("/gente-cultura/vagas/{identificador_vaga}/aprovar")
+async def aprovar_vaga_dashboard_gc(
+    identificador_vaga: str,
+    corpo: CorpoAprovarVagaDashboardGc,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=False)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            await _garantir_tabela_vagas_dashboard_gc(conexao)
+            atual = await _buscar_vaga_dashboard_gc(conexao, identificador_vaga)
+            if not atual:
+                raise HTTPException(status_code=404, detail="Vaga nao encontrada.")
+            vaga_atual = _serializar_vaga_dashboard_gc(atual)
+            status_atual = vaga_atual["status_vaga"]
+            if status_atual not in _VAGA_STATUS_PENDENTES_APROVACAO_DASHBOARD_GC:
+                raise HTTPException(status_code=409, detail="Somente vagas pendentes de aprovacao podem ser avaliadas.")
+
+            aprovador_vigente = await _resolver_aprovadores_vaga_dashboard_gc(
+                conexao,
+                equipe=vaga_atual["equipe"],
+                data_referencia=(
+                    date.fromisoformat(str(vaga_atual["data_abertura"])[:10])
+                    if vaga_atual.get("data_abertura")
+                    else date.today()
+                ),
+            )
+            vaga_atual.update(aprovador_vigente)
+            administrador = await _usuario_eh_administrador_dashboard_gc(conexao, executor)
+
+            if status_atual == "PENDENTE_APROVACAO_REGIONAL":
+                if not administrador and not _usuario_corresponde_aprovador_dashboard_gc(
+                    executor,
+                    vaga_atual,
+                    campo_usuario="aprovador_regional_usuario",
+                    campo_nome="gerente_regional_aprovador",
+                    campo_email="gerente_regional_aprovador_email",
+                ):
+                    raise HTTPException(status_code=403, detail="Somente o gerente regional vigente pode aprovar esta vaga.")
+
+                novo_status = "PENDENTE_APROVACAO" if corpo.aprovado else "REPROVADA"
+                linha = await conexao.fetchrow(
+                    """
+                    update recrutamento_selecao.vaga
+                       set status_vaga = $2,
+                           identificador_equipe_vigencia = $3::uuid,
+                           gerente_regional_aprovador = $4,
+                           gerente_regional_aprovador_email = $5,
+                           aprovador_regional_usuario = coalesce($6::uuid, $10::uuid),
+                           diretor_aprovador = $7,
+                           diretor_aprovador_email = $8,
+                           aprovador_usuario = $9::uuid,
+                           data_aprovacao_regional = now(),
+                           alterado_por = $10::uuid,
+                           data_hora_atualizado_em = now()
+                     where identificador_vaga = $1::uuid
+                     returning *
+                    """,
+                    identificador_vaga,
+                    novo_status,
+                    aprovador_vigente.get("identificador_equipe_vigencia"),
+                    aprovador_vigente.get("gerente_regional_aprovador"),
+                    aprovador_vigente.get("gerente_regional_aprovador_email"),
+                    aprovador_vigente.get("aprovador_regional_usuario"),
+                    aprovador_vigente.get("diretor_aprovador"),
+                    aprovador_vigente.get("diretor_aprovador_email"),
+                    aprovador_vigente.get("aprovador_usuario"),
+                    executor["identificador_usuario"],
+                )
+                vaga = _serializar_vaga_dashboard_gc(linha)
+                if corpo.aprovado:
+                    decisao = "aprovada pelo gerente regional"
+                    descricao_padrao = (
+                        "Vaga aprovada pelo gerente regional e enviada para aprovacao "
+                        f"do diretor comercial {vaga.get('diretor_aprovador') or 'vigente'}."
+                    )
+                else:
+                    decisao = "reprovada pelo gerente regional"
+                    descricao_padrao = "Vaga reprovada pelo gerente regional."
+                tipo_evento = "DASHBOARD_GC_VAGA_APROVADA_REGIONAL" if corpo.aprovado else "DASHBOARD_GC_VAGA_REPROVADA_REGIONAL"
+            else:
+                if not administrador and not _usuario_corresponde_aprovador_dashboard_gc(executor, vaga_atual):
+                    raise HTTPException(status_code=403, detail="Somente o diretor comercial vigente pode aprovar esta vaga.")
+
+                novo_status = "EM_ANDAMENTO" if corpo.aprovado else "REPROVADA"
+                linha = await conexao.fetchrow(
+                    """
+                    update recrutamento_selecao.vaga
+                       set status_vaga = $2,
+                           identificador_equipe_vigencia = $3::uuid,
+                           gerente_regional_aprovador = $4,
+                           gerente_regional_aprovador_email = $5,
+                           aprovador_regional_usuario = $6::uuid,
+                           diretor_aprovador = $7,
+                           diretor_aprovador_email = $8,
+                           aprovador_usuario = coalesce($9::uuid, $10::uuid),
+                           data_aprovacao = now(),
+                           data_inicio_andamento = case when $11::boolean then now() else data_inicio_andamento end,
+                           alterado_por = $10::uuid,
+                           data_hora_atualizado_em = now()
+                     where identificador_vaga = $1::uuid
+                     returning *
+                    """,
+                    identificador_vaga,
+                    novo_status,
+                    aprovador_vigente.get("identificador_equipe_vigencia"),
+                    aprovador_vigente.get("gerente_regional_aprovador"),
+                    aprovador_vigente.get("gerente_regional_aprovador_email"),
+                    aprovador_vigente.get("aprovador_regional_usuario"),
+                    aprovador_vigente.get("diretor_aprovador"),
+                    aprovador_vigente.get("diretor_aprovador_email"),
+                    aprovador_vigente.get("aprovador_usuario"),
+                    executor["identificador_usuario"],
+                    corpo.aprovado,
+                )
+                vaga = _serializar_vaga_dashboard_gc(linha)
+                decisao = "aprovada e iniciada" if corpo.aprovado else "reprovada"
+                descricao_padrao = f"Vaga {decisao} pelo diretor comercial."
+                tipo_evento = "DASHBOARD_GC_VAGA_APROVADA" if corpo.aprovado else "DASHBOARD_GC_VAGA_REPROVADA"
+            descricao = _normalizar_texto(corpo.observacao) or descricao_padrao
+            await _registrar_andamento_vaga_dashboard_gc(
+                conexao,
+                identificador_vaga=vaga["identificador_vaga"],
+                descricao=descricao,
+                status_vaga=vaga["status_vaga"],
+                executor=executor,
+            )
+            vaga["andamentos"] = (await _listar_andamentos_vagas_dashboard_gc(conexao, [vaga["identificador_vaga"]])).get(vaga["identificador_vaga"], [])
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento=tipo_evento,
+                descricao_evento=f"Vaga {vaga.get('protocolo')} {decisao} no Dashboard G&C.",
+                detalhes_evento=vaga,
+            )
+
+    return {"mensagem": f"Vaga {decisao} com sucesso.", "vaga": vaga}
+
+
+@rotas_de_administracao.delete("/gente-cultura/vagas/{identificador_vaga}")
+async def excluir_vaga_dashboard_gc(
+    identificador_vaga: str,
+    corpo: CorpoExcluirVagaDashboardGc,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            await _garantir_tabela_vagas_dashboard_gc(conexao)
+            await _validar_senha_administrador_dashboard_gc(conexao, executor, corpo.senha_administrador)
+            atual = await _buscar_vaga_dashboard_gc(conexao, identificador_vaga)
+            if not atual:
+                raise HTTPException(status_code=404, detail="Vaga nao encontrada.")
+            vaga = _serializar_vaga_dashboard_gc(atual)
+            await conexao.execute(
+                """
+                delete from recrutamento_selecao.vaga
+                 where identificador_vaga = $1::uuid
+                """,
+                identificador_vaga,
+            )
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="DASHBOARD_GC_VAGA_EXCLUIDA",
+                descricao_evento=f"Vaga {vaga.get('protocolo')} excluida definitivamente no Dashboard G&C.",
+                detalhes_evento=vaga,
+            )
+
+    return {"mensagem": "Vaga excluida com sucesso."}
+
+
+@rotas_de_administracao.get("/gente-cultura/forecast")
+async def listar_forecasts_dashboard_gc(
+    request: Request,
+    mes: int = Query(..., ge=1, le=12),
+    ano: int = Query(..., ge=2000, le=2100),
+    limite: int = Query(1000, ge=1, le=2000),
+):
+    await _obter_usuario_funcionarios(request, exigir_gerenciamento=False)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        await _garantir_tabela_forecast_dashboard_gc(conexao)
+        linhas = await conexao.fetch(
+            """
+            select *
+              from sevenlm_connect.dashboard_gc_forecast_manual
+             where mes_referencia = $1
+               and ano_referencia = $2
+               and ativo = true
+             order by gestor, data_hora_atualizado_em desc
+             limit $3
+            """,
+            mes,
+            ano,
+            limite,
+        )
+
+    items = [_serializar_forecast_dashboard_gc(linha) for linha in linhas]
+    return {"items": items, "total": len(items), "periodo": {"mes": mes, "ano": ano}}
+
+
+@rotas_de_administracao.post("/gente-cultura/forecast", status_code=status.HTTP_201_CREATED)
+async def salvar_forecast_dashboard_gc(
+    corpo: CorpoForecastDashboardGc,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=False)
+    dados = _normalizar_forecast_dashboard_gc(corpo)
+    pool = request.app.state.pool
+    vaga_automatica = None
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            await _garantir_tabela_forecast_dashboard_gc(conexao)
+            await _validar_permissao_forecast_dashboard_gc(
+                conexao,
+                executor=executor,
+                equipes=dados["equipes"],
+            )
+            existente = await conexao.fetchrow(
+                """
+                select *
+                  from sevenlm_connect.dashboard_gc_forecast_manual
+                 where mes_referencia = $1
+                   and ano_referencia = $2
+                   and chave_gestor = $3
+                   and ativo = true
+                 limit 1
+                """,
+                dados["mes_referencia"],
+                dados["ano_referencia"],
+                dados["chave_gestor"],
+            )
+            if existente:
+                linha = await conexao.fetchrow(
+                    """
+                    update sevenlm_connect.dashboard_gc_forecast_manual
+                       set gestor = $4,
+                           equipes = $5::text[],
+                           equipe_resumo = $6,
+                           forecast = $7,
+                           observacao = $8,
+                           alterado_por = $9::uuid,
+                           data_hora_atualizado_em = now()
+                     where identificador_forecast = $1::uuid
+                       and mes_referencia = $2
+                       and ano_referencia = $3
+                     returning *
+                    """,
+                    existente["identificador_forecast"],
+                    dados["mes_referencia"],
+                    dados["ano_referencia"],
+                    dados["gestor"],
+                    dados["equipes"],
+                    dados["equipe_resumo"],
+                    dados["forecast"],
+                    dados.get("observacao"),
+                    executor["identificador_usuario"],
+                )
+                acao = "ALTERACAO"
+                forecast_anterior = int(existente["forecast"])
+            else:
+                linha = await conexao.fetchrow(
+                    """
+                    insert into sevenlm_connect.dashboard_gc_forecast_manual (
+                        mes_referencia,
+                        ano_referencia,
+                        chave_gestor,
+                        gestor,
+                        equipes,
+                        equipe_resumo,
+                        forecast,
+                        observacao,
+                        criado_por,
+                        alterado_por
+                    )
+                    values ($1, $2, $3, $4, $5::text[], $6, $7, $8, $9::uuid, $9::uuid)
+                    returning *
+                    """,
+                    dados["mes_referencia"],
+                    dados["ano_referencia"],
+                    dados["chave_gestor"],
+                    dados["gestor"],
+                    dados["equipes"],
+                    dados["equipe_resumo"],
+                    dados["forecast"],
+                    dados.get("observacao"),
+                    executor["identificador_usuario"],
+                )
+                acao = "CRIACAO"
+                forecast_anterior = dados.get("forecast_padrao")
+
+            forecast = _serializar_forecast_dashboard_gc(linha)
+            await _registrar_historico_forecast_dashboard_gc(
+                conexao,
+                forecast=dict(linha),
+                acao=acao,
+                forecast_anterior=forecast_anterior,
+                forecast_novo=dados["forecast"],
+                executor=executor,
+            )
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="DASHBOARD_GC_FORECAST_MANUAL_SALVO",
+                descricao_evento=f"Forecast manual de {forecast.get('gestor')} salvo no Dashboard G&C.",
+                detalhes_evento=forecast,
+            )
+            vaga_automatica = await _criar_vaga_automatica_forecast_dashboard_gc(
+                conexao,
+                forecast=forecast,
+                executor=executor,
+                request=request,
+            )
+
+    return {"mensagem": "Forecast salvo com sucesso.", "forecast": forecast, "vaga_automatica": vaga_automatica}
+
+
+@rotas_de_administracao.get("/gente-cultura/forecast/historico")
+async def listar_historico_forecast_dashboard_gc(
+    request: Request,
+    mes: Optional[int] = Query(None, ge=1, le=12),
+    ano: Optional[int] = Query(None, ge=2000, le=2100),
+    limite: int = Query(200, ge=1, le=1000),
+):
+    await _obter_usuario_funcionarios(request, exigir_gerenciamento=False)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        await _garantir_tabela_forecast_dashboard_gc(conexao)
+        linhas = await conexao.fetch(
+            """
+            select
+                h.*,
+                coalesce(u.nome_completo, 'Sistema') as usuario_nome,
+                coalesce(u.correio_eletronico::text, '') as usuario_email
+              from sevenlm_connect.dashboard_gc_forecast_manual_historico h
+              left join sevenlm_connect.usuario u
+                on u.identificador_usuario = h.usuario_responsavel
+             where ($1::smallint is null or h.mes_referencia = $1::smallint)
+               and ($2::smallint is null or h.ano_referencia = $2::smallint)
+             order by h.data_hora_evento desc
+             limit $3
+            """,
+            mes,
+            ano,
+            limite,
+        )
+
+    items = [_serializar_historico_forecast_dashboard_gc(linha) for linha in linhas]
+    return {"items": items, "total": len(items), "periodo": {"mes": mes, "ano": ano}}
+
+
+# =========================================================
+# FUNCIONARIOS / QUADRO DIARIO
+# =========================================================
+
+_FUNCIONARIO_STATUS_CADASTRO = {"ATIVO", "INATIVO", "AFASTADO"}
+
+
+def _normalizar_status_cadastro_funcionario(valor: Optional[str]) -> Optional[str]:
+    texto = unicodedata.normalize("NFKD", str(valor or ""))
+    texto = "".join(ch for ch in texto if not unicodedata.combining(ch))
+    status_operacional = texto.strip().upper().replace(" ", "_")
+    if status_operacional.replace("?", "E") in {"FERIAS", "AUSENTE"}:
+        return "AFASTADO"
+    if status_operacional in _FUNCIONARIO_STATUS_CADASTRO:
+        return status_operacional
+    return None
+
+
+async def _aplicar_status_cadastro_funcionario(
+    conexao,
+    funcionario: dict[str, Any],
+    status_operacional: Optional[str],
+    executor: dict[str, Any],
+) -> Optional[dict[str, Any]]:
+    status_normalizado = _normalizar_status_cadastro_funcionario(status_operacional)
+    if not status_normalizado:
+        return None
+
+    await gerar_quadro_diario(conexao, date.today())
+    linha = await conexao.fetchrow(
+        """
+        select identificador_status::text as identificador_status
+          from sevenlm_connect.funcionario_status_diario
+         where identificador_funcionario = $1::uuid
+           and data_status = current_date
+         limit 1
+        """,
+        funcionario.get("identificador_funcionario"),
+    )
+    if not linha:
+        return None
+
+    return await atualizar_status_diario(
+        conexao,
+        identificador_status=linha["identificador_status"],
+        status_operacional=status_normalizado,
+        atualizado_por=executor.get("identificador_usuario"),
+    )
+
+
+async def _resolver_perfil_validacao_funcionario(
+    conexao,
+    funcionario: dict[str, Any],
+    identificador_perfil_excecao: Optional[int],
+) -> dict[str, Any]:
+    if identificador_perfil_excecao:
+        perfil = await _garantir_perfil_existente(conexao, identificador_perfil_excecao)
+        return {
+            "identificador_perfil": perfil["identificador_perfil"],
+            "nome_perfil": perfil["nome_perfil"],
+            "excecao": True,
+        }
+
+    perfil_padrao = await resolver_perfil_acesso_padrao(conexao, funcionario)
+    return {
+        "identificador_perfil": perfil_padrao.get("identificador_perfil"),
+        "nome_perfil": perfil_padrao.get("nome_perfil"),
+        "excecao": False,
+    }
+
+
+def _senha_padrao_temporaria() -> str:
+    senha_temporaria = _normalizar_texto(SENHA_PADRAO_USUARIO)
+    if len(senha_temporaria) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Senha padrão do servidor não configurada com tamanho mínimo.",
+        )
+    return senha_temporaria
+
+
+async def _garantir_senha_padrao_se_ausente(conexao, identificador_usuario: Optional[str]) -> None:
+    if not identificador_usuario:
+        return
+
+    senha_hash = gerar_hash_senha(_senha_padrao_temporaria())
+    await conexao.execute(
+        """
+        update sevenlm_connect.usuario
+           set senha_hash = $2,
+               algoritmo_senha = 'argon2',
+               indicador_precisa_trocar_senha = true,
+               quantidade_falhas_consecutivas = 0,
+               data_hora_bloqueado_ate = null
+         where identificador_usuario = $1::uuid
+           and (senha_hash is null or btrim(senha_hash) = '')
+        """,
+        str(identificador_usuario),
+        senha_hash,
+    )
+
+
+async def _garantir_usuario_validado_para_funcionario(
+    conexao,
+    funcionario: dict[str, Any],
+) -> Optional[str]:
+    email = _normalizar_texto(funcionario.get("email"))
+    documento = _normalizar_texto(funcionario.get("documento"))
+    matricula = _normalizar_texto(funcionario.get("matricula"))
+    nome = _normalizar_texto(funcionario.get("nome"))
+    usuario_vinculado = _normalizar_texto(funcionario.get("identificador_usuario"))
+
+    if usuario_vinculado:
+        await conexao.execute(
+            """
+            update sevenlm_connect.usuario
+               set indicador_ativo = true
+             where identificador_usuario = $1::uuid
+            """,
+            usuario_vinculado,
+        )
+        await _garantir_senha_padrao_se_ausente(conexao, usuario_vinculado)
+        return usuario_vinculado
+
+    if not email:
+        return None
+
+    usuario = await buscar_usuario_por_chave(conexao, "sevenlm_connect", email)
+    if not usuario and documento:
+        usuario = await buscar_usuario_por_chave(conexao, "sevenlm_connect", documento)
+
+    if usuario:
+        identificador_usuario = str(usuario["identificador_usuario"])
+        await conexao.execute(
+            """
+            update sevenlm_connect.usuario
+               set indicador_ativo = true
+             where identificador_usuario = $1::uuid
+            """,
+            identificador_usuario,
+        )
+        await _garantir_senha_padrao_se_ausente(conexao, identificador_usuario)
+        return identificador_usuario
+
+    novo = await criar_usuario_manual_servico(
+        conexao,
+        "sevenlm_connect",
+        nome_completo=nome,
+        correio_eletronico=email,
+        senha=_senha_padrao_temporaria(),
+        matricula=matricula or documento or None,
+        indicador_ativo=True,
+        indicador_precisa_trocar_senha=True,
+    )
+    return str(novo["identificador_usuario"])
+
+
+async def _atribuir_perfil_validacao_funcionario(
+    conexao,
+    identificador_usuario: Optional[str],
+    identificador_perfil: Optional[int],
+) -> None:
+    if not identificador_usuario or not identificador_perfil:
+        return
+    await _garantir_perfil_existente(conexao, identificador_perfil)
+    await conexao.execute(
+        """
+        insert into sevenlm_connect.usuario_perfil (
+            identificador_usuario,
+            identificador_perfil
+        )
+        values ($1::uuid, $2)
+        on conflict do nothing
+        """,
+        identificador_usuario,
+        identificador_perfil,
+    )
+
+@rotas_de_administracao.get("/admin/funcionarios/equipes")
+async def listar_equipes_funcionarios_admin(
+    request: Request,
+    q: str = Query("", description="Busca por equipe, regiao ou lideranca"),
+    equipe: str = Query("", description="Filtro por nome da equipe"),
+    status: str = Query("", description="ATIVO ou INATIVO"),
+    apenas_vigentes: bool = Query(False, description="Retorna somente a vigencia ativa na data de referencia"),
+    data_referencia: Optional[date] = Query(None, description="Data para resolver vigencia ativa"),
+    limite: int = Query(1000, ge=1, le=2000),
+):
+    await _obter_usuario_funcionarios(request, exigir_gerenciamento=False)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        items = await listar_equipes_vigencia(
+            conexao,
+            termo=q,
+            equipe=equipe,
+            status=status,
+            apenas_vigentes=apenas_vigentes,
+            data_referencia=data_referencia,
+            limite=limite,
+        )
+
+    return {"items": items}
+
+
+@rotas_de_administracao.post("/admin/funcionarios/equipes")
+async def criar_equipe_funcionarios_admin(
+    corpo: CorpoEquipeFuncionarioVigencia,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            equipe, criada = await salvar_equipe_vigencia(
+                conexao,
+                corpo.dict(),
+                atualizado_por=executor.get("identificador_usuario"),
+            )
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_FUNCIONARIO_EQUIPE_CRIADA" if criada else "ADMIN_FUNCIONARIO_EQUIPE_ATUALIZADA",
+                descricao_evento=f"Equipe {equipe.get('equipe')} salva no cadastro operacional.",
+                detalhes_evento={
+                    "identificador_equipe_vigencia": equipe.get("identificador_equipe_vigencia"),
+                    "equipe": equipe.get("equipe"),
+                    "regiao": equipe.get("regiao"),
+                    "data_inicio_vigencia": str(equipe.get("data_inicio_vigencia") or ""),
+                    "data_fim_vigencia": str(equipe.get("data_fim_vigencia") or ""),
+                    "status_equipe": equipe.get("status_equipe"),
+                    "hc_planejado": equipe.get("hc_planejado"),
+                },
+            )
+
+    return {"mensagem": "Equipe salva com sucesso.", "equipe": equipe}
+
+
+@rotas_de_administracao.put("/admin/funcionarios/equipes/{identificador_equipe_vigencia}")
+async def atualizar_equipe_funcionarios_admin(
+    identificador_equipe_vigencia: str,
+    corpo: CorpoEquipeFuncionarioVigencia,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            equipe, _ = await salvar_equipe_vigencia(
+                conexao,
+                corpo.dict(),
+                identificador_equipe_vigencia=identificador_equipe_vigencia,
+                atualizado_por=executor.get("identificador_usuario"),
+            )
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_FUNCIONARIO_EQUIPE_ATUALIZADA",
+                descricao_evento=f"Equipe {equipe.get('equipe')} atualizada no cadastro operacional.",
+                detalhes_evento={
+                    "identificador_equipe_vigencia": equipe.get("identificador_equipe_vigencia"),
+                    "equipe": equipe.get("equipe"),
+                    "regiao": equipe.get("regiao"),
+                    "data_inicio_vigencia": str(equipe.get("data_inicio_vigencia") or ""),
+                    "data_fim_vigencia": str(equipe.get("data_fim_vigencia") or ""),
+                    "status_equipe": equipe.get("status_equipe"),
+                    "hc_planejado": equipe.get("hc_planejado"),
+                },
+            )
+
+    return {"mensagem": "Equipe atualizada com sucesso.", "equipe": equipe}
+
+
+@rotas_de_administracao.get("/admin/funcionarios")
+async def listar_funcionarios_admin(
+    request: Request,
+    q: str = Query("", description="Busca por nome, e-mail, documento, matricula ou lideranca"),
+    tipo: str = Query("", description="FUNCIONARIO, CORRETOR, SDR ou OUTRO"),
+    status: str = Query("", description="ATIVO, INATIVO, AFASTADO, COM_LOGIN ou SEM_LOGIN"),
+    validacao: str = Query("", description="PENDENTE, APROVADO ou REPROVADO"),
+    vinculo: str = Query("", description="CLT, PJ ou AUTONOMO"),
+    imobiliaria: str = Query("", description="Filtro por imobiliaria"),
+    login: str = Query("", description="LIBERADO, BLOQUEADO, SEM_EMAIL ou PENDENTE"),
+    limite: int = Query(150, ge=1, le=1000),
+):
+    await _obter_usuario_funcionarios(request, exigir_gerenciamento=False)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        items = await listar_funcionarios(
+            conexao,
+            termo=q,
+            tipo=tipo,
+            status=status,
+            validacao=validacao,
+            vinculo=vinculo,
+            imobiliaria=imobiliaria,
+            login=login,
+            limite=limite,
+        )
+
+    return {"items": items}
+
+
+@rotas_de_administracao.post("/admin/funcionarios")
+async def criar_funcionario_admin(
+    corpo: CorpoFuncionarioAcesso,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            funcionario, criado = await salvar_funcionario(
+                conexao,
+                corpo.dict(),
+                atualizado_por=executor.get("identificador_usuario"),
+            )
+            status_dia = await _aplicar_status_cadastro_funcionario(
+                conexao,
+                funcionario,
+                corpo.status_operacional,
+                executor,
+            )
+            vaga_movimento = None
+            if criado:
+                vaga_movimento = await _sincronizar_vaga_movimento_funcionario_dashboard_gc(
+                    conexao,
+                    funcionario_anterior=None,
+                    status_anterior=None,
+                    funcionario_atual=funcionario,
+                    status_atual=status_dia.get("status_operacional") if status_dia else corpo.status_operacional,
+                    executor=executor,
+                    request=request,
+                )
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_FUNCIONARIO_CRIADO" if criado else "ADMIN_FUNCIONARIO_ATUALIZADO",
+                descricao_evento=f"Pessoa {funcionario.get('nome')} salva no cadastro operacional.",
+                detalhes_evento={
+                    "identificador_funcionario": funcionario.get("identificador_funcionario"),
+                    "tipo_funcionario": funcionario.get("tipo_funcionario"),
+                    "tipo_vinculo": funcionario.get("tipo_vinculo"),
+                    "email": funcionario.get("email"),
+                    "documento": funcionario.get("documento"),
+                    "cnpj": funcionario.get("cnpj"),
+                    "nome_empresa": funcionario.get("nome_empresa"),
+                    "matricula": funcionario.get("matricula"),
+                    "telefone": funcionario.get("telefone"),
+                    "status_validacao": funcionario.get("status_validacao"),
+                    "perfil_acesso_padrao": funcionario.get("perfil_acesso_padrao"),
+                    "status_operacional": status_dia.get("status_operacional") if status_dia else corpo.status_operacional,
+                    "vaga_movimento": vaga_movimento,
+                },
+            )
+
+    mensagem = "Pessoa salva com sucesso."
+    if criado and funcionario.get("status_validacao") == "PENDENTE":
+        mensagem = "Pessoa salva e enviada para validacao."
+    if vaga_movimento:
+        if vaga_movimento.get("status_vaga") == "FECHADA":
+            mensagem = "Pessoa salva e vaga em aberto consumida automaticamente."
+        else:
+            mensagem = "Pessoa salva e vaga em aberto atualizada automaticamente."
+    return {"mensagem": mensagem, "funcionario": funcionario}
+
+
+@rotas_de_administracao.put("/admin/funcionarios/{identificador_funcionario}")
+async def atualizar_funcionario_admin(
+    identificador_funcionario: str,
+    corpo: CorpoFuncionarioAcesso,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            funcionario_anterior = await obter_funcionario(conexao, identificador_funcionario)
+            status_anterior = await _status_diario_funcionario_dashboard_gc(conexao, funcionario_anterior)
+            funcionario, _ = await salvar_funcionario(
+                conexao,
+                corpo.dict(),
+                identificador_funcionario=identificador_funcionario,
+                atualizado_por=executor.get("identificador_usuario"),
+            )
+            status_dia = await _aplicar_status_cadastro_funcionario(
+                conexao,
+                funcionario,
+                corpo.status_operacional,
+                executor,
+            )
+            vaga_movimento = await _sincronizar_vaga_movimento_funcionario_dashboard_gc(
+                conexao,
+                funcionario_anterior=funcionario_anterior,
+                status_anterior=status_anterior,
+                funcionario_atual=funcionario,
+                status_atual=status_dia.get("status_operacional") if status_dia else corpo.status_operacional,
+                executor=executor,
+                request=request,
+            )
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_FUNCIONARIO_ATUALIZADO",
+                descricao_evento=f"Pessoa {funcionario.get('nome')} atualizada no cadastro operacional.",
+                detalhes_evento={
+                    "identificador_funcionario": funcionario.get("identificador_funcionario"),
+                    "tipo_funcionario": funcionario.get("tipo_funcionario"),
+                    "tipo_vinculo": funcionario.get("tipo_vinculo"),
+                    "email": funcionario.get("email"),
+                    "documento": funcionario.get("documento"),
+                    "cnpj": funcionario.get("cnpj"),
+                    "nome_empresa": funcionario.get("nome_empresa"),
+                    "matricula": funcionario.get("matricula"),
+                    "telefone": funcionario.get("telefone"),
+                    "status_validacao": funcionario.get("status_validacao"),
+                    "perfil_acesso_padrao": funcionario.get("perfil_acesso_padrao"),
+                    "status_operacional": status_dia.get("status_operacional") if status_dia else corpo.status_operacional,
+                    "status_operacional_anterior": status_anterior,
+                    "vaga_movimento": vaga_movimento,
+                },
+            )
+
+    mensagem = "Pessoa atualizada com sucesso."
+    if vaga_movimento:
+        if vaga_movimento.get("tipo_solicitacao") == "REPOSICAO_AUTOMATICA":
+            mensagem = "Pessoa inativada e vaga aberta automaticamente para aprovacao."
+        elif vaga_movimento.get("status_vaga") == "FECHADA":
+            mensagem = "Pessoa atualizada e vaga em aberto consumida automaticamente."
+        else:
+            mensagem = "Pessoa atualizada e vaga em aberto ajustada automaticamente."
+    return {"mensagem": mensagem, "funcionario": funcionario}
+
+
+@rotas_de_administracao.post("/admin/funcionarios/{identificador_funcionario}/validar")
+async def validar_funcionario_admin(
+    identificador_funcionario: str,
+    corpo: CorpoValidarFuncionario,
+    request: Request,
+):
+    executor = await _obter_usuario_validacao_funcionarios(request)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            if corpo.identificador_perfil_excecao:
+                pode_excecao = await _usuario_possui_qualquer_permissao(
+                    conexao,
+                    executor["identificador_usuario"],
+                    _ADMIN_PERMISSOES_GERENCIAMENTO,
+                )
+                if not pode_excecao:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Somente administrador do sistema pode alterar o perfil sugerido como excecao.",
+                    )
+
+            funcionario_atual = await obter_funcionario(conexao, identificador_funcionario)
+            perfil = await _resolver_perfil_validacao_funcionario(
+                conexao,
+                funcionario_atual,
+                corpo.identificador_perfil_excecao if corpo.aprovado else None,
+            )
+            identificador_usuario = None
+
+            if corpo.aprovado:
+                identificador_usuario = await _garantir_usuario_validado_para_funcionario(
+                    conexao,
+                    funcionario_atual,
+                )
+                await _atribuir_perfil_validacao_funcionario(
+                    conexao,
+                    identificador_usuario,
+                    perfil.get("identificador_perfil"),
+                )
+
+            funcionario = await validar_funcionario_cadastro(
+                conexao,
+                identificador_funcionario=identificador_funcionario,
+                aprovado=corpo.aprovado,
+                validado_por=executor["identificador_usuario"],
+                observacao=corpo.observacao,
+                identificador_usuario=identificador_usuario,
+                identificador_perfil_acesso=perfil.get("identificador_perfil") if corpo.aprovado else None,
+                perfil_acesso_nome=perfil.get("nome_perfil") if corpo.aprovado else None,
+                perfil_excecao=bool(corpo.aprovado and corpo.identificador_perfil_excecao),
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_FUNCIONARIO_VALIDADO" if corpo.aprovado else "ADMIN_FUNCIONARIO_REPROVADO",
+                descricao_evento=(
+                    f"Pessoa {funcionario.get('nome')} aprovada no cadastro operacional."
+                    if corpo.aprovado
+                    else f"Pessoa {funcionario.get('nome')} reprovada no cadastro operacional."
+                ),
+                detalhes_evento={
+                    "identificador_funcionario": identificador_funcionario,
+                    "status_validacao": funcionario.get("status_validacao"),
+                    "identificador_usuario": identificador_usuario,
+                    "identificador_perfil": perfil.get("identificador_perfil") if corpo.aprovado else None,
+                    "perfil_acesso": perfil.get("nome_perfil") if corpo.aprovado else None,
+                    "perfil_excecao": bool(corpo.aprovado and corpo.identificador_perfil_excecao),
+                },
+            )
+
+    return {
+        "mensagem": "Funcionario aprovado e acesso vinculado com sucesso." if corpo.aprovado else "Funcionario reprovado com sucesso.",
+        "funcionario": funcionario,
+    }
+
+
+@rotas_de_administracao.post("/admin/funcionarios/importar-planilha")
+async def importar_funcionarios_admin(
+    corpo: CorpoImportarFuncionariosPlanilha,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=True)
+    conteudo = _decodificar_arquivo_base64(corpo.conteudo_base64)
+
+    if len(conteudo) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Planilha acima do limite de 20 MB.")
+
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            resultado = await importar_funcionarios_planilha(
+                conexao,
+                conteudo,
+                atualizado_por=executor.get("identificador_usuario"),
+            )
+            await gerar_quadro_diario(conexao, date.today())
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_FUNCIONARIOS_IMPORTADOS",
+                descricao_evento="Planilha de pessoas importada no cadastro operacional.",
+                detalhes_evento={
+                    "nome_arquivo": corpo.nome_arquivo,
+                    **resultado,
+                },
+            )
+
+    return {
+        "mensagem": "Planilha importada com sucesso.",
+        **resultado,
+    }
+
+
+@rotas_de_administracao.post("/admin/funcionarios/{identificador_funcionario}/provisionar")
+async def provisionar_funcionario_admin(
+    identificador_funcionario: str,
+    corpo: CorpoProvisionarFuncionario,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            funcionario = await obter_funcionario(conexao, identificador_funcionario)
+            if funcionario.get("status_validacao") != "APROVADO":
+                raise HTTPException(
+                    status_code=422,
+                    detail="Valide o cadastro do funcionario antes de provisionar acesso.",
+                )
+            email = _normalizar_texto(funcionario.get("email"))
+            documento = _normalizar_texto(funcionario.get("documento"))
+            matricula = _normalizar_texto(funcionario.get("matricula"))
+            nome = _normalizar_texto(funcionario.get("nome"))
+
+            if not email:
+                raise HTTPException(status_code=422, detail="Funcionario sem e-mail nao pode receber login.")
+
+            usuario = await buscar_usuario_por_chave(conexao, "sevenlm_connect", email)
+            if not usuario and documento:
+                usuario = await buscar_usuario_por_chave(conexao, "sevenlm_connect", documento)
+
+            if usuario:
+                identificador_usuario = str(usuario["identificador_usuario"])
+                await conexao.execute(
+                    """
+                    update sevenlm_connect.usuario
+                       set indicador_ativo = $2,
+                           indicador_precisa_trocar_senha = $3
+                     where identificador_usuario = $1::uuid
+                    """,
+                    identificador_usuario,
+                    corpo.indicador_ativo,
+                    corpo.forcar_troca_na_proxima_entrada,
+                )
+                await _garantir_senha_padrao_se_ausente(conexao, identificador_usuario)
+            else:
+                novo = await criar_usuario_manual_servico(
+                    conexao,
+                    "sevenlm_connect",
+                    nome_completo=nome,
+                    correio_eletronico=email,
+                    senha=_senha_padrao_temporaria(),
+                    matricula=matricula or documento or None,
+                    indicador_ativo=corpo.indicador_ativo,
+                    indicador_precisa_trocar_senha=True,
+                )
+                identificador_usuario = str(novo["identificador_usuario"])
+
+            codigo_setor = _normalizar_texto(corpo.codigo_setor)
+            if codigo_setor:
+                codigo_setor = await _garantir_setor_catalogado(conexao, codigo_setor, codigo_setor)
+                if codigo_setor:
+                    await conexao.execute(
+                        """
+                        insert into sevenlm_connect.usuario_setor (
+                            identificador_usuario,
+                            codigo_setor
+                        )
+                        values ($1::uuid, $2)
+                        on conflict do nothing
+                        """,
+                        identificador_usuario,
+                        codigo_setor,
+                    )
+
+            if corpo.identificador_perfil:
+                await _garantir_perfil_existente(conexao, corpo.identificador_perfil)
+                await conexao.execute(
+                    """
+                    insert into sevenlm_connect.usuario_perfil (
+                        identificador_usuario,
+                        identificador_perfil
+                    )
+                    values ($1::uuid, $2)
+                    on conflict do nothing
+                    """,
+                    identificador_usuario,
+                    corpo.identificador_perfil,
+                )
+
+            await conexao.execute(
+                """
+                update sevenlm_connect.funcionario_acesso
+                   set identificador_usuario = $2::uuid,
+                       ativo_login = true,
+                       data_hora_atualizado_em = now()
+                 where identificador_funcionario = $1::uuid
+                """,
+                identificador_funcionario,
+                identificador_usuario,
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_FUNCIONARIO_PROVISIONADO",
+                descricao_evento=f"Acesso de portal provisionado para {nome}.",
+                detalhes_evento={
+                    "identificador_funcionario": identificador_funcionario,
+                    "identificador_usuario": identificador_usuario,
+                    "email": email,
+                    "codigo_setor": codigo_setor,
+                    "identificador_perfil": corpo.identificador_perfil,
+                },
+            )
+
+    return {
+        "mensagem": "Acesso provisionado com sucesso.",
+        "identificador_usuario": identificador_usuario,
+    }
+
+
+@rotas_de_administracao.get("/admin/funcionarios/quadro-diario")
+async def listar_quadro_diario_admin(
+    request: Request,
+    data_status: Optional[date] = Query(None),
+    q: str = Query(""),
+    tipo: str = Query(""),
+):
+    await _obter_usuario_funcionarios(request, exigir_gerenciamento=False)
+    data_referencia = data_status or date.today()
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        items = await listar_quadro_diario(conexao, data_referencia, termo=q, tipo=tipo)
+
+    return {"items": items, "data_status": data_referencia}
+
+
+@rotas_de_administracao.post("/admin/funcionarios/quadro-diario/gerar")
+async def gerar_quadro_diario_admin(
+    corpo: CorpoGerarQuadroDiario,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=True)
+    data_status = corpo.data_status or date.today()
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            novos = await gerar_quadro_diario(conexao, data_status)
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_QUADRO_DIARIO_GERADO",
+                descricao_evento=f"Quadro diario de funcionarios gerado para {data_status}.",
+                detalhes_evento={
+                    "data_status": str(data_status),
+                    "novas_linhas": novos,
+                },
+            )
+            items = await listar_quadro_diario(conexao, data_status)
+
+    return {
+        "mensagem": "Quadro diario gerado com sucesso.",
+        "novas_linhas": novos,
+        "items": items,
+        "data_status": data_status,
+    }
+
+
+@rotas_de_administracao.put("/admin/funcionarios/quadro-diario/{identificador_status}")
+async def atualizar_quadro_diario_admin(
+    identificador_status: str,
+    corpo: CorpoAtualizarStatusDiario,
+    request: Request,
+):
+    executor = await _obter_usuario_funcionarios(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            item = await atualizar_status_diario(
+                conexao,
+                identificador_status=identificador_status,
+                status_operacional=corpo.status_operacional,
+                status_negocio=corpo.status_negocio,
+                status_login=corpo.status_login,
+                observacao=corpo.observacao,
+                atualizado_por=executor["identificador_usuario"],
+            )
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_QUADRO_DIARIO_ATUALIZADO",
+                descricao_evento="Linha do quadro diario de funcionarios atualizada.",
+                detalhes_evento={
+                    "identificador_status": identificador_status,
+                    "status_operacional": corpo.status_operacional,
+                    "status_negocio": corpo.status_negocio,
+                    "status_login": corpo.status_login,
+                },
+            )
+
+    return {"mensagem": "Quadro diario atualizado com sucesso.", "item": item}
+
+
+# =========================================================
+# BUSCA / DETALHE
+# =========================================================
+
+@rotas_de_administracao.get("/admin/usuarios")
+async def buscar_usuarios(
+    request: Request,
+    q: str = Query("", description="Busca por nome, e-mail, matrícula ou identificador"),
+    limite: int = Query(20, ge=1, le=100),
+):
+    await _obter_usuario_autenticado(request, exigir_gerenciamento=False)
+    pool = request.app.state.pool
+
+    termo = f"%{_normalizar_texto(q)}%"
+
+    async with pool.acquire() as conexao:
+        linhas = await listar_usuarios(conexao, "sevenlm_connect", termo, limite)
+
+    return {
+        "items": [
+            {
+                **dict(l),
+                "origem_cadastro": "USUARIO_MANUAL",
+                "requer_provisionamento": False,
+            }
+            for l in linhas
+        ]
+    }
+
+
+@rotas_de_administracao.get("/admin/usuarios/{chave}")
+async def detalhar_usuario(chave: str, request: Request):
+    await _obter_usuario_autenticado(request, exigir_gerenciamento=False)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _resolver_usuario_ou_colaborador(conexao, chave)
+        usuario = resolvido["usuário"]
+        quadro = resolvido.get("quadro")
+        matricula_referência = resolvido["matricula_referência"]
+
+        identificador_usuario = str(usuario["identificador_usuario"]) if usuario else None
+
+        setores = await _listar_setores_usuario(conexao, identificador_usuario, matricula_referência)
+        perfis = await _listar_perfis_usuario(conexao, identificador_usuario) if identificador_usuario else []
+        permissoes_diretas = await _listar_permissoes_diretas(conexao, identificador_usuario) if identificador_usuario else []
+        setores_perfis = await _listar_setores_perfis(conexao, setores)
+        acesso_efetivo = await _listar_acesso_efetivo(conexao, identificador_usuario) if identificador_usuario else []
+    usuario_resposta = {
+        "identificador_usuario": str(usuario["identificador_usuario"]),
+        "matricula": _matricula_usuario(usuario),
+        "matrícula": _matricula_usuario(usuario),
+        "nome_completo": usuario["nome_completo"],
+        "correio_eletronico": usuario["correio_eletronico"],
+        "indicador_ativo": usuario["indicador_ativo"],
+        "indicador_precisa_trocar_senha": usuario["indicador_precisa_trocar_senha"],
+        "indicador_mfa_habilitado": usuario["indicador_mfa_habilitado"],
+        "quantidade_falhas_consecutivas": usuario["quantidade_falhas_consecutivas"],
+        "data_hora_bloqueado_ate": usuario["data_hora_bloqueado_ate"],
+        "data_hora_ultimo_login": usuario["data_hora_ultimo_login"],
+        "origem_cadastro": "USUARIO_MANUAL",
+        "requer_provisionamento": False,
+        "elegivel_por_quadro": bool(quadro),
+        "pode_acessar_portal": bool(usuario["indicador_ativo"]),
+    }
+
+    return {
+        "usuario": usuario_resposta,
+        "usuário": usuario_resposta,
+        "quadro": quadro,
+        "setores": setores,
+        "perfis": perfis,
+        "permissoes_diretas": permissoes_diretas,
+        "setores_perfis": setores_perfis,
+        "acesso_efetivo": acesso_efetivo,
+    }
+
+
+# =========================================================
+# PROVISIONAMENTO / CRIAÇÃO DE USUÁRIO
+# =========================================================
+
+@rotas_de_administracao.post("/admin/usuarios")
+@rotas_de_administracao.post("/admin/usuarios/externo")
+async def criar_usuario_manual(
+    corpo: CorpoCriarUsuarioManual,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            novo = await criar_usuario_manual_servico(
+                conexao,
+                "sevenlm_connect",
+                nome_completo=corpo.nome_completo,
+                correio_eletronico=corpo.correio_eletronico,
+                senha=corpo.senha,
+                matricula=corpo.matricula,
+                indicador_ativo=corpo.indicador_ativo,
+                indicador_precisa_trocar_senha=corpo.indicador_precisa_trocar_senha,
+            )
+
+            codigo_setor_sincronizado = None
+            if _normalizar_texto(corpo.codigo_setor):
+                codigo_setor_sincronizado = await _garantir_setor_catalogado(
+                    conexao,
+                    corpo.codigo_setor,
+                )
+                if not codigo_setor_sincronizado:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="O setor informado não está catalogado e não pôde ser sincronizado."
+                    )
+
+            if codigo_setor_sincronizado:
+                await conexao.execute(
+                    """
+                    insert into sevenlm_connect.usuario_setor (
+                        identificador_usuario,
+                        codigo_setor
+                    )
+                    values ($1::uuid, $2)
+                    on conflict do nothing
+                    """,
+                    str(novo["identificador_usuario"]),
+                    codigo_setor_sincronizado,
+                )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_USUARIO_MANUAL_CRIADO",
+                descricao_evento=f"Usuário manual criado para {_identificador_legivel_usuario(dict(novo))}.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(novo["identificador_usuario"]),
+                    "nome_completo": corpo.nome_completo,
+                    "correio_eletronico": corpo.correio_eletronico,
+                    "matrícula": corpo.matricula,
+                    "codigo_setor": codigo_setor_sincronizado,
+                    "indicador_ativo": corpo.indicador_ativo,
+                },
+            )
+
+    return {
+        "mensagem": "Usuário criado com sucesso.",
+        "usuário": dict(novo),
+    }
+
+
+@rotas_de_administracao.put("/admin/usuarios/{chave}")
+async def atualizar_usuario_manual(
+    chave: str,
+    corpo: CorpoAtualizarUsuarioManual,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+
+        async with conexao.transaction():
+            atualizado = await atualizar_usuario_manual_servico(
+                conexao,
+                "sevenlm_connect",
+                identificador_usuario=str(usuario["identificador_usuario"]),
+                nome_completo=corpo.nome_completo,
+                correio_eletronico=corpo.correio_eletronico,
+                matricula=corpo.matricula,
+                indicador_ativo=corpo.indicador_ativo,
+            )
+
+            await conexao.execute(
+                """
+                delete from sevenlm_connect.usuario_setor
+                where identificador_usuario = $1::uuid
+                """,
+                str(usuario["identificador_usuario"]),
+            )
+
+            codigo_setor_sincronizado = None
+            if _normalizar_texto(corpo.codigo_setor):
+                codigo_setor_sincronizado = await _garantir_setor_catalogado(
+                    conexao,
+                    corpo.codigo_setor,
+                )
+                if not codigo_setor_sincronizado:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="O setor informado não ésta catalogado e não pode ser utilizado."
+                    )
+
+                await conexao.execute(
+                    """
+                    insert into sevenlm_connect.usuario_setor (
+                        identificador_usuario,
+                        codigo_setor
+                    )
+                    values ($1::uuid, $2)
+                    on conflict do nothing
+                    """,
+                    str(usuario["identificador_usuario"]),
+                    codigo_setor_sincronizado,
+                )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_USUARIO_MANUAL_ATUALIZADO",
+                descricao_evento=f"Usuário {_identificador_legivel_usuario(dict(atualizado))} atualizado manualmente.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "nome_completo": corpo.nome_completo,
+                    "correio_eletronico": corpo.correio_eletronico,
+                    "matrícula": corpo.matricula,
+                    "codigo_setor": codigo_setor_sincronizado,
+                    "indicador_ativo": corpo.indicador_ativo,
+                },
+            )
+
+    return {
+        "mensagem": "Usuário atualizado com sucesso.",
+        "usuário": dict(atualizado),
+    }
+
+
+# =========================================================
+# PERFIS / PERMISSÕES / SETOR
+# =========================================================
+
+async def _listar_permissoes_do_perfil(conexao, identificador_perfil: int) -> list[dict[str, Any]]:
+    registros = await conexao.fetch(
+        """
+        select
+            permissao.identificador_permissao,
+            permissao.nome_permissao,
+            permissao.descricao_permissao,
+            perfil_permissao.data_hora_concedido_em
+        from sevenlm_connect.perfil_permissao perfil_permissao
+        join sevenlm_connect.permissao permissao
+          on permissao.identificador_permissao = perfil_permissao.identificador_permissao
+        where perfil_permissao.identificador_perfil = $1
+        order by permissao.nome_permissao
+        """,
+        identificador_perfil,
+    )
+    return [dict(registro) for registro in registros]
+
+
+@rotas_de_administracao.get("/admin/perfis/{identificador_perfil}/permissoes")
+async def obter_permissoes_perfil(
+    identificador_perfil: int,
+    request: Request,
+):
+    await _obter_usuario_autenticado(request)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        perfil = await _garantir_perfil_existente(conexao, identificador_perfil)
+        permissoes = await _listar_permissoes_do_perfil(conexao, identificador_perfil)
+
+    return {
+        "perfil": perfil,
+        "permissoes": permissoes,
+    }
+
+
+@rotas_de_administracao.put("/admin/perfis/{identificador_perfil}/permissoes")
+async def atualizar_permissoes_perfil(
+    identificador_perfil: int,
+    corpo: CorpoAtualizarPermissoesPerfil,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+    permissoes_normalizadas: set[int] = set()
+    for item in corpo.permissoes or []:
+        try:
+            identificador_permissao = int(item)
+        except (TypeError, ValueError):
+            continue
+        if identificador_permissao > 0:
+            permissoes_normalizadas.add(identificador_permissao)
+    permissoes_unicas = sorted(permissoes_normalizadas)
+
+    async with pool.acquire() as conexao:
+        perfil = await _garantir_perfil_existente(conexao, identificador_perfil)
+
+        if permissoes_unicas:
+            total_validas = await conexao.fetchval(
+                """
+                select count(*)::int
+                from sevenlm_connect.permissao
+                where identificador_permissao = any($1::int[])
+                """,
+                permissoes_unicas,
+            )
+            if int(total_validas or 0) != len(permissoes_unicas):
+                raise HTTPException(
+                    status_code=404,
+                    detail="Uma ou mais permissões informadas não foram encontradas.",
+                )
+
+        permissoes_anteriores = await _listar_permissoes_do_perfil(conexao, identificador_perfil)
+        ids_anteriores = sorted({
+            int(item["identificador_permissao"])
+            for item in permissoes_anteriores
+            if item.get("identificador_permissao") is not None
+        })
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                delete from sevenlm_connect.perfil_permissao
+                where identificador_perfil = $1
+                """,
+                identificador_perfil,
+            )
+
+            if permissoes_unicas:
+                await conexao.execute(
+                    """
+                    insert into sevenlm_connect.perfil_permissao (
+                        identificador_perfil,
+                        identificador_permissao
+                    )
+                    select $1::int, unnest($2::int[])
+                    on conflict do nothing
+                    """,
+                    identificador_perfil,
+                    permissoes_unicas,
+                )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_PERMISSOES_PERFIL_ATUALIZADAS",
+                descricao_evento=f"Permissões do perfil {perfil['nome_perfil']} atualizadas.",
+                detalhes_evento={
+                    "identificador_perfil": identificador_perfil,
+                    "nome_perfil": perfil.get("nome_perfil"),
+                    "permissoes_anteriores": ids_anteriores,
+                    "permissoes_novas": permissoes_unicas,
+                    "observacao": corpo.observacao,
+                },
+            )
+
+        permissoes_atualizadas = await _listar_permissoes_do_perfil(conexao, identificador_perfil)
+
+    _CACHE_USUARIO_AUTENTICADO.clear()
+    return {
+        "mensagem": "Permissões do perfil atualizadas com sucesso.",
+        "perfil": perfil,
+        "permissoes": permissoes_atualizadas,
+    }
+
+
+@rotas_de_administracao.post("/admin/usuarios/{chave}/perfis")
+async def atribuir_perfil_usuario(
+    chave: str,
+    corpo: CorpoAtribuirPerfilUsuario,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+        await _garantir_perfil_existente(conexao, corpo.identificador_perfil)
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                insert into sevenlm_connect.usuario_perfil (
+                    identificador_usuario,
+                    identificador_perfil
+                )
+                values ($1::uuid, $2)
+                on conflict do nothing
+                """,
+                str(usuario["identificador_usuario"]),
+                corpo.identificador_perfil,
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_PERFIL_ATRIBUIDO_USUARIO",
+                descricao_evento=f"Perfil {corpo.identificador_perfil} atribuido ao usuário {_identificador_legivel_usuario(usuario)}.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                    "identificador_perfil": corpo.identificador_perfil,
+                    "observação": corpo.observacao,
+                },
+            )
+
+    return {"mensagem": "Perfil atribuído com sucesso."}
+
+
+@rotas_de_administracao.delete("/admin/usuarios/{chave}/perfis/{identificador_perfil}")
+async def remover_perfil_usuario(
+    chave: str,
+    identificador_perfil: int,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                delete from sevenlm_connect.usuario_perfil
+                where identificador_usuario = $1::uuid
+                  and identificador_perfil = $2
+                """,
+                str(usuario["identificador_usuario"]),
+                identificador_perfil,
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_PERFIL_REMOVIDO_USUARIO",
+                descricao_evento=f"Perfil {identificador_perfil} removido do usuário {_identificador_legivel_usuario(usuario)}.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                    "identificador_perfil": identificador_perfil,
+                },
+            )
+
+    return {"mensagem": "Perfil removido com sucesso."}
+
+
+@rotas_de_administracao.put("/admin/usuarios/{chave}/perfil-principal")
+async def definir_perfil_principal_usuario(
+    chave: str,
+    corpo: CorpoPerfilPrincipalUsuario,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+        identificador_usuario = str(usuario["identificador_usuario"])
+        identificador_executor = str(executor.get("identificador_usuario") or "")
+
+        if corpo.identificador_perfil:
+            await _garantir_perfil_existente(conexao, corpo.identificador_perfil)
+
+        if identificador_usuario == identificador_executor and not corpo.identificador_perfil:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Não é permitido remover o próprio perfil administrativo nesta tela.",
+            )
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                delete from sevenlm_connect.usuario_perfil
+                where identificador_usuario = $1::uuid
+                """,
+                identificador_usuario,
+            )
+
+            if corpo.identificador_perfil:
+                await conexao.execute(
+                    """
+                    insert into sevenlm_connect.usuario_perfil (
+                        identificador_usuario,
+                        identificador_perfil
+                    )
+                    values ($1::uuid, $2)
+                    on conflict do nothing
+                    """,
+                    identificador_usuario,
+                    corpo.identificador_perfil,
+                )
+
+            if corpo.limpar_regras_diretas:
+                await conexao.execute(
+                    """
+                    update sevenlm_connect.usuario_permissao
+                       set data_hora_revogado_em = now(),
+                           identificador_usuario_responsavel = $2::uuid
+                     where identificador_usuario = $1::uuid
+                       and data_hora_revogado_em is null
+                    """,
+                    identificador_usuario,
+                    identificador_executor,
+                )
+
+            if corpo.indicador_ativo is not None:
+                await conexao.execute(
+                    """
+                    update sevenlm_connect.usuario
+                       set indicador_ativo = $2,
+                           indicador_precisa_trocar_senha = case
+                               when $3 then true
+                               else indicador_precisa_trocar_senha
+                           end
+                     where identificador_usuario = $1::uuid
+                    """,
+                    identificador_usuario,
+                    corpo.indicador_ativo,
+                    corpo.forcar_troca_na_proxima_entrada,
+                )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_PERFIL_PRINCIPAL_DEFINIDO",
+                descricao_evento=f"Perfil principal definido para {_identificador_legivel_usuario(usuario)}.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": identificador_usuario,
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                    "identificador_perfil": corpo.identificador_perfil,
+                    "limpar_regras_diretas": corpo.limpar_regras_diretas,
+                    "indicador_ativo": corpo.indicador_ativo,
+                    "forcar_troca_na_proxima_entrada": corpo.forcar_troca_na_proxima_entrada,
+                },
+            )
+
+    _CACHE_USUARIO_AUTENTICADO.clear()
+    return {"mensagem": "Liberação de acesso atualizada com sucesso."}
+
+
+@rotas_de_administracao.post("/admin/usuarios/{chave}/permissoes")
+async def atribuir_permissao_direta_usuario(
+    chave: str,
+    corpo: CorpoAtribuirPermissaoUsuario,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+        await _garantir_permissao_existente(conexao, corpo.identificador_permissao)
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                insert into sevenlm_connect.usuario_permissao (
+                    identificador_usuario,
+                    identificador_permissao,
+                    indicador_permitido,
+                    origem_regra,
+                    identificador_usuario_responsavel,
+                    observacao,
+                    data_hora_revogado_em
+                )
+                values ($1::uuid, $2, $3, $4, $5::uuid, $6, null)
+                on conflict (identificador_usuario, identificador_permissao)
+                do update set
+                    indicador_permitido = excluded.indicador_permitido,
+                    origem_regra = excluded.origem_regra,
+                    identificador_usuario_responsavel = excluded.identificador_usuario_responsavel,
+                    observacao = excluded.observacao,
+                    data_hora_concedido_em = now(),
+                    data_hora_revogado_em = null
+                """,
+                str(usuario["identificador_usuario"]),
+                corpo.identificador_permissao,
+                corpo.indicador_permitido,
+                corpo.origem_regra,
+                executor["identificador_usuario"],
+                corpo.observacao,
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_PERMISSAO_DIRETA_ATRIBUIDA",
+                descricao_evento=f"Permissão {corpo.identificador_permissao} atribuída ao usuário {_identificador_legivel_usuario(usuario)}.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                    "identificador_permissao": corpo.identificador_permissao,
+                    "indicador_permitido": corpo.indicador_permitido,
+                    "origem_regra": corpo.origem_regra,
+                    "observação": corpo.observacao,
+                },
+            )
+
+    return {"mensagem": "Permissão direta salva com sucesso."}
+
+
+@rotas_de_administracao.delete("/admin/usuarios/{chave}/permissoes/{identificador_permissao}")
+async def revogar_permissao_direta_usuario(
+    chave: str,
+    identificador_permissao: int,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                update sevenlm_connect.usuario_permissao
+                   set data_hora_revogado_em = now(),
+                       identificador_usuario_responsavel = $3::uuid
+                 where identificador_usuario = $1::uuid
+                   and identificador_permissao = $2
+                   and data_hora_revogado_em is null
+                """,
+                str(usuario["identificador_usuario"]),
+                identificador_permissao,
+                executor["identificador_usuario"],
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_PERMISSAO_DIRETA_REVOGADA",
+                descricao_evento=f"Permissão {identificador_permissao} revogada do usuário {_identificador_legivel_usuario(usuario)}.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                    "identificador_permissao": identificador_permissao,
+                },
+            )
+
+    return {"mensagem": "Permissão direta revogada com sucesso."}
+
+
+@rotas_de_administracao.get("/admin/setores")
+async def listar_setores(request: Request):
+    await _obter_usuario_autenticado(request, exigir_gerenciamento=False)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        linhas = await conexao.fetch(
+            """
+            select
+                codigo_setor,
+                coalesce(nullif(nome_setor, ''), codigo_setor) as nome_setor
+            from sevenlm_connect.setor
+            order by nome_setor
+            """
+        )
+
+    return {"items": [dict(l) for l in linhas]}
+
+
+@rotas_de_administracao.post("/admin/setores/{codigo_setor}/perfis")
+async def atribuir_perfil_setor(
+    codigo_setor: str,
+    corpo: CorpoAtribuirPerfilSetor,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            await _garantir_perfil_existente(conexao, corpo.identificador_perfil)
+            codigo_setor_catalogado = await _garantir_setor_catalogado(conexao, codigo_setor)
+            if not codigo_setor_catalogado:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Setor informado não foi encontrado no catálogo."
+                )
+
+            await conexao.execute(
+                """
+                insert into sevenlm_connect.setor_perfil (
+                    codigo_setor,
+                    identificador_perfil,
+                    indicador_ativo,
+                    identificador_usuario_responsavel,
+                    observacao
+                )
+                values ($1, $2, true, $3::uuid, $4)
+                on conflict (codigo_setor, identificador_perfil)
+                do update set
+                    indicador_ativo = true,
+                    identificador_usuario_responsavel = excluded.identificador_usuario_responsavel,
+                    data_hora_concedido_em = now(),
+                    observacao = excluded.observacao
+                """,
+                codigo_setor_catalogado,
+                corpo.identificador_perfil,
+                executor["identificador_usuario"],
+                corpo.observacao,
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_PERFIL_ATRIBUIDO_SETOR",
+                descricao_evento=f"Perfil {corpo.identificador_perfil} atribuído ao setor {codigo_setor_catalogado}.",
+                detalhes_evento={
+                    "codigo_setor": codigo_setor_catalogado,
+                    "identificador_perfil": corpo.identificador_perfil,
+                    "observação": corpo.observacao,
+                },
+            )
+
+    return {"mensagem": "Perfil atribuído ao setor com sucesso."}
+
+
+@rotas_de_administracao.delete("/admin/setores/{codigo_setor}/perfis/{identificador_perfil}")
+async def remover_perfil_setor(
+    codigo_setor: str,
+    identificador_perfil: int,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                delete from sevenlm_connect.setor_perfil
+                where codigo_setor = $1
+                  and identificador_perfil = $2
+                """,
+                codigo_setor,
+                identificador_perfil,
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_PERFIL_REMOVIDO_SETOR",
+                descricao_evento=f"Perfil {identificador_perfil} removido do setor {codigo_setor}.",
+                detalhes_evento={
+                    "codigo_setor": codigo_setor,
+                    "identificador_perfil": identificador_perfil,
+                },
+            )
+
+    return {"mensagem": "Perfil removido do setor com sucesso."}
+
+
+# =========================================================
+# AÇÕES ADMINISTRATIVAS NO USUÁRIO
+# =========================================================
+
+@rotas_de_administracao.post("/admin/usuarios/{chave}/forcar-troca-senha")
+async def forcar_troca_de_senha(
+    chave: str,
+    corpo: CorpoForcarTrocaSenha,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                update sevenlm_connect.usuario
+                   set indicador_precisa_trocar_senha = $2
+                 where identificador_usuario = $1::uuid
+                """,
+                str(usuario["identificador_usuario"]),
+                corpo.indicador_precisa_trocar_senha,
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_TROCA_SENHA_FORCADA",
+                descricao_evento=f"Flag de troca de senha alterada para {_identificador_legivel_usuario(usuario)}.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                    "indicador_precisa_trocar_senha": corpo.indicador_precisa_trocar_senha,
+                },
+            )
+
+    return {"mensagem": "Flag de troca de senha atualizada com sucesso."}
+
+
+@rotas_de_administracao.post("/admin/usuarios/{chave}/resetar-senha")
+async def resetar_senha_usuario(
+    chave: str,
+    corpo: CorpoResetarSenha,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    senha_hash = gerar_hash_senha(corpo.nova_senha)
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                update sevenlm_connect.usuario
+                   set senha_hash = $2,
+                       algoritmo_senha = 'argon2',
+                       indicador_precisa_trocar_senha = $3,
+                       quantidade_falhas_consecutivas = 0,
+                       data_hora_bloqueado_ate = null
+                 where identificador_usuario = $1::uuid
+                """,
+                str(usuario["identificador_usuario"]),
+                senha_hash,
+                corpo.forcar_troca_na_proxima_entrada,
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_SENHA_RESETADA",
+                descricao_evento=f"Senha resetada para {_identificador_legivel_usuario(usuario)}.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                    "forcar_troca_na_proxima_entrada": corpo.forcar_troca_na_proxima_entrada,
+                },
+            )
+
+    return {"mensagem": "Senha resetada com sucesso."}
+
+
+@rotas_de_administracao.post("/admin/usuarios/{chave}/resetar-senha-padrao")
+async def resetar_senha_padrao_usuario(
+    chave: str,
+    request: Request,
+):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    senha_hash = gerar_hash_senha(_senha_padrao_temporaria())
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                update sevenlm_connect.usuario
+                   set senha_hash = $2,
+                       algoritmo_senha = 'argon2',
+                       indicador_precisa_trocar_senha = true,
+                       quantidade_falhas_consecutivas = 0,
+                       data_hora_bloqueado_ate = null
+                 where identificador_usuario = $1::uuid
+                """,
+                str(usuario["identificador_usuario"]),
+                senha_hash,
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_SENHA_PADRAO_RESETADA",
+                descricao_evento=f"Senha padrão aplicada para {_identificador_legivel_usuario(usuario)}.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                    "forcar_troca_na_proxima_entrada": True,
+                },
+            )
+
+    return {"mensagem": "Senha padrão aplicada. O usuário será obrigado a trocar no próximo acesso."}
+
+
+@rotas_de_administracao.post("/admin/usuarios/{chave}/resetar-mfa")
+async def resetar_mfa_usuario(chave: str, request: Request):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                update sevenlm_connect.usuario
+                   set indicador_mfa_habilitado = false,
+                       mfa_totp_segredo_enc = null,
+                       mfa_totp_confirmado_em = null
+                 where identificador_usuario = $1::uuid
+                """,
+                str(usuario["identificador_usuario"]),
+            )
+
+            await conexao.execute(
+                """
+                update sevenlm_connect.mfa_desafio
+                   set situacao = 'CANCELADO'
+                 where identificador_usuario = $1::uuid
+                   and situacao = 'ABERTO'
+                """,
+                str(usuario["identificador_usuario"]),
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_MFA_RESETADO",
+                descricao_evento=f"MFA resetado para {_identificador_legivel_usuario(usuario)}.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                },
+            )
+
+    return {"mensagem": "MFA resetado com sucesso. O usuário deverá configurar novamente no próximo acesso."}
+
+
+@rotas_de_administracao.post("/admin/usuarios/{chave}/desbloquear")
+async def desbloquear_usuario(chave: str, request: Request):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                update sevenlm_connect.usuario
+                   set quantidade_falhas_consecutivas = 0,
+                       data_hora_bloqueado_ate = null
+                 where identificador_usuario = $1::uuid
+                """,
+                str(usuario["identificador_usuario"]),
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_USUARIO_DESBLOQUEADO",
+                descricao_evento=f"Usuário {_identificador_legivel_usuario(usuario)} desbloqueado.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                },
+            )
+
+    return {"mensagem": "Usuário desbloqueado com sucesso."}
+
+
+@rotas_de_administracao.post("/admin/usuarios/{chave}/ativar")
+async def ativar_usuario(chave: str, request: Request):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                update sevenlm_connect.usuario
+                   set indicador_ativo = true
+                 where identificador_usuario = $1::uuid
+                """,
+                str(usuario["identificador_usuario"]),
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_USUARIO_ATIVADO",
+                descricao_evento=f"Usuário {_identificador_legivel_usuario(usuario)} ativado.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                },
+            )
+
+    return {"mensagem": "Usuário ativado com sucesso."}
+
+
+@rotas_de_administracao.post("/admin/usuarios/{chave}/desativar")
+async def desativar_usuario(chave: str, request: Request):
+    executor = await _obter_usuario_autenticado(request, exigir_gerenciamento=True)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        resolvido = await _garantir_usuario_existente(conexao, chave)
+        usuario = resolvido["usuário"]
+
+        async with conexao.transaction():
+            await conexao.execute(
+                """
+                update sevenlm_connect.usuario
+                   set indicador_ativo = false
+                 where identificador_usuario = $1::uuid
+                """,
+                str(usuario["identificador_usuario"]),
+            )
+
+            await _registrar_evento_auditoria(
+                conexao=conexao,
+                request=request,
+                executor=executor,
+                tipo_evento="ADMIN_USUARIO_DESATIVADO",
+                descricao_evento=f"Usuário {_identificador_legivel_usuario(usuario)} desativado.",
+                detalhes_evento={
+                    "identificador_usuario_alvo": str(usuario["identificador_usuario"]),
+                    "identificador_alvo": _identificador_legivel_usuario(usuario),
+                },
+            )
+
+    return {"mensagem": "Usuário desativado com sucesso."}
+
+
+# =========================================================
+# MONITORAMENTO DO PORTAL
+# =========================================================
+
+@rotas_de_administracao.get("/admin/monitoramento-portal")
+async def obter_monitoramento_portal(
+    request: Request,
+    janela_minutos: int = Query(30, ge=5, le=1440),
+    limite: int = Query(80, ge=10, le=200),
+):
+    await _obter_usuario_autenticado(request, exigir_gerenciamento=False)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        metricas = await conexao.fetchrow(
+            """
+            with ultima_requisicao as (
+                select
+                    r.identificador_sessao,
+                    max(r.data_hora_criacao) as data_hora_ultima_requisicao
+                from system.registro_requisicao_http r
+                where r.identificador_sessao is not null
+                  and r.caminho_http <> '/api/admin/monitoramento-portal'
+                group by r.identificador_sessao
+            ),
+            sessoes_monitoradas as (
+                select
+                    s.*,
+                    coalesce(
+                        ur.data_hora_ultima_requisicao,
+                        s.data_hora_ultimo_uso,
+                        s.data_hora_criacao
+                    ) as data_hora_ultima_atividade
+                from sevenlm_connect.sessao s
+                left join ultima_requisicao ur
+                  on ur.identificador_sessao = s.identificador_sessao
+            )
+            select
+                count(*) filter (
+                    where s.situacao_sessao = 'ATIVA'
+                      and s.data_hora_expiracao > now()
+                      and s.data_hora_ultima_atividade >= now() - ($1::int * interval '1 minute')
+                )::int as sessoes_ativas,
+                count(distinct s.identificador_usuario) filter (
+                    where s.situacao_sessao = 'ATIVA'
+                      and s.data_hora_expiracao > now()
+                      and s.data_hora_ultima_atividade >= now() - ($1::int * interval '1 minute')
+                )::int as usuarios_logados,
+                count(*) filter (
+                    where s.situacao_sessao = 'ATIVA'
+                      and s.data_hora_expiracao > now()
+                )::int as sessoes_abertas,
+                count(distinct s.identificador_usuario) filter (
+                    where s.situacao_sessao = 'ATIVA'
+                      and s.data_hora_expiracao > now()
+                )::int as usuarios_com_sessao_aberta,
+                count(*) filter (
+                    where s.data_hora_criacao >= now() - ($1::int * interval '1 minute')
+                )::int as entradas_janela,
+                count(*) filter (
+                    where s.situacao_sessao = 'ENCERRADA'
+                      and coalesce(s.data_hora_encerramento, s.data_hora_criacao) >= now() - ($1::int * interval '1 minute')
+                )::int as sessoes_encerradas_janela
+            from sessoes_monitoradas s
+            """,
+            janela_minutos,
+        )
+
+        resumo_comercial = await conexao.fetchrow(
+            f"""
+            select
+                (
+                    select count(*)::int
+                    from {ESQUEMA_COMERCIAL}.simulacao simulacao
+                    where simulacao.data_hora_atualizado_em >= now() - ($1::int * interval '1 minute')
+                ) as simulacoes_janela,
+                (
+                    select count(distinct simulacao.identificador_corretor)::int
+                    from {ESQUEMA_COMERCIAL}.simulacao simulacao
+                    where simulacao.identificador_corretor is not null
+                      and simulacao.data_hora_atualizado_em >= now() - ($1::int * interval '1 minute')
+                ) as usuarios_simulando,
+                (
+                    select count(*)::int
+                    from {ESQUEMA_COMERCIAL}.imovel_reserva reserva
+                    where reserva.data_hora_atualizado_em >= now() - ($1::int * interval '1 minute')
+                ) as reservas_janela,
+                (
+                    select count(*)::int
+                    from {ESQUEMA_COMERCIAL}.imovel_reserva reserva
+                    where reserva.status in ('ATIVA', 'PENDENTE_APROVACAO')
+                ) as reservas_ativas
+            """,
+            janela_minutos,
+        )
+
+        pessoas_ativas = await conexao.fetch(
+            f"""
+            with ultima_requisicao as (
+                select distinct on (r.identificador_sessao)
+                    r.identificador_sessao,
+                    r.caminho_http,
+                    r.metodo_http,
+                    r.codigo_resposta_http,
+                    r.duracao_milisegundos,
+                    r.data_hora_criacao
+                from system.registro_requisicao_http r
+                where r.identificador_sessao is not null
+                  and r.caminho_http <> '/api/admin/monitoramento-portal'
+                order by r.identificador_sessao, r.data_hora_criacao desc
+            ),
+            simulacoes_usuario as (
+                select
+                    s.identificador_corretor,
+                    count(*)::int as simulacoes_janela,
+                    max(s.data_hora_atualizado_em) as ultima_simulacao
+                from {ESQUEMA_COMERCIAL}.simulacao s
+                where s.identificador_corretor is not null
+                  and s.data_hora_atualizado_em >= now() - ($1::int * interval '1 minute')
+                group by s.identificador_corretor
+            ),
+            reservas_usuario as (
+                select
+                    r.reservado_por,
+                    count(*)::int as reservas_janela,
+                    max(coalesce(r.reservado_em, r.data_hora_atualizado_em, r.data_hora_criacao)) as ultima_reserva
+                from {ESQUEMA_COMERCIAL}.imovel_reserva r
+                where r.reservado_por is not null
+                  and coalesce(r.reservado_em, r.data_hora_atualizado_em, r.data_hora_criacao) >= now() - ($1::int * interval '1 minute')
+                group by r.reservado_por
+            ),
+            sessoes_online as (
+                select
+                    s.identificador_sessao,
+                    s.identificador_usuario,
+                    s.data_hora_criacao,
+                    s.data_hora_expiracao,
+                    coalesce(
+                        ur.data_hora_criacao,
+                        s.data_hora_ultimo_uso,
+                        s.data_hora_criacao
+                    ) as data_hora_ultima_atividade,
+                    ur.caminho_http,
+                    ur.metodo_http,
+                    ur.codigo_resposta_http,
+                    ur.duracao_milisegundos,
+                    s.endereco_ip,
+                    s.agente_do_usuario,
+                    count(*) over (partition by s.identificador_usuario)::int as sessoes_usuario_janela,
+                    row_number() over (
+                        partition by s.identificador_usuario
+                        order by coalesce(ur.data_hora_criacao, s.data_hora_ultimo_uso, s.data_hora_criacao) desc,
+                                 s.data_hora_criacao desc
+                    ) as ordem_usuario
+                from sevenlm_connect.sessao s
+                left join ultima_requisicao ur
+                  on ur.identificador_sessao = s.identificador_sessao
+                where s.situacao_sessao = 'ATIVA'
+                  and s.data_hora_expiracao > now()
+                  and coalesce(
+                        ur.data_hora_criacao,
+                        s.data_hora_ultimo_uso,
+                        s.data_hora_criacao
+                      ) >= now() - ($1::int * interval '1 minute')
+            )
+            select
+                u.identificador_usuario::text as identificador_usuario,
+                u.nome_completo,
+                u.correio_eletronico::text as correio_eletronico,
+                u.matricula,
+                s.identificador_sessao::text as identificador_sessao,
+                s.data_hora_criacao as data_hora_entrada,
+                s.data_hora_expiracao,
+                s.data_hora_ultima_atividade,
+                s.caminho_http as ultimo_caminho,
+                s.metodo_http as ultimo_metodo,
+                s.codigo_resposta_http as ultimo_status_http,
+                s.duracao_milisegundos as ultima_duracao_ms,
+                coalesce(sim.simulacoes_janela, 0)::int as simulacoes_janela,
+                sim.ultima_simulacao,
+                coalesce(res.reservas_janela, 0)::int as reservas_janela,
+                res.ultima_reserva,
+                s.sessoes_usuario_janela,
+                s.endereco_ip,
+                s.agente_do_usuario
+            from sessoes_online s
+            join sevenlm_connect.usuario u
+              on u.identificador_usuario = s.identificador_usuario
+            left join simulacoes_usuario sim
+              on sim.identificador_corretor = s.identificador_usuario
+            left join reservas_usuario res
+              on res.reservado_por = s.identificador_usuario
+            where s.ordem_usuario = 1
+            order by data_hora_ultima_atividade desc nulls last, u.nome_completo
+            limit $2
+            """,
+            janela_minutos,
+            limite,
+        )
+
+        simulacoes_recentes = await conexao.fetch(
+            f"""
+            select
+                s.identificador_simulacao::text as identificador_simulacao,
+                s.identificador_corretor::text as identificador_usuario,
+                u.nome_completo as usuario_nome,
+                u.correio_eletronico::text as usuario_email,
+                c.nome_completo as cliente_nome,
+                i.titulo as imovel_titulo,
+                coalesce(nullif(s.empreendimento, ''), i.titulo) as empreendimento,
+                s.status_simulacao,
+                s.valor_total_operacao,
+                s.percentual_comprometimento,
+                s.data_hora_criacao,
+                s.data_hora_atualizado_em
+            from {ESQUEMA_COMERCIAL}.simulacao s
+            left join sevenlm_connect.usuario u
+              on u.identificador_usuario = s.identificador_corretor
+            left join {ESQUEMA_COMERCIAL}.cliente c
+              on c.identificador_cliente = s.identificador_cliente
+            left join {ESQUEMA_COMERCIAL}.imovel i
+              on i.identificador_imovel = s.identificador_imovel
+            where s.data_hora_atualizado_em >= now() - ($1::int * interval '1 minute')
+            order by s.data_hora_atualizado_em desc
+            limit $2
+            """,
+            janela_minutos,
+            limite,
+        )
+
+        reservas_recentes = await conexao.fetch(
+            f"""
+            select
+                r.identificador_reserva::text as identificador_reserva,
+                r.identificador_simulacao::text as identificador_simulacao,
+                r.reservado_por::text as identificador_usuario,
+                u.nome_completo as usuario_nome,
+                u.correio_eletronico::text as usuario_email,
+                c.nome_completo as cliente_nome,
+                i.titulo as imovel_titulo,
+                r.status,
+                r.reservado_em,
+                r.expiracao_em,
+                r.data_hora_criacao,
+                r.data_hora_atualizado_em
+            from {ESQUEMA_COMERCIAL}.imovel_reserva r
+            left join sevenlm_connect.usuario u
+              on u.identificador_usuario = r.reservado_por
+            left join {ESQUEMA_COMERCIAL}.cliente c
+              on c.identificador_cliente = r.identificador_cliente
+            left join {ESQUEMA_COMERCIAL}.imovel i
+              on i.identificador_imovel = r.identificador_imovel
+            where coalesce(r.reservado_em, r.data_hora_atualizado_em, r.data_hora_criacao) >= now() - ($1::int * interval '1 minute')
+            order by coalesce(r.reservado_em, r.data_hora_atualizado_em, r.data_hora_criacao) desc
+            limit $2
+            """,
+            janela_minutos,
+            limite,
+        )
+
+        atividades_recentes = await conexao.fetch(
+            """
+            (
+                select
+                    'http' as origem,
+                    r.metodo_http as tipo,
+                    r.caminho_http as titulo,
+                    concat('HTTP ', r.codigo_resposta_http, ' em ', coalesce(r.duracao_milisegundos, 0), 'ms') as descricao,
+                    r.identificador_usuario::text as identificador_usuario,
+                    u.nome_completo as usuario_nome,
+                    u.correio_eletronico::text as usuario_email,
+                    r.data_hora_criacao as data_hora_evento,
+                    jsonb_build_object(
+                        'codigo_resposta_http', r.codigo_resposta_http,
+                        'duracao_milisegundos', r.duracao_milisegundos,
+                        'consulta_http', r.consulta_http
+                    ) as detalhes
+                from system.registro_requisicao_http r
+                left join sevenlm_connect.usuario u
+                  on u.identificador_usuario = r.identificador_usuario
+                where r.identificador_usuario is not null
+                  and r.caminho_http <> '/api/admin/monitoramento-portal'
+                  and r.data_hora_criacao >= now() - ($1::int * interval '1 minute')
+                order by r.data_hora_criacao desc
+                limit $2
+            )
+            union all
+            (
+                select
+                    'auditoria' as origem,
+                    a.tipo_evento as tipo,
+                    a.tipo_evento as titulo,
+                    coalesce(a.descricao_evento, '') as descricao,
+                    a.identificador_usuario::text as identificador_usuario,
+                    u.nome_completo as usuario_nome,
+                    u.correio_eletronico::text as usuario_email,
+                    a.data_hora_evento,
+                    a.detalhes_evento as detalhes
+                from system.auditoria_evento a
+                left join sevenlm_connect.usuario u
+                  on u.identificador_usuario = a.identificador_usuario
+                where a.data_hora_evento >= now() - ($1::int * interval '1 minute')
+                order by a.data_hora_evento desc
+                limit $2
+            )
+            order by data_hora_evento desc
+            limit $2
+            """,
+            janela_minutos,
+            limite,
+        )
+
+        modulos_ativos = await conexao.fetch(
+            """
+            select
+                case
+                    when r.caminho_http like '/api/connect-comercial/%'
+                      or r.caminho_http like '/api/clientes%'
+                      or r.caminho_http like '/api/imoveis%'
+                      or r.caminho_http like '/api/simulador%'
+                        then 'Comercial'
+                    when r.caminho_http like '/api/admin/%'
+                        then 'Administração'
+                    when r.caminho_http like '/api/v1/dashboard%'
+                      or r.caminho_http like '/api/dashboard%'
+                        then 'Dashboards'
+                    when r.caminho_http like '/api/metas%'
+                        then 'Metas'
+                    when r.caminho_http in ('/api/me', '/api/refresh', '/api/auth/refresh')
+                        then 'Sessão'
+                    else 'Outros'
+                end as modulo,
+                count(*)::int as acessos,
+                count(distinct r.identificador_usuario)::int as usuarios,
+                max(r.data_hora_criacao) as ultima_atividade,
+                round(avg(coalesce(r.duracao_milisegundos, 0)))::int as duracao_media_ms
+            from system.registro_requisicao_http r
+            where r.identificador_usuario is not null
+              and r.caminho_http <> '/api/admin/monitoramento-portal'
+              and r.data_hora_criacao >= now() - ($1::int * interval '1 minute')
+            group by modulo
+            order by acessos desc, modulo
+            limit 8
+            """,
+            janela_minutos,
+        )
+
+        rotas_mais_acessadas = await conexao.fetch(
+            """
+            select
+                r.metodo_http,
+                r.caminho_http,
+                count(*)::int as acessos,
+                count(distinct r.identificador_usuario)::int as usuarios,
+                max(r.data_hora_criacao) as ultima_atividade,
+                round(avg(coalesce(r.duracao_milisegundos, 0)))::int as duracao_media_ms
+            from system.registro_requisicao_http r
+            where r.identificador_usuario is not null
+              and r.caminho_http <> '/api/admin/monitoramento-portal'
+              and r.data_hora_criacao >= now() - ($1::int * interval '1 minute')
+            group by r.metodo_http, r.caminho_http
+            order by acessos desc, ultima_atividade desc
+            limit 12
+            """,
+            janela_minutos,
+        )
+
+        status_http = await conexao.fetch(
+            """
+            select
+                case
+                    when r.codigo_resposta_http between 200 and 299 then '2xx'
+                    when r.codigo_resposta_http between 300 and 399 then '3xx'
+                    when r.codigo_resposta_http between 400 and 499 then '4xx'
+                    when r.codigo_resposta_http >= 500 then '5xx'
+                    else 'sem status'
+                end as faixa_status,
+                count(*)::int as total,
+                round(avg(coalesce(r.duracao_milisegundos, 0)))::int as duracao_media_ms
+            from system.registro_requisicao_http r
+            where r.identificador_usuario is not null
+              and r.caminho_http <> '/api/admin/monitoramento-portal'
+              and r.data_hora_criacao >= now() - ($1::int * interval '1 minute')
+            group by faixa_status
+            order by faixa_status
+            """,
+            janela_minutos,
+        )
+
+        atividade_por_periodo = await conexao.fetch(
+            """
+            with eventos as (
+                select
+                    to_timestamp(floor(extract(epoch from r.data_hora_criacao) / 300) * 300) as inicio_periodo,
+                    r.identificador_usuario
+                from system.registro_requisicao_http r
+                where r.identificador_usuario is not null
+                  and r.caminho_http <> '/api/admin/monitoramento-portal'
+                  and r.data_hora_criacao >= now() - ($1::int * interval '1 minute')
+            )
+            select
+                inicio_periodo,
+                to_char(inicio_periodo at time zone 'America/Sao_Paulo', 'HH24:MI') as rotulo,
+                count(*)::int as eventos,
+                count(distinct identificador_usuario)::int as usuarios
+            from eventos
+            group by inicio_periodo
+            order by inicio_periodo
+            limit 72
+            """,
+            janela_minutos,
+        )
+
+        sessoes_sem_movimento = await conexao.fetch(
+            """
+            with ultima_requisicao as (
+                select distinct on (r.identificador_sessao)
+                    r.identificador_sessao,
+                    r.caminho_http,
+                    r.data_hora_criacao
+                from system.registro_requisicao_http r
+                where r.identificador_sessao is not null
+                  and r.caminho_http <> '/api/admin/monitoramento-portal'
+                order by r.identificador_sessao, r.data_hora_criacao desc
+            ),
+            sessoes_ociosas as (
+                select
+                    s.identificador_usuario,
+                    s.identificador_sessao,
+                    s.data_hora_expiracao,
+                    coalesce(ur.data_hora_criacao, s.data_hora_ultimo_uso, s.data_hora_criacao) as data_hora_ultima_atividade,
+                    ur.caminho_http as ultimo_caminho,
+                    count(*) over (partition by s.identificador_usuario)::int as sessoes_usuario,
+                    row_number() over (
+                        partition by s.identificador_usuario
+                        order by coalesce(ur.data_hora_criacao, s.data_hora_ultimo_uso, s.data_hora_criacao) desc,
+                                 s.data_hora_criacao desc
+                    ) as ordem_usuario
+                from sevenlm_connect.sessao s
+                left join ultima_requisicao ur
+                  on ur.identificador_sessao = s.identificador_sessao
+                where s.situacao_sessao = 'ATIVA'
+                  and s.data_hora_expiracao > now()
+                  and coalesce(ur.data_hora_criacao, s.data_hora_ultimo_uso, s.data_hora_criacao) < now() - ($1::int * interval '1 minute')
+            )
+            select
+                u.identificador_usuario::text as identificador_usuario,
+                u.nome_completo,
+                u.correio_eletronico::text as correio_eletronico,
+                u.matricula,
+                so.identificador_sessao::text as identificador_sessao,
+                so.data_hora_expiracao,
+                so.data_hora_ultima_atividade,
+                so.ultimo_caminho,
+                so.sessoes_usuario
+            from sessoes_ociosas so
+            join sevenlm_connect.usuario u
+              on u.identificador_usuario = so.identificador_usuario
+            where so.ordem_usuario = 1
+            order by so.data_hora_ultima_atividade desc nulls last, u.nome_completo
+            limit $2
+            """,
+            janela_minutos,
+            min(limite, 80),
+        )
+
+        funil_simulacoes = await conexao.fetch(
+            f"""
+            select
+                coalesce(nullif(s.status_simulacao, ''), 'Sem status') as status,
+                count(*)::int as total,
+                count(distinct s.identificador_corretor)::int as usuarios,
+                max(s.data_hora_atualizado_em) as ultima_movimentacao
+            from {ESQUEMA_COMERCIAL}.simulacao s
+            where s.data_hora_atualizado_em >= now() - ($1::int * interval '1 minute')
+            group by status
+            order by total desc, status
+            limit 12
+            """,
+            janela_minutos,
+        )
+
+        funil_reservas = await conexao.fetch(
+            f"""
+            select
+                coalesce(nullif(r.status, ''), 'Sem status') as status,
+                count(*)::int as total,
+                count(distinct r.reservado_por)::int as usuarios,
+                max(coalesce(r.reservado_em, r.data_hora_atualizado_em, r.data_hora_criacao)) as ultima_movimentacao
+            from {ESQUEMA_COMERCIAL}.imovel_reserva r
+            where coalesce(r.reservado_em, r.data_hora_atualizado_em, r.data_hora_criacao) >= now() - ($1::int * interval '1 minute')
+            group by status
+            order by total desc, status
+            limit 12
+            """,
+            janela_minutos,
+        )
+
+        imoveis_movimentados = await conexao.fetch(
+            f"""
+            with movimentos as (
+                select
+                    coalesce(i.titulo, nullif(s.empreendimento, ''), 'Imóvel não informado') as imovel,
+                    s.identificador_corretor as identificador_usuario,
+                    s.data_hora_atualizado_em as data_hora_movimento
+                from {ESQUEMA_COMERCIAL}.simulacao s
+                left join {ESQUEMA_COMERCIAL}.imovel i
+                  on i.identificador_imovel = s.identificador_imovel
+                where s.data_hora_atualizado_em >= now() - ($1::int * interval '1 minute')
+                union all
+                select
+                    coalesce(i.titulo, 'Imóvel não informado') as imovel,
+                    r.reservado_por as identificador_usuario,
+                    coalesce(r.reservado_em, r.data_hora_atualizado_em, r.data_hora_criacao) as data_hora_movimento
+                from {ESQUEMA_COMERCIAL}.imovel_reserva r
+                left join {ESQUEMA_COMERCIAL}.imovel i
+                  on i.identificador_imovel = r.identificador_imovel
+                where coalesce(r.reservado_em, r.data_hora_atualizado_em, r.data_hora_criacao) >= now() - ($1::int * interval '1 minute')
+            )
+            select
+                imovel,
+                count(*)::int as movimentos,
+                count(distinct identificador_usuario)::int as usuarios,
+                max(data_hora_movimento) as ultima_movimentacao
+            from movimentos
+            group by imovel
+            order by movimentos desc, ultima_movimentacao desc
+            limit 12
+            """,
+            janela_minutos,
+        )
+
+    metricas_base = dict(metricas or {})
+    resumo_base = dict(resumo_comercial or {})
+
+    return {
+        "janela_minutos": janela_minutos,
+        "gerado_em": _agora_utc(),
+        "metricas": {
+            **metricas_base,
+            **resumo_base,
+        },
+        "pessoas_ativas": [dict(item) for item in pessoas_ativas],
+        "simulacoes_recentes": [dict(item) for item in simulacoes_recentes],
+        "reservas_recentes": [dict(item) for item in reservas_recentes],
+        "atividades_recentes": [dict(item) for item in atividades_recentes],
+        "modulos_ativos": [dict(item) for item in modulos_ativos],
+        "rotas_mais_acessadas": [dict(item) for item in rotas_mais_acessadas],
+        "status_http": [dict(item) for item in status_http],
+        "atividade_por_periodo": [dict(item) for item in atividade_por_periodo],
+        "sessoes_sem_movimento": [dict(item) for item in sessoes_sem_movimento],
+        "funil_simulacoes": [dict(item) for item in funil_simulacoes],
+        "funil_reservas": [dict(item) for item in funil_reservas],
+        "imoveis_movimentados": [dict(item) for item in imoveis_movimentados],
+    }
+
+
+# =========================================================
+# AUDITORIA
+# =========================================================
+
+@rotas_de_administracao.get("/admin/auditoria")
+async def listar_auditoria(
+    request: Request,
+    limite: int = Query(50, ge=1, le=200),
+):
+    await _obter_usuario_autenticado(request, exigir_gerenciamento=False)
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conexao:
+        linhas = await conexao.fetch(
+            """
+            select
+                tipo_evento,
+                descricao_evento as descricao,
+                detalhes_evento,
+                identificador_usuario::text as criado_por,
+                data_hora_evento,
+                data_hora_criacao
+            from system.auditoria_evento
+            where tipo_evento like 'ADMIN_%'
+               or tipo_evento like 'RH_%'
+            order by data_hora_evento desc, data_hora_criacao desc
+            limit $1
+            """,
+            limite,
+        )
+
+    itens = []
+    for linha in linhas:
+        item = dict(linha)
+        item["titulo"] = item["tipo_evento"].replace("_", " ").title()
+        itens.append(item)
+
+    return {"items": itens}
+

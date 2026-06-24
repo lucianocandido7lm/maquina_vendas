@@ -1,0 +1,314 @@
+"""
+Validacoes e normalizacoes do modulo de imoveis.
+"""
+
+from __future__ import annotations
+
+import re
+import unicodedata
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from pathlib import Path
+from typing import Any, Iterable, Optional
+
+from fastapi import HTTPException
+
+
+EXTENSOES_IMAGEM = {".jpg", ".jpeg", ".png", ".webp"}
+EXTENSOES_VIDEO = {".mp4", ".mov", ".webm"}
+EXTENSOES_PLANILHA_IMPORTACAO = {".xlsx", ".xlsm"}
+MIME_IMAGEM = {"image/jpeg", "image/png", "image/webp"}
+MIME_VIDEO = {"video/mp4", "video/quicktime", "video/webm"}
+
+MAPA_COLUNAS_IMPORTACAO = {
+    "titulo": ("titulo", "título"),
+    "descricao": ("descricao", "descrição"),
+    "tipo_imovel": ("tipo imovel", "tipo do imovel", "tipo"),
+    "endereco": ("endereco", "endereço"),
+    "cidade": ("cidade",),
+    "bairro": ("bairro",),
+    "estado": ("estado", "uf"),
+    "cep": ("cep",),
+    "valor": ("valor", "preco", "preço", "vgv"),
+    "quartos": ("quartos", "dorm", "dormitorio", "dormitorios"),
+    "banheiros": ("banheiros", "banheiro"),
+    "vagas_garagem": ("vagas garagem", "vagas de garagem", "vagas", "garagem"),
+    "area_m2": ("area m2", "área m2", "area", "área", "ap real coluna 23", "ap real", "area total construida m2"),
+    "meses_pre_entrega": ("meses ate entrega", "meses pre entrega", "prazo entrega", "entrega em meses"),
+    "meses_pos_entrega": ("meses pos entrega", "meses pos-entrega", "prazo pos entrega", "parcelamento pos entrega"),
+    "percentual_conclusao_obra": ("percentual conclusao obra", "% conclusao obra", "conclusao obra", "obra %", "evolucao obra"),
+    "status": ("status",),
+    "localidade": ("localidade",),
+    "suite": ("suite", "suíte", "suites", "suítes"),
+    "unidade_autonoma": ("unidade autonoma", "unidade autônoma", "unidade"),
+    "pavimento": ("pavimento",),
+    "ap_real": ("ap real coluna 23", "ap real"),
+    "ap_equivalente": ("ap equivalente coluna 24 30", "ap equivalente"),
+    "area_total_construida": ("area total construida m2", "área total construída m2", "area total construida"),
+    "vaga_vinculada": ("vaga vinculada",),
+    "bloco": ("bloco",),
+    "orientacao": ("orientacao", "orientação"),
+    "posicao": ("posicao", "posição"),
+}
+
+
+def normalizar_texto(valor: Optional[str]) -> str:
+    return str(valor or "").strip()
+
+
+def _normalizar_texto_opcional(valor: Optional[str], maximo: int) -> Optional[str]:
+    texto = normalizar_texto(valor)
+    if not texto:
+        return None
+    if len(texto) > maximo:
+        raise HTTPException(status_code=400, detail=f"O valor informado excede {maximo} caracteres.")
+    return texto
+
+
+def normalizar_titulo(valor: Optional[str]) -> str:
+    texto = normalizar_texto(valor)
+    if len(texto) < 3:
+        raise HTTPException(status_code=400, detail="Informe o titulo do imovel.")
+    if len(texto) > 160:
+        raise HTTPException(status_code=400, detail="O titulo do imovel excede 160 caracteres.")
+    return texto
+
+
+def normalizar_descricao(valor: Optional[str]) -> Optional[str]:
+    return _normalizar_texto_opcional(valor, 4000)
+
+
+def normalizar_tipo_imovel(valor: Optional[str]) -> Optional[str]:
+    return _normalizar_texto_opcional(valor, 80)
+
+
+def normalizar_endereco(valor: Optional[str]) -> Optional[str]:
+    return _normalizar_texto_opcional(valor, 255)
+
+
+def normalizar_cidade(valor: Optional[str]) -> str:
+    texto = normalizar_texto(valor)
+    if len(texto) < 2:
+        raise HTTPException(status_code=400, detail="Informe a cidade do imovel.")
+    if len(texto) > 120:
+        raise HTTPException(status_code=400, detail="A cidade excede 120 caracteres.")
+    return texto
+
+
+def normalizar_bairro(valor: Optional[str]) -> str:
+    texto = normalizar_texto(valor)
+    if len(texto) < 2:
+        raise HTTPException(status_code=400, detail="Informe o bairro do imovel.")
+    if len(texto) > 120:
+        raise HTTPException(status_code=400, detail="O bairro excede 120 caracteres.")
+    return texto
+
+
+def normalizar_estado(valor: Optional[str]) -> Optional[str]:
+    texto = _normalizar_texto_opcional(valor, 40)
+    return texto.upper() if texto else None
+
+
+def normalizar_cep(valor: Optional[str]) -> Optional[str]:
+    texto = _normalizar_texto_opcional(valor, 20)
+    if not texto:
+        return None
+    return re.sub(r"\s+", "", texto)
+
+
+def normalizar_status(valor: Optional[str]) -> str:
+    texto = normalizar_texto(valor)
+    if len(texto) < 2:
+        raise HTTPException(status_code=400, detail="Informe o status do imovel.")
+    if len(texto) > 60:
+        raise HTTPException(status_code=400, detail="O status excede 60 caracteres.")
+    return texto
+
+
+def normalizar_decimal(valor: Any, campo: str, casas: str = "0.01") -> Optional[Decimal]:
+    if valor is None or valor == "":
+        return None
+
+    if isinstance(valor, Decimal):
+        numero = valor
+    else:
+        texto = str(valor).strip()
+        if not texto:
+            return None
+
+        if "," in texto and "." in texto:
+            if texto.rfind(",") > texto.rfind("."):
+                texto = texto.replace(".", "").replace(",", ".")
+            else:
+                texto = texto.replace(",", "")
+        elif "," in texto:
+            texto = texto.replace(".", "").replace(",", ".")
+
+        try:
+            numero = Decimal(texto)
+        except InvalidOperation as erro:
+            raise HTTPException(status_code=400, detail=f"O campo {campo} deve ser numerico.") from erro
+
+    if numero < 0:
+        raise HTTPException(status_code=400, detail=f"O campo {campo} nao pode ser negativo.")
+
+    return numero.quantize(Decimal(casas), rounding=ROUND_HALF_UP)
+
+
+def normalizar_inteiro(valor: Any, campo: str) -> Optional[int]:
+    if valor is None or valor == "":
+        return None
+
+    try:
+        numero = int(valor)
+    except Exception as erro:
+        raise HTTPException(status_code=400, detail=f"O campo {campo} deve ser numerico.") from erro
+
+    if numero < 0:
+        raise HTTPException(status_code=400, detail=f"O campo {campo} nao pode ser negativo.")
+
+    return numero
+
+
+def normalizar_inteiro_intervalo(valor: Any, campo: str, minimo: int, maximo: int, padrao: int) -> int:
+    numero = normalizar_inteiro(padrao if valor in (None, "") else valor, campo)
+    if numero is None:
+        numero = padrao
+    if numero < minimo or numero > maximo:
+        raise HTTPException(status_code=400, detail=f"O campo {campo} deve ficar entre {minimo} e {maximo}.")
+    return numero
+
+
+def normalizar_decimal_intervalo(valor: Any, campo: str, minimo: Decimal, maximo: Decimal, padrao: Decimal) -> Decimal:
+    numero = normalizar_decimal(padrao if valor in (None, "") else valor, campo)
+    if numero is None:
+        numero = padrao
+    if numero < minimo or numero > maximo:
+        raise HTTPException(status_code=400, detail=f"O campo {campo} deve ficar entre {minimo} e {maximo}.")
+    return numero
+
+
+def normalizar_payload_imovel(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "titulo": normalizar_titulo(payload.get("titulo")),
+        "descricao": normalizar_descricao(payload.get("descricao")),
+        "tipo_imovel": normalizar_tipo_imovel(payload.get("tipo_imovel")),
+        "endereco": normalizar_endereco(payload.get("endereco")),
+        "cidade": normalizar_cidade(payload.get("cidade")),
+        "bairro": normalizar_bairro(payload.get("bairro")),
+        "estado": normalizar_estado(payload.get("estado")),
+        "cep": normalizar_cep(payload.get("cep")),
+        "valor": normalizar_decimal(payload.get("valor"), "valor"),
+        "quartos": normalizar_inteiro(payload.get("quartos"), "quartos"),
+        "banheiros": normalizar_inteiro(payload.get("banheiros"), "banheiros"),
+        "vagas_garagem": normalizar_inteiro(payload.get("vagas_garagem"), "vagas de garagem"),
+        "area_m2": normalizar_decimal(payload.get("area_m2"), "area em m2"),
+        "meses_pre_entrega": normalizar_inteiro_intervalo(
+            payload.get("meses_pre_entrega"),
+            "meses ate entrega",
+            1,
+            240,
+            36,
+        ),
+        "meses_pos_entrega": normalizar_inteiro_intervalo(
+            payload.get("meses_pos_entrega"),
+            "meses pos-entrega",
+            0,
+            360,
+            24,
+        ),
+        "percentual_conclusao_obra": normalizar_decimal_intervalo(
+            payload.get("percentual_conclusao_obra"),
+            "percentual de conclusao da obra",
+            Decimal("0"),
+            Decimal("100"),
+            Decimal("0"),
+        ),
+        "status": normalizar_status(payload.get("status")),
+    }
+
+
+def classificar_arquivo_de_midia(nome_arquivo: Optional[str], mime_type: Optional[str]) -> dict[str, str]:
+    nome = Path(str(nome_arquivo or "")).name.strip()
+    if not nome:
+        raise HTTPException(status_code=400, detail="Todos os arquivos de midia devem possuir nome.")
+
+    extensao = Path(nome).suffix.lower()
+    mime = str(mime_type or "").strip().lower()
+
+    if extensao in EXTENSOES_IMAGEM:
+        if mime and mime not in MIME_IMAGEM:
+            raise HTTPException(status_code=400, detail=f"O arquivo {nome} nao possui um tipo de imagem permitido.")
+        return {"tipo_arquivo": "foto", "extensao": extensao, "mime_type": mime or "image/jpeg"}
+
+    if extensao in EXTENSOES_VIDEO:
+        if mime and mime not in MIME_VIDEO:
+            raise HTTPException(status_code=400, detail=f"O arquivo {nome} nao possui um tipo de video permitido.")
+        return {"tipo_arquivo": "video", "extensao": extensao, "mime_type": mime or "video/mp4"}
+
+    raise HTTPException(
+        status_code=400,
+        detail=f"O arquivo {nome} possui uma extensao nao permitida. Use jpg, jpeg, png, webp, mp4, mov ou webm.",
+    )
+
+
+def normalizar_nome_para_arquivo(valor: Optional[str]) -> str:
+    texto = unicodedata.normalize("NFKD", normalizar_texto(valor))
+    texto = "".join(char for char in texto if not unicodedata.combining(char))
+    texto = texto.lower()
+    texto = re.sub(r"[^a-z0-9]+", "-", texto).strip("-")
+    return texto[:72] or "midia"
+
+
+def normalizar_identificador_coluna_planilha(valor: Any) -> str:
+    texto = unicodedata.normalize("NFKD", normalizar_texto(valor))
+    texto = "".join(char for char in texto if not unicodedata.combining(char))
+    texto = texto.lower()
+    texto = re.sub(r"[^a-z0-9]+", " ", texto)
+    return re.sub(r"\s+", " ", texto).strip()
+
+
+def mapear_colunas_importacao(cabecalhos: Iterable[Any]) -> dict[str, int]:
+    normalizados = {
+        indice: normalizar_identificador_coluna_planilha(valor)
+        for indice, valor in enumerate(list(cabecalhos or []))
+    }
+    encontrados: dict[str, int] = {}
+
+    for chave, aliases in MAPA_COLUNAS_IMPORTACAO.items():
+        for alias in aliases:
+            alias_normalizado = normalizar_identificador_coluna_planilha(alias)
+            for indice, valor_normalizado in normalizados.items():
+                if valor_normalizado == alias_normalizado:
+                    encontrados[chave] = indice
+                    break
+            if chave in encontrados:
+                break
+
+    return encontrados
+
+
+def linha_planilha_vazia(linha: Iterable[Any]) -> bool:
+    for valor in list(linha or []):
+        if valor is None:
+            continue
+        if isinstance(valor, str) and not valor.strip():
+            continue
+        return False
+    return True
+
+
+def obter_valor_coluna_planilha(linha: list[Any] | tuple[Any, ...], colunas: dict[str, int], chave: str) -> Any:
+    indice = colunas.get(chave)
+    if indice is None:
+        return None
+    if indice >= len(linha):
+        return None
+    return linha[indice]
+
+
+def valor_planilha_como_texto(valor: Any) -> str:
+    if valor is None:
+        return ""
+    if isinstance(valor, float) and valor.is_integer():
+        return str(int(valor))
+    return str(valor).strip()

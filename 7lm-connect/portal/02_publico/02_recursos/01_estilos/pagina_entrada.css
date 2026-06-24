@@ -1,0 +1,65 @@
+﻿/*
+  Autor: Willian Elias Franca
+  Projeto: 7LM Connect - Plataforma Integrada
+*/
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #0b1020;
+  color: #e7e7e7;
+}
+
+.tela {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.cartao {
+  width: 100%;
+  max-width: 420px;
+  background: #121a33;
+  border: 1px solid #22305e;
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.35);
+}
+
+.topo { margin-bottom: 18px; }
+.marca { font-weight: 800; letter-spacing: 1px; font-size: 20px; }
+.subtitulo { opacity: .85; font-size: 13px; margin-top: 4px; }
+
+.formulario { display: flex; flex-direction: column; gap: 10px; }
+.rotulo { font-size: 13px; opacity: .9; }
+
+.campo {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #2b3a73;
+  background: #0d1430;
+  color: #fff;
+  outline: none;
+}
+.campo:focus { border-color: #4f7cff; }
+
+.botao {
+  margin-top: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: #4f7cff;
+  color: #081027;
+  font-weight: 800;
+  cursor: pointer;
+}
+.botao:disabled { opacity: .6; cursor: not-allowed; }
+
+.mensagem { min-height: 18px; font-size: 13px; margin-top: 6px; }
+.mensagem.ok { color: #7CFFB2; }
+.mensagem.erro { color: #FF7C7C; }
+
+.rodape { margin-top: 16px; font-size: 12px; opacity: .75; }
+

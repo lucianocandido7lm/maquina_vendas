@@ -1,0 +1,28 @@
+{
+  "name": "7lm-connect-portal",
+  "version": "0.0.1",
+  "description": "Portal institucional 7LM",
+  "private": true,
+  "main": "01_codigo_fonte/servidor_do_portal.js",
+  "scripts": {
+    "start": "node 01_codigo_fonte/servidor_do_portal.js",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:browser\"",
+    "dev:server": "nodemon 01_codigo_fonte/servidor_do_portal.js",
+    "dev:browser": "browser-sync start --proxy http://localhost:3000 --port 3001 --files \"02_publico/**/*.html,02_publico/**/*.css,02_publico/**/*.js,01_codigo_fonte/**/*.js\" --no-open --reload-delay 300"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^5.1.1",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-session": "^1.19.0",
+    "http-proxy-middleware": "^3.0.5",
+    "node-fetch": "^2.7.0",
+    "pdf-parse": "^1.1.1"
+  },
+  "devDependencies": {
+    "browser-sync": "^3.0.4",
+    "concurrently": "^9.2.1",
+    "nodemon": "^3.1.10"
+  }
+}

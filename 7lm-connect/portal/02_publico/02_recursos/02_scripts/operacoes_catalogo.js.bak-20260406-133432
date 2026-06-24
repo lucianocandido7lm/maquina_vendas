@@ -1,0 +1,148 @@
+(function () {
+  "use strict";
+
+  const shared = window.SevenLMConnectOperacoes;
+  const LOGIN_AT_KEYS = ["sevenlm_connect_login_at", "sevenlm_connect_login_at"];
+
+  function readSession(key) {
+    const keys = Array.isArray(key) ? key : [key];
+    try {
+      for (const item of keys) {
+        const value = sessionStorage.getItem(item) || "";
+        if (value) return value;
+      }
+    } catch {}
+    return "";
+  }
+
+  const el = {
+    catalogo: document.getElementById("operacoesCatalogo"),
+    summaryPrimary: document.getElementById("opsSummaryPrimary"),
+    summarySecondary: document.getElementById("opsSummarySecondary"),
+    lastAccess: document.getElementById("opsLastAccess"),
+    lastAccessMeta: document.getElementById("opsLastAccessMeta"),
+    kpiClientes: document.getElementById("opsKpiClientes"),
+    kpiDashboards: document.getElementById("opsKpiDashboards"),
+    kpiScenes: document.getElementById("opsKpiScenes"),
+    kpiEscopo: document.getElementById("opsKpiEscopo"),
+    catalogIntro: document.getElementById("opsCatalogIntro"),
+  };
+
+  const ITEM_IMOVEIS = {
+    badge: "IMOVEIS",
+    titulo: "Cadastro, listagem e midias",
+    resumo:
+      "A primeira aba do Connect Comercial concentra cadastro de imoveis, consulta da base ativa, importacao em lote e gerenciamento de fotos e videos.",
+    destaque: "Aba ativa",
+    estatisticas: ["Cadastro", "Listagem", "Midias"],
+    acento: "#00B3DE",
+    prioridade: "Disponivel agora",
+    href: shared.buildPortalPath("/comercial/imoveis"),
+    cta: "Abrir aba",
+    permission: "imoveis.view",
+  };
+
+  function setText(node, value) {
+    if (node) node.textContent = value;
+  }
+
+  function formatDateTime(value) {
+    if (!value) return "Agora ha pouco";
+    return shared.formatDateTime(value);
+  }
+
+  function mountItem(item) {
+    const permissionAttr = item.permission
+      ? ` data-permission="${shared.escapeHtml(item.permission)}"`
+      : "";
+    const tags = item.estatisticas
+      .map((tag) => `<span class="tl-ops-access-card__chip">${shared.escapeHtml(tag)}</span>`)
+      .join("");
+
+    return `
+      <article class="tl-ops-access-card" style="--access-accent:${shared.escapeHtml(item.acento)};">
+        <div class="tl-ops-access-card__head">
+          <span class="tl-ops-access-card__badge mono-font">${shared.escapeHtml(item.badge)}</span>
+          <span class="tl-ops-access-card__meta mono-font">${shared.escapeHtml(item.prioridade)}</span>
+        </div>
+
+        <div class="tl-ops-access-card__logo tl-ops-access-card__logo--fallback">
+          <span>COM</span>
+        </div>
+
+        <div class="tl-ops-access-card__copy">
+          <h3>${shared.escapeHtml(item.titulo)}</h3>
+          <p>${shared.escapeHtml(item.resumo)}</p>
+        </div>
+
+        <div class="tl-ops-access-card__stats">
+          <div class="tl-ops-access-card__stat">
+            <span>Status</span>
+            <strong>${shared.escapeHtml(item.destaque)}</strong>
+          </div>
+          <div class="tl-ops-access-card__stat">
+            <span>Modulo</span>
+            <strong>Comercial</strong>
+          </div>
+          <div class="tl-ops-access-card__stat">
+            <span>Escopo</span>
+            <strong>Unificado</strong>
+          </div>
+        </div>
+
+        <div class="tl-ops-access-card__chips">
+          ${tags}
+        </div>
+
+        <a class="tl-ops-access-card__cta" href="${shared.escapeHtml(item.href)}"${permissionAttr}>
+          <span>${shared.escapeHtml(item.cta)}</span>
+          <strong>${shared.escapeHtml(item.titulo)}</strong>
+        </a>
+      </article>
+    `;
+  }
+
+  function mountPlaceholder() {
+    return `
+      <article class="tl-ops-empty-state">
+        <span class="tl-ops-empty-state__badge mono-font">EXPANSAO</span>
+        <h3>Novas abas serao adicionadas depois</h3>
+        <p>
+          O Connect Comercial foi deixado propositalmente mais limpo.
+          Imoveis e a primeira aba, e as proximas entram aqui sem criar outro modulo paralelo.
+        </p>
+      </article>
+    `;
+  }
+
+  function renderCatalog() {
+    if (!el.catalogo) return;
+    el.catalogo.innerHTML = `${mountItem(ITEM_IMOVEIS)}${mountPlaceholder()}`;
+  }
+
+  function updateHeader() {
+    setText(el.summaryPrimary, "1 aba ativa no Connect Comercial");
+    setText(
+      el.summarySecondary,
+      "Connect Comercial unifica o antigo Connect Plataforma com o contexto de Imoveis em uma estrutura unica."
+    );
+    setText(el.lastAccess, formatDateTime(readSession(LOGIN_AT_KEYS)));
+    setText(el.lastAccessMeta, "Connect Financeiro existe como modulo separado e continua vazio por enquanto.");
+    setText(el.kpiClientes, "01");
+    setText(el.kpiDashboards, "Imoveis");
+    setText(el.kpiScenes, "Depois");
+    setText(el.kpiEscopo, "Pronto");
+    setText(
+      el.catalogIntro,
+      "A aba abaixo representa o primeiro bloco ativo do novo modulo comercial."
+    );
+  }
+
+  function boot() {
+    shared.initChrome();
+    updateHeader();
+    renderCatalog();
+  }
+
+  document.addEventListener("DOMContentLoaded", boot);
+})();

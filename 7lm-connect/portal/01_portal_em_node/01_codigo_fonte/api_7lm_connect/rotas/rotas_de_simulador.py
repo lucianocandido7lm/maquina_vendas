@@ -1,0 +1,898 @@
+﻿"""
+Rotas do simulador comercial inteligente.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+
+from configuracoes import ESQUEMA_COMERCIAL
+from dependencias import obter_usuario_autenticado
+from modelos.simulador import (
+    RequisicaoAtualizarComplementoRenda,
+    RequisicaoCalcularSimulacao,
+    RequisicaoCriarComplementoRenda,
+    RequisicaoOperacaoImovel,
+    RequisicaoSalvarSimulacao,
+    RequisicaoSugerirImoveis,
+)
+from repositorios.imoveis import buscar_imovel_por_id, listar_midias_imovel
+from repositorios.simulador import (
+    atualizar_reserva_status,
+    atualizar_status_imovel,
+    buscar_cliente_para_simulador_por_id,
+    buscar_complemento_renda_por_id,
+    buscar_imovel_para_simulador_por_id,
+    buscar_reserva_ativa_por_imovel_lock,
+    buscar_simulacao_por_id,
+    criar_complemento_renda,
+    criar_imovel_reserva,
+    criar_simulacao,
+    excluir_complemento_renda,
+    inserir_historico_status_imovel,
+    inserir_parcelas_simulacao,
+    listar_clientes_aprovados_para_simulador,
+    listar_complementos_renda,
+    listar_imoveis_para_simulador,
+    listar_parcelas_simulacao,
+    listar_reservas_ativas_cliente,
+    listar_simulacoes_cliente,
+    obter_imovel_para_operacao_lock,
+    atualizar_complemento_renda,
+)
+from servicos.imoveis import serializar_imovel
+from servicos.simulador import (
+    calcular_simulacao_comercial,
+    consolidar_nucleo_familiar,
+    montar_identificacao_imovel_simulador,
+    montar_payload_simulacao_persistencia,
+    normalizar_payload_complemento,
+    serializar_complemento_renda,
+    serializar_reserva,
+    serializar_simulacao,
+    sugerir_imoveis_inteligentes,
+    validar_operacao_final,
+)
+from utilitarios.autorizacao import exigir_permissao_portal
+from utilitarios.clientes_acesso import usuario_pode_ver_todos_clientes
+from validacoes.imoveis import calcular_meses_ate_entrega
+
+
+rotas_de_simulador = APIRouter()
+
+
+def _obter_pool(request: Request):
+    pool = getattr(request.app.state, "pool", None)
+    if not pool:
+        raise HTTPException(status_code=503, detail="Pool indisponivel.")
+    return pool
+
+
+def _normalizar_like(valor: str | None) -> str | None:
+    texto = str(valor or "").strip()
+    if not texto:
+        return None
+    return f"%{texto}%"
+
+
+def _normalizar_status(valor: str | None) -> str | None:
+    texto = str(valor or "").strip()
+    return texto or None
+
+
+def _normalizar_busca(valor: str | None) -> str:
+    texto = str(valor or "").strip()
+    if not texto:
+        return "%%"
+    return f"%{texto}%"
+
+
+def _serializar_cliente_simulador(item) -> dict:
+    linha = dict(item or {})
+    parametros_simulacao = linha.get("parametros_simulacao") or {}
+    if isinstance(parametros_simulacao, str):
+        try:
+            parametros_simulacao = json.loads(parametros_simulacao)
+        except Exception:
+            parametros_simulacao = {}
+    if not isinstance(parametros_simulacao, dict):
+        parametros_simulacao = {}
+    return {
+        "id": str(linha.get("identificador_cliente") or ""),
+        "nome_completo": linha.get("nome_completo"),
+        "cpf": linha.get("cpf"),
+        "email": linha.get("email"),
+        "telefone": linha.get("telefone") or linha.get("celular"),
+        "cidade": linha.get("cidade"),
+        "renda_principal": linha.get("renda_principal"),
+        "renda_total": linha.get("renda_total"),
+        "status_documental": linha.get("status_documental"),
+        "aprovado": bool(linha.get("aprovado", True)),
+        "parametros_simulacao": parametros_simulacao,
+        "identificador_usuario_cadastro": linha.get("identificador_usuario_cadastro"),
+        "usuario_cadastro_nome": linha.get("usuario_cadastro_nome"),
+        "usuario_cadastro_email": linha.get("usuario_cadastro_email"),
+    }
+
+
+def _serializar_imovel_card(item) -> dict:
+    linha = dict(item or {})
+    identificacao = montar_identificacao_imovel_simulador(linha)
+    return {
+        "id": str(linha.get("identificador_imovel") or ""),
+        "titulo": identificacao["titulo"],
+        "titulo_original": identificacao["titulo_original"],
+        "descricao": linha.get("descricao"),
+        "empreendimento": linha.get("empreendimento") or linha.get("titulo"),
+        "tipologia": linha.get("tipo_imovel"),
+        "tipo_imovel": linha.get("tipo_imovel"),
+        "cidade": linha.get("cidade"),
+        "bairro": linha.get("bairro"),
+        "estado": linha.get("estado"),
+        "endereco": linha.get("endereco"),
+        "cep": linha.get("cep"),
+        "valor": linha.get("valor"),
+        "area_m2": linha.get("area_m2"),
+        "status": linha.get("status"),
+        "dormitorios": linha.get("quartos"),
+        "quartos": linha.get("quartos"),
+        "banheiros": linha.get("banheiros"),
+        "vagas": linha.get("vagas_garagem"),
+        "data_entrega": linha.get("data_entrega").isoformat() if hasattr(linha.get("data_entrega"), "isoformat") else linha.get("data_entrega"),
+        "meses_pre_entrega": int(calcular_meses_ate_entrega(linha.get("data_entrega")) or linha.get("meses_pre_entrega") or 36),
+        "meses_pos_entrega": int(24 if linha.get("meses_pos_entrega") in (None, "") else linha.get("meses_pos_entrega")),
+        "percentual_conclusao_obra": linha.get("percentual_conclusao_obra") or 0,
+        "foto_principal": linha.get("foto_principal"),
+        "agrupamento": identificacao["agrupamento"],
+        "detalhes_comerciais": identificacao["detalhes_comerciais"],
+        "reserva_ativa": serializar_reserva(linha, prefixo="reserva_")
+        if linha.get("reserva_identificador_reserva")
+        else None,
+    }
+
+
+async def _buscar_cliente_visivel_simulador(conexao, identificador_cliente: str, identificador_usuario: str):
+    pode_ver_todos = await usuario_pode_ver_todos_clientes(conexao, identificador_usuario)
+    cliente = await buscar_cliente_para_simulador_por_id(
+        conexao,
+        ESQUEMA_COMERCIAL,
+        identificador_cliente,
+        identificador_usuario_visibilidade=identificador_usuario,
+        pode_ver_todos=pode_ver_todos,
+    )
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente nao encontrado.")
+    return cliente
+
+
+async def _obter_cliente_e_complementos(conexao, identificador_cliente: str, identificador_usuario: str):
+    cliente = await _buscar_cliente_visivel_simulador(conexao, identificador_cliente, identificador_usuario)
+    complementos = await listar_complementos_renda(conexao, ESQUEMA_COMERCIAL, identificador_cliente)
+    return cliente, complementos
+
+
+async def _garantir_cliente_visivel(conexao, identificador_cliente: str, identificador_usuario: str):
+    return await _buscar_cliente_visivel_simulador(conexao, identificador_cliente, identificador_usuario)
+
+
+async def _obter_imovel_detalhado(conexao, identificador_imovel: str) -> dict:
+    imovel = await buscar_imovel_por_id(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+    if not imovel:
+        raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+    midias = await listar_midias_imovel(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+    return serializar_imovel(imovel, midias=midias)
+
+
+def _montar_filtros_consulta(payload: dict) -> dict:
+    filtros = payload.get("filtros") or {}
+    incluir_indisponiveis = bool(payload.get("incluir_indisponiveis"))
+
+    status_filtro = _normalizar_status(filtros.get("status"))
+    if not incluir_indisponiveis and not status_filtro:
+        status_filtro = "Disponivel"
+
+    return {
+        "empreendimento": _normalizar_like(filtros.get("empreendimento")),
+        "cidade": _normalizar_like(filtros.get("cidade")),
+        "bairro": _normalizar_like(filtros.get("bairro")),
+        "tipologia": _normalizar_like(filtros.get("tipologia")),
+        "dormitorios": filtros.get("dormitorios"),
+        "faixa_preco_min": filtros.get("faixa_preco_min"),
+        "faixa_preco_max": filtros.get("faixa_preco_max"),
+        "area_min_m2": filtros.get("area_min_m2"),
+        "area_max_m2": filtros.get("area_max_m2"),
+        "status": status_filtro,
+    }
+
+
+@rotas_de_simulador.get("/connect-comercial/simulador/clientes-aprovados")
+async def listar_clientes_aprovados(
+    request: Request,
+    q: str = Query("", description="Busca por nome, CPF, email ou cidade"),
+    limite: int = Query(12, ge=1, le=80),
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.view",
+            "Voce nao tem permissao para listar clientes do simulador.",
+        )
+
+        pode_ver_todos = await usuario_pode_ver_todos_clientes(conexao, identificador_usuario)
+        clientes = await listar_clientes_aprovados_para_simulador(
+            conexao,
+            ESQUEMA_COMERCIAL,
+            busca=_normalizar_busca(q),
+            limite=limite,
+            identificador_usuario_visibilidade=identificador_usuario,
+            pode_ver_todos=pode_ver_todos,
+        )
+
+    return {"items": [_serializar_cliente_simulador(item) for item in clientes]}
+
+
+@rotas_de_simulador.get("/connect-comercial/simulador/clientes/{identificador_cliente}/contexto")
+async def obter_contexto_cliente_simulador(
+    identificador_cliente: str,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.view",
+            "Voce nao tem permissao para visualizar contexto do cliente.",
+        )
+
+        cliente, complementos = await _obter_cliente_e_complementos(conexao, identificador_cliente, identificador_usuario)
+        reservas_ativas = await listar_reservas_ativas_cliente(conexao, ESQUEMA_COMERCIAL, identificador_cliente)
+
+    consolidacao = consolidar_nucleo_familiar(cliente, complementos)
+
+    return {
+        "cliente": _serializar_cliente_simulador(cliente),
+        "complementos": [serializar_complemento_renda(item) for item in complementos],
+        "reservas_ativas": [serializar_reserva(item) for item in reservas_ativas],
+        "consolidacao": consolidacao,
+    }
+
+
+@rotas_de_simulador.get("/connect-comercial/simulador/imoveis/{identificador_imovel}")
+async def obter_imovel_simulador(
+    identificador_imovel: str,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.view",
+            "Voce nao tem permissao para visualizar o imovel no simulador.",
+        )
+
+        imovel = await _obter_imovel_detalhado(conexao, identificador_imovel)
+
+    return {"item": imovel}
+
+
+@rotas_de_simulador.post("/connect-comercial/simulador/sugerir-imoveis")
+async def sugerir_imoveis(
+    payload: RequisicaoSugerirImoveis,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+    dados_payload = payload.model_dump()
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.view",
+            "Voce nao tem permissao para usar o simulador comercial.",
+        )
+
+        cliente, complementos = await _obter_cliente_e_complementos(conexao, dados_payload["cliente_id"], identificador_usuario)
+        reservas_ativas = await listar_reservas_ativas_cliente(conexao, ESQUEMA_COMERCIAL, dados_payload["cliente_id"])
+
+        filtros = _montar_filtros_consulta(dados_payload)
+        imoveis = await listar_imoveis_para_simulador(
+            conexao,
+            ESQUEMA_COMERCIAL,
+            empreendimento=filtros["empreendimento"],
+            cidade=filtros["cidade"],
+            bairro=filtros["bairro"],
+            tipologia=filtros["tipologia"],
+            dormitorios=filtros["dormitorios"],
+            faixa_preco_min=filtros["faixa_preco_min"],
+            faixa_preco_max=filtros["faixa_preco_max"],
+            area_min_m2=filtros["area_min_m2"],
+            area_max_m2=filtros["area_max_m2"],
+            status=filtros["status"],
+            limite=max(20, dados_payload["limite_sugestoes"] * 4),
+        )
+
+    sugestao = sugerir_imoveis_inteligentes(
+        cliente,
+        complementos,
+        imoveis,
+        dados_payload,
+        limite=dados_payload["limite_sugestoes"],
+    )
+
+    return {
+        "cliente": _serializar_cliente_simulador(cliente),
+        "complementos": [serializar_complemento_renda(item) for item in complementos],
+        "reservas_ativas": [serializar_reserva(item) for item in reservas_ativas],
+        "consolidacao": consolidar_nucleo_familiar(cliente, complementos),
+        "sugestao": sugestao,
+    }
+
+
+@rotas_de_simulador.post("/connect-comercial/simulador/calcular")
+async def calcular(
+    payload: RequisicaoCalcularSimulacao,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+    dados_payload = payload.model_dump()
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.view",
+            "Voce nao tem permissao para calcular simulacoes.",
+        )
+
+        cliente, complementos = await _obter_cliente_e_complementos(conexao, dados_payload["cliente_id"], identificador_usuario)
+        imovel = await buscar_imovel_para_simulador_por_id(
+            conexao,
+            ESQUEMA_COMERCIAL,
+            dados_payload["imovel_id"],
+        )
+        if not imovel:
+            raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+    resultado = calcular_simulacao_comercial(cliente, complementos, imovel, dados_payload)
+    return {
+        "resultado": resultado,
+        "imovel": _serializar_imovel_card(imovel),
+    }
+
+
+@rotas_de_simulador.post("/connect-comercial/simulador/salvar", status_code=status.HTTP_201_CREATED)
+async def salvar(
+    payload: RequisicaoSalvarSimulacao,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+    dados_payload = payload.model_dump()
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.create",
+            "Voce nao tem permissao para salvar simulacoes.",
+        )
+
+        cliente, complementos = await _obter_cliente_e_complementos(conexao, dados_payload["cliente_id"], identificador_usuario)
+        imovel = await buscar_imovel_para_simulador_por_id(
+            conexao,
+            ESQUEMA_COMERCIAL,
+            dados_payload["imovel_id"],
+        )
+        if not imovel:
+            raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+        calculo = calcular_simulacao_comercial(cliente, complementos, imovel, dados_payload)
+
+        payload_persistencia = montar_payload_simulacao_persistencia(
+            calculo,
+            identificador_cliente=dados_payload["cliente_id"],
+            identificador_imovel=dados_payload["imovel_id"],
+            identificador_corretor=identificador_usuario,
+            payload_snapshot_extra=dados_payload.get("payload_snapshot_extra") or {},
+        )
+
+        demonstrativo = calculo.get("demonstrativo") or []
+
+        async with conexao.transaction():
+            simulacao = await criar_simulacao(conexao, ESQUEMA_COMERCIAL, payload_persistencia)
+            await inserir_parcelas_simulacao(
+                conexao,
+                ESQUEMA_COMERCIAL,
+                simulacao["identificador_simulacao"],
+                demonstrativo,
+            )
+
+        parcelas = await listar_parcelas_simulacao(
+            conexao,
+            ESQUEMA_COMERCIAL,
+            simulacao["identificador_simulacao"],
+        )
+
+    return {
+        "mensagem": "Simulacao salva com sucesso.",
+        "item": serializar_simulacao(simulacao, parcelas=parcelas),
+    }
+
+@rotas_de_simulador.get("/connect-comercial/simulador/{identificador_simulacao:uuid}")
+async def obter_simulacao(
+    identificador_simulacao: UUID,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+    identificador_simulacao_str = str(identificador_simulacao)
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.view",
+            "Voce nao tem permissao para visualizar simulacoes.",
+        )
+
+        simulacao = await buscar_simulacao_por_id(conexao, ESQUEMA_COMERCIAL, identificador_simulacao_str)
+        if not simulacao:
+            raise HTTPException(status_code=404, detail="Simulacao nao encontrada.")
+
+        await _garantir_cliente_visivel(conexao, simulacao["identificador_cliente"], identificador_usuario)
+        parcelas = await listar_parcelas_simulacao(conexao, ESQUEMA_COMERCIAL, identificador_simulacao_str)
+
+    return {"item": serializar_simulacao(simulacao, parcelas=parcelas)}
+
+
+@rotas_de_simulador.get("/connect-comercial/clientes/{identificador_cliente}/simulacoes")
+async def listar_simulacoes_do_cliente(
+    identificador_cliente: str,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.view",
+            "Voce nao tem permissao para visualizar simulacoes.",
+        )
+
+        await _garantir_cliente_visivel(conexao, identificador_cliente, identificador_usuario)
+
+        simulacoes = await listar_simulacoes_cliente(conexao, ESQUEMA_COMERCIAL, identificador_cliente, limite=40)
+
+    return {"items": [serializar_simulacao(item) for item in simulacoes]}
+
+
+@rotas_de_simulador.get("/connect-comercial/clientes/{identificador_cliente}/complementos-renda")
+async def listar_complementos(
+    identificador_cliente: str,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.view",
+            "Voce nao tem permissao para visualizar complemento de renda.",
+        )
+
+        await _garantir_cliente_visivel(conexao, identificador_cliente, identificador_usuario)
+
+        complementos = await listar_complementos_renda(conexao, ESQUEMA_COMERCIAL, identificador_cliente)
+
+    return {"items": [serializar_complemento_renda(item) for item in complementos]}
+
+
+@rotas_de_simulador.post("/connect-comercial/clientes/{identificador_cliente}/complementos-renda", status_code=status.HTTP_201_CREATED)
+async def criar_complemento(
+    identificador_cliente: str,
+    payload: RequisicaoCriarComplementoRenda,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+    try:
+        dados_payload = normalizar_payload_complemento(payload.model_dump())
+    except ValueError as erro:
+        raise HTTPException(status_code=400, detail=str(erro)) from erro
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.edit",
+            "Voce nao tem permissao para gerenciar complemento de renda.",
+        )
+
+        await _garantir_cliente_visivel(conexao, identificador_cliente, identificador_usuario)
+
+        dados_payload["identificador_cliente"] = identificador_cliente
+
+        async with conexao.transaction():
+            complemento = await criar_complemento_renda(conexao, ESQUEMA_COMERCIAL, dados_payload)
+
+    return {
+        "mensagem": "Complemento de renda adicionado com sucesso.",
+        "item": serializar_complemento_renda(complemento),
+    }
+
+
+@rotas_de_simulador.put("/connect-comercial/clientes/{identificador_cliente}/complementos-renda/{identificador_complemento}")
+async def atualizar_complemento(
+    identificador_cliente: str,
+    identificador_complemento: str,
+    payload: RequisicaoAtualizarComplementoRenda,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+    try:
+        dados_payload = normalizar_payload_complemento(payload.model_dump())
+    except ValueError as erro:
+        raise HTTPException(status_code=400, detail=str(erro)) from erro
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.edit",
+            "Voce nao tem permissao para gerenciar complemento de renda.",
+        )
+
+        await _garantir_cliente_visivel(conexao, identificador_cliente, identificador_usuario)
+        existente = await buscar_complemento_renda_por_id(
+            conexao,
+            ESQUEMA_COMERCIAL,
+            identificador_cliente,
+            identificador_complemento,
+        )
+        if not existente:
+            raise HTTPException(status_code=404, detail="Complemento de renda nao encontrado.")
+
+        async with conexao.transaction():
+            complemento = await atualizar_complemento_renda(
+                conexao,
+                ESQUEMA_COMERCIAL,
+                identificador_cliente,
+                identificador_complemento,
+                dados_payload,
+            )
+
+    return {
+        "mensagem": "Complemento de renda atualizado com sucesso.",
+        "item": serializar_complemento_renda(complemento),
+    }
+
+
+@rotas_de_simulador.delete("/connect-comercial/clientes/{identificador_cliente}/complementos-renda/{identificador_complemento}")
+async def excluir_complemento(
+    identificador_cliente: str,
+    identificador_complemento: str,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.edit",
+            "Voce nao tem permissao para gerenciar complemento de renda.",
+        )
+
+        await _garantir_cliente_visivel(conexao, identificador_cliente, identificador_usuario)
+        async with conexao.transaction():
+            removido = await excluir_complemento_renda(
+                conexao,
+                ESQUEMA_COMERCIAL,
+                identificador_cliente,
+                identificador_complemento,
+            )
+
+        if not removido:
+            raise HTTPException(status_code=404, detail="Complemento de renda nao encontrado.")
+
+    return {"mensagem": "Complemento de renda removido com sucesso.", "id": identificador_complemento}
+
+
+def _status_operacional_normalizado(status_atual: str) -> str:
+    return str(status_atual or "").strip().lower()
+
+
+async def _obter_simulacao_acao(conexao, identificador_simulacao: str, identificador_imovel: str, acao: str):
+    simulacao = await buscar_simulacao_por_id(conexao, ESQUEMA_COMERCIAL, identificador_simulacao)
+    if not simulacao:
+        raise HTTPException(status_code=404, detail="Simulacao nao encontrada para esta operacao.")
+
+    if str(simulacao["identificador_imovel"]) != str(identificador_imovel):
+        raise HTTPException(status_code=400, detail="A simulacao informada nao pertence ao imovel selecionado.")
+
+    simulacao_serializada = serializar_simulacao(simulacao)
+    valido, erros = validar_operacao_final(simulacao_serializada, acao)
+    if not valido:
+        raise HTTPException(status_code=409, detail={"mensagem": "Operacao bloqueada pela validacao comercial.", "erros": erros})
+
+    return simulacao
+
+
+@rotas_de_simulador.post("/connect-comercial/imoveis/{identificador_imovel}/reservar")
+async def reservar_imovel(
+    identificador_imovel: str,
+    payload: RequisicaoOperacaoImovel,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+    dados_payload = payload.model_dump()
+
+    if not dados_payload.get("simulacao_id"):
+        raise HTTPException(status_code=400, detail="Informe a simulacao para reservar o imovel.")
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.edit",
+            "Voce nao tem permissao para reservar imoveis.",
+        )
+
+        async with conexao.transaction():
+            simulacao = await _obter_simulacao_acao(
+                conexao,
+                dados_payload["simulacao_id"],
+                identificador_imovel,
+                "reservar",
+            )
+            await _garantir_cliente_visivel(conexao, simulacao["identificador_cliente"], identificador_usuario)
+            identificador_cliente_operacao = dados_payload.get("cliente_id") or simulacao.get("identificador_cliente")
+            if str(identificador_cliente_operacao) != str(simulacao.get("identificador_cliente")):
+                raise HTTPException(status_code=400, detail="O cliente informado nao pertence a simulacao selecionada.")
+
+            imovel = await obter_imovel_para_operacao_lock(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+            if not imovel:
+                raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+            status_atual = _status_operacional_normalizado(imovel.get("status"))
+            if status_atual != "disponivel":
+                raise HTTPException(status_code=409, detail="Somente imoveis disponiveis podem ser reservados.")
+
+            reserva_ativa = await buscar_reserva_ativa_por_imovel_lock(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+            if reserva_ativa:
+                raise HTTPException(status_code=409, detail="Ja existe uma reserva ativa para este imovel.")
+
+            reserva = await criar_imovel_reserva(
+                conexao,
+                ESQUEMA_COMERCIAL,
+                {
+                    "identificador_imovel": identificador_imovel,
+                    "identificador_cliente": identificador_cliente_operacao,
+                    "identificador_simulacao": dados_payload.get("simulacao_id"),
+                    "status": "ATIVA",
+                    "reservado_por": identificador_usuario,
+                    "reservado_em": datetime.now(timezone.utc),
+                    "expiracao_em": dados_payload.get("expiracao_em"),
+                    "observacoes": dados_payload.get("observacoes"),
+                },
+            )
+
+            await atualizar_status_imovel(conexao, ESQUEMA_COMERCIAL, identificador_imovel, "Reservado")
+            await inserir_historico_status_imovel(
+                conexao,
+                ESQUEMA_COMERCIAL,
+                {
+                    "identificador_imovel": identificador_imovel,
+                    "status_anterior": imovel.get("status"),
+                    "status_novo": "Reservado",
+                    "identificador_simulacao": dados_payload.get("simulacao_id"),
+                    "identificador_cliente": identificador_cliente_operacao,
+                    "alterado_por": identificador_usuario,
+                    "observacoes": dados_payload.get("observacoes"),
+                },
+            )
+
+    return {
+        "mensagem": "Imovel reservado com sucesso.",
+        "reserva": serializar_reserva(reserva),
+        "status_imovel": "Reservado",
+    }
+
+@rotas_de_simulador.post("/connect-comercial/imoveis/{identificador_imovel}/vender")
+async def vender_imovel(
+    identificador_imovel: str,
+    payload: RequisicaoOperacaoImovel,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+    dados_payload = payload.model_dump()
+
+    if not dados_payload.get("simulacao_id"):
+        raise HTTPException(status_code=400, detail="Informe a simulacao para vender o imovel.")
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.edit",
+            "Voce nao tem permissao para vender imoveis.",
+        )
+
+        async with conexao.transaction():
+            simulacao = await _obter_simulacao_acao(
+                conexao,
+                dados_payload["simulacao_id"],
+                identificador_imovel,
+                "vender",
+            )
+            await _garantir_cliente_visivel(conexao, simulacao["identificador_cliente"], identificador_usuario)
+            identificador_cliente_operacao = dados_payload.get("cliente_id") or simulacao.get("identificador_cliente")
+            if str(identificador_cliente_operacao) != str(simulacao.get("identificador_cliente")):
+                raise HTTPException(status_code=400, detail="O cliente informado nao pertence a simulacao selecionada.")
+
+            imovel = await obter_imovel_para_operacao_lock(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+            if not imovel:
+                raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+            status_atual = _status_operacional_normalizado(imovel.get("status"))
+            if status_atual in ("vendido", "inativo"):
+                raise HTTPException(status_code=409, detail="Imovel indisponivel para venda.")
+
+            reserva_ativa = await buscar_reserva_ativa_por_imovel_lock(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+
+            if status_atual == "reservado" and not reserva_ativa:
+                raise HTTPException(status_code=409, detail="Imovel reservado sem registro ativo de reserva. Corrija antes da venda.")
+
+            identificador_cliente = identificador_cliente_operacao
+
+            if reserva_ativa:
+                cliente_reserva = str(reserva_ativa.get("identificador_cliente") or "")
+                if cliente_reserva and str(cliente_reserva) != str(identificador_cliente):
+                    raise HTTPException(status_code=409, detail="Existe reserva ativa para outro cliente.")
+
+                reserva = await atualizar_reserva_status(
+                    conexao,
+                    ESQUEMA_COMERCIAL,
+                    reserva_ativa["identificador_reserva"],
+                    "CONVERTIDA",
+                    dados_payload.get("observacoes"),
+                )
+            else:
+                reserva = await criar_imovel_reserva(
+                    conexao,
+                    ESQUEMA_COMERCIAL,
+                    {
+                        "identificador_imovel": identificador_imovel,
+                        "identificador_cliente": identificador_cliente,
+                        "identificador_simulacao": dados_payload.get("simulacao_id"),
+                        "status": "CONVERTIDA",
+                        "reservado_por": identificador_usuario,
+                        "reservado_em": datetime.now(timezone.utc),
+                        "expiracao_em": None,
+                        "observacoes": dados_payload.get("observacoes"),
+                    },
+                )
+
+            await atualizar_status_imovel(conexao, ESQUEMA_COMERCIAL, identificador_imovel, "Vendido")
+            await inserir_historico_status_imovel(
+                conexao,
+                ESQUEMA_COMERCIAL,
+                {
+                    "identificador_imovel": identificador_imovel,
+                    "status_anterior": imovel.get("status"),
+                    "status_novo": "Vendido",
+                    "identificador_simulacao": dados_payload.get("simulacao_id"),
+                    "identificador_cliente": identificador_cliente,
+                    "alterado_por": identificador_usuario,
+                    "observacoes": dados_payload.get("observacoes"),
+                },
+            )
+
+    return {
+        "mensagem": "Imovel vendido com sucesso.",
+        "reserva": serializar_reserva(reserva),
+        "status_imovel": "Vendido",
+    }
+
+
+@rotas_de_simulador.post("/connect-comercial/imoveis/{identificador_imovel}/liberar-reserva")
+async def liberar_reserva(
+    identificador_imovel: str,
+    payload: RequisicaoOperacaoImovel,
+    request: Request,
+    usuario=Depends(obter_usuario_autenticado),
+):
+    pool = _obter_pool(request)
+    identificador_usuario = usuario["identificador_usuario"]
+    dados_payload = payload.model_dump()
+
+    async with pool.acquire() as conexao:
+        await exigir_permissao_portal(
+            conexao,
+            identificador_usuario,
+            "imoveis.edit",
+            "Voce nao tem permissao para liberar reservas.",
+        )
+
+        async with conexao.transaction():
+            imovel = await obter_imovel_para_operacao_lock(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+            if not imovel:
+                raise HTTPException(status_code=404, detail="Imovel nao encontrado.")
+
+            status_atual = _status_operacional_normalizado(imovel.get("status"))
+            if status_atual != "reservado":
+                raise HTTPException(status_code=409, detail="Somente imoveis reservados podem ter a reserva liberada.")
+
+            reserva_ativa = await buscar_reserva_ativa_por_imovel_lock(conexao, ESQUEMA_COMERCIAL, identificador_imovel)
+            if not reserva_ativa:
+                raise HTTPException(status_code=409, detail="Nao existe reserva ativa para este imovel.")
+
+            await _garantir_cliente_visivel(conexao, reserva_ativa["identificador_cliente"], identificador_usuario)
+
+            reserva = await atualizar_reserva_status(
+                conexao,
+                ESQUEMA_COMERCIAL,
+                reserva_ativa["identificador_reserva"],
+                "LIBERADA",
+                dados_payload.get("observacoes"),
+            )
+
+            await atualizar_status_imovel(conexao, ESQUEMA_COMERCIAL, identificador_imovel, "Disponivel")
+            await inserir_historico_status_imovel(
+                conexao,
+                ESQUEMA_COMERCIAL,
+                {
+                    "identificador_imovel": identificador_imovel,
+                    "status_anterior": imovel.get("status"),
+                    "status_novo": "Disponivel",
+                    "identificador_simulacao": reserva_ativa.get("identificador_simulacao"),
+                    "identificador_cliente": reserva_ativa.get("identificador_cliente"),
+                    "alterado_por": identificador_usuario,
+                    "observacoes": dados_payload.get("observacoes"),
+                },
+            )
+
+    return {
+        "mensagem": "Reserva liberada com sucesso.",
+        "reserva": serializar_reserva(reserva),
+        "status_imovel": "Disponivel",
+    }

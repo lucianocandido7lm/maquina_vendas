@@ -1,0 +1,2 @@
+(function($){'use strict';$(document).ready(function(){var swiperOptions={freeMode:!1,allowTouchMove:!1,grabCursor:!0,reverseDirection:!0,slidesPerGroup:1,loop:!0,draggable:!1,autoplay:{delay:4,disableOnInteraction:!1},breakpoints:{0:{slidesPerView:'auto',spaceBetween:30,},640:{slidesPerView:'auto',spaceBetween:30,},1200:{slidesPerView:"auto",spaceBetween:40,},1700:{slidesPerView:"auto",spaceBetween:140,},},speed:4000,freeModeMomentum:!1};var swiper=new Swiper("body:not(.elementor-editor-active) .right-to-left .swiper-container-md",swiperOptions)})})(jQuery)
+;

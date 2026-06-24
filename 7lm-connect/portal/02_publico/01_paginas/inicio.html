@@ -1,0 +1,244 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM Máquina de Vendas</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../02_recursos/01_estilos/inicio.css?v=20260611-portal-bg-1" />
+  <link rel="stylesheet" href="../02_recursos/01_estilos/inicio_operacao.css?v=20260426-home-ops-theme-1" />
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260611-logout-forcado-2"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260612-titlecase-home-1" defer></script>
+</head>
+<body class="tl-home tl-home-workspace">
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main tl-home-compact tl-home-workspace__main">
+      <header class="tl-topbar tl-home-workspace__topbar anim-stagger-1">
+        <div class="tl-topbar__titles">
+          <div class="tl-overline reveal-text">7LM Connect | Operação Interna</div>
+          <h1 class="tl-title reveal-text delay-1">M&aacute;quina de Vendas</h1>
+          <p class="tl-subtitle reveal-text delay-2">
+            Base operacional do corretor para simular, comparar unidades, ajustar entrada e avan&ccedil;ar a proposta sem perder contexto.
+          </p>
+        </div>
+
+        <div class="tl-topbar__controls">
+          <button id="btnTema" class="tl-btn-icon glass-panel hyper-glass" aria-label="Alternar tema">
+            <div class="icon-wrap">
+              <svg class="icon-sun" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+              <svg class="icon-moon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            </div>
+          </button>
+
+          <div class="tl-userbox glass-panel hyper-glass">
+            <div class="tl-userbox__avatar">
+              <span id="userInitials">7L</span>
+            </div>
+            <div class="tl-userbox__info">
+              <div class="tl-userbox__name" id="nomeUsuario">Carregando...</div>
+              <div class="tl-userbox__meta mono-font" id="metaUsuario">Conectando...</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="tl-workspace-hero anim-stagger-1">
+        <div class="tl-workspace-hero__copy">
+          <span class="tl-workspace-chip">Ambiente do Corretor</span>
+
+          <div class="tl-workspace-brand">
+            <div class="tl-workspace-brand__mark">
+              <img src="/assets/7lm_logo.png" alt="Logo 7LM" />
+            </div>
+            <div class="tl-workspace-brand__copy">
+              <p>7LM Connect</p>
+              <h2>Operação comercial pronta para cliente, unidade e fechamento.</h2>
+            </div>
+          </div>
+
+          <p class="tl-workspace-hero__text">
+            Aqui o corretor entra para resolver o que importa: selecionar o cliente, analisar capacidade, aplicar a entrada sugerida, comparar unidades e sair com a proposta pronta para reserva ou venda.
+          </p>
+
+          <div class="tl-workspace-hero__actions">
+            <a class="tl-workspace-btn tl-workspace-btn--primary" href="/comercial/simulador">Abrir Simulador</a>
+            <a class="tl-workspace-btn tl-workspace-btn--secondary" href="/comercial/clientes">Ver Carteira de Clientes</a>
+            <a class="tl-workspace-btn tl-workspace-btn--ghost" href="/comercial/imoveis">Consultar imóveis</a>
+          </div>
+
+          <dl class="tl-workspace-hero__facts">
+            <div>
+              <dt>Fluxo Principal</dt>
+              <dd>Cliente, simulação, unidade e reserva em uma jornada contínua.</dd>
+            </div>
+            <div>
+              <dt>Decisão comercial</dt>
+              <dd>Entrada guiada, subsídio, FGTS e leitura de fechamento no mesmo contexto.</dd>
+            </div>
+            <div>
+              <dt>Uso diário</dt>
+              <dd>Começar rápido, comparar melhor e fechar com menos retrabalho.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="tl-workspace-stage js-spotlight">
+          <div class="tl-workspace-stage__shell">
+            <div class="tl-workspace-stage__head">
+              <div>
+                <span>Fluxo Operacional</span>
+                <strong>Jornada do corretor</strong>
+              </div>
+              <div class="tl-workspace-stage__status">Online</div>
+            </div>
+
+            <div class="tl-workspace-stage__timeline">
+              <article class="tl-workspace-step is-active">
+                <small>01</small>
+                <div>
+                  <strong>Selecionar Cliente</strong>
+                  <p>Perfil, renda, composição familiar e histórico reunidos no início da jornada.</p>
+                </div>
+              </article>
+
+              <article class="tl-workspace-step">
+                <small>02</small>
+                <div>
+                  <strong>Simular capacidade</strong>
+                  <p>Financiamento, parcela cheia, entrada guiada, FGTS e subsídio alinhados na mesma leitura.</p>
+                </div>
+              </article>
+
+              <article class="tl-workspace-step">
+                <small>03</small>
+                <div>
+                  <strong>Comparar unidade</strong>
+                  <p>Imóvel ideal, ajuste de prazo, leitura de fechamento e sugestão comercial sem trocar de tela.</p>
+                </div>
+              </article>
+
+              <article class="tl-workspace-step">
+                <small>04</small>
+                <div>
+                  <strong>Reservar ou vender</strong>
+                  <p>Proposta pronta para avan&ccedil;ar com mais velocidade e menos fric&ccedil;&atilde;o operacional.</p>
+                </div>
+              </article>
+            </div>
+
+            <div class="tl-workspace-stage__footer">
+              <span>Capacidade do cliente</span>
+              <span>Entrada sugerida</span>
+              <span>Unidade em destaque</span>
+              <span>Reserva comercial</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tl-workspace-grid anim-stagger-2">
+        <article class="tl-workspace-panel">
+          <div class="tl-workspace-panel__eyebrow">Entrada rápida</div>
+          <h3>Acesse a tarefa certa sem desviar do fluxo.</h3>
+          <div class="tl-workspace-shortcuts">
+            <a class="tl-workspace-shortcut" href="/comercial/simulador">
+              <strong>Simulador</strong>
+              <span>Capacidade, financiamento, entrada guiada, ajuste de prazo e fechamento comercial.</span>
+            </a>
+            <a class="tl-workspace-shortcut" href="/comercial/clientes">
+              <strong>Clientes</strong>
+              <span>Carteira, busca rápida, composição familiar e leitura de perfil antes da simulação.</span>
+            </a>
+            <a class="tl-workspace-shortcut" href="/comercial/imoveis">
+              <strong>Imóveis</strong>
+              <span>Consulta de unidades, disponibilidade, localização e materiais para apoio da venda.</span>
+            </a>
+            <a class="tl-workspace-shortcut" href="/comercial/dashboard" data-permission="dashboard.comercial.view">
+              <strong>Dashboard Comercial</strong>
+              <span>Indicadores comerciais, funil e metas para acompanhamento da gestão.</span>
+            </a>
+            <a class="tl-workspace-shortcut" href="/maq-credito">
+              <strong>MaqCr&eacute;dito</strong>
+              <span>Acompanhamento de cr&eacute;dito, checklist documental, pend&ecirc;ncias, CCA e telemetria dos processos.</span>
+            </a>
+          </div>
+        </article>
+
+        <article class="tl-workspace-panel">
+          <div class="tl-workspace-panel__eyebrow">Tudo no mesmo lugar</div>
+          <h3>O corretor não precisa reconstruir a proposta em cada etapa.</h3>
+          <ul class="tl-workspace-list">
+            <li>Cliente, composição, renda e complementos ficam ligados à simulação.</li>
+            <li>Unidade em destaque, comparação e entrada sugerida convivem no mesmo contexto.</li>
+            <li>Prazo, pós-obra e leitura comercial ficam visíveis antes de reservar ou vender.</li>
+            <li>Mapa, galeria, observações e demonstrativo ajudam a conduzir a conversa sem ruptura.</li>
+          </ul>
+        </article>
+
+        <article class="tl-workspace-panel">
+          <div class="tl-workspace-panel__eyebrow">Roteiro do dia</div>
+          <h3>Uma home pensada para orientação rápida da equipe.</h3>
+          <ol class="tl-workspace-route">
+            <li>
+              <strong>Abrir Simulador</strong>
+              <span>Entrar direto no fluxo principal da venda.</span>
+            </li>
+            <li>
+              <strong>Validar cliente</strong>
+              <span>Conferir renda, aprovação e capacidade antes de apresentar unidade.</span>
+            </li>
+            <li>
+              <strong>Escolher imóvel</strong>
+              <span>Comparar Unidades com leitura comercial e entrada guiada.</span>
+            </li>
+            <li>
+              <strong>Avancar proposta</strong>
+              <span>Reservar ou vender com seguranca no mesmo ambiente.</span>
+            </li>
+          </ol>
+        </article>
+      </section>
+
+      <section class="tl-workspace-callout anim-stagger-3">
+        <div class="tl-workspace-callout__copy">
+          <span>Base interna 7LM</span>
+          <h3>Nova home orientada para operação, não para público externo.</h3>
+          <p>O primeiro clique do corretor deve levar para produção comercial, não para uma apresentação institucional.</p>
+        </div>
+        <div class="tl-workspace-callout__actions">
+          <a class="tl-workspace-btn tl-workspace-btn--primary" href="/comercial/simulador">Ir para o fluxo de simulação</a>
+          <a class="tl-workspace-btn tl-workspace-btn--secondary" href="/comercial/clientes">Abrir carteira</a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/02_recursos/02_scripts/operacoes_shared.js?v=20260407-theme-persist1"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.SevenLMConnectOperacoes && window.SevenLMConnectOperacoes.initChrome) {
+        window.SevenLMConnectOperacoes.initChrome();
+      }
+    });
+  </script>
+</body>
+</html>

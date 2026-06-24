@@ -1,0 +1,163 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM Máquina de Vendas</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/inicio.css?v=20260611-portal-bg-1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/operacoes.css?v=20260406-litefx1" />
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260611-logout-forcado-2"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260611-textos-2" defer></script>
+</head>
+<body class="tl-home tl-ops-page tl-ops-redesign">
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <header class="tl-topbar tl-ops-topbar anim-stagger-1">
+        <div class="tl-topbar__titles">
+          <div class="tl-overline reveal-text">Módulo Comercial 7LM</div>
+          <h1 class="tl-title reveal-text delay-1">Connect Comercial</h1>
+          <p class="tl-subtitle reveal-text delay-2">
+            O antigo Connect Plataforma foi consolidado com o Connect Imóveis em um único módulo.
+            A frente comercial agora segue a sequência Clientes, Simulador e Imóveis.
+          </p>
+        </div>
+
+        <div class="tl-topbar__controls">
+          <button id="btnTema" class="tl-btn-icon glass-panel hyper-glass" aria-label="Alternar tema">
+            <div class="icon-wrap">
+              <svg class="icon-sun" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+              <svg class="icon-moon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            </div>
+          </button>
+
+          <div class="tl-userbox glass-panel hyper-glass">
+            <div class="tl-userbox__avatar">
+              <span id="userInitials">7L</span>
+            </div>
+            <div class="tl-userbox__info">
+              <div class="tl-userbox__name" id="nomeUsuario">Carregando...</div>
+              <div class="tl-userbox__meta mono-font" id="metaUsuario">Conectando...</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="tl-ops-access-overview anim-stagger-2">
+        <article class="tl-ops-access-strip">
+          <div class="tl-ops-access-strip__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 7h16"></path>
+              <path d="M4 12h16"></path>
+              <path d="M4 17h16"></path>
+            </svg>
+          </div>
+          <div class="tl-ops-access-strip__copy">
+            <span class="mono-font">Módulo Ativo</span>
+            <strong id="opsSummaryPrimary">Carregando estrutura comercial...</strong>
+            <small id="opsSummarySecondary">Unificando jornada comercial e cadastro de imóveis em um único lugar.</small>
+          </div>
+        </article>
+
+        <article class="tl-ops-access-strip">
+          <div class="tl-ops-access-strip__icon tl-ops-access-strip__icon--secondary" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M12 7v5l3 3"></path>
+            </svg>
+          </div>
+          <div class="tl-ops-access-strip__copy">
+            <span class="mono-font">Última Validação</span>
+            <strong id="opsLastAccess">Agora há pouco</strong>
+            <small id="opsLastAccessMeta">Aba comercial pronta para crescer com novas entregas.</small>
+          </div>
+        </article>
+      </section>
+
+      <section class="tl-ops-access-metrics anim-stagger-2">
+        <article class="tl-ops-access-metric">
+          <span class="mono-font">Abas</span>
+          <strong id="opsKpiClientes">--</strong>
+        </article>
+        <article class="tl-ops-access-metric">
+          <span class="mono-font">Ativa</span>
+          <strong id="opsKpiDashboards">--</strong>
+        </article>
+        <article class="tl-ops-access-metric">
+          <span class="mono-font">Expansão</span>
+          <strong id="opsKpiScenes">--</strong>
+        </article>
+        <article class="tl-ops-access-metric">
+          <span class="mono-font">Status</span>
+          <strong id="opsKpiEscopo">--</strong>
+        </article>
+      </section>
+
+      <section class="tl-ops-catalog-shell anim-stagger-3">
+        <div class="tl-ops-catalog-shell__head">
+          <div>
+            <div class="tl-ops-section-kicker mono-font">Abas do Módulo</div>
+            <h2>Clientes, Simulador e Imóveis organizados no fluxo comercial.</h2>
+          </div>
+          <p>
+            A ordem prioriza o cliente, segue para a simulação e termina na base de imóveis.
+          </p>
+        </div>
+
+        <div class="tl-ops-toolbar__tabs" role="tablist" aria-label="Abas do Connect Comercial">
+          <a class="tl-ops-tab is-active" href="/comercial/clientes" aria-current="page">
+            <span class="tl-ops-tab__label">Clientes</span>
+          </a>
+          <a class="tl-ops-tab" href="/comercial/simulador">
+            <span class="tl-ops-tab__label">Simulador</span>
+          </a>
+          <a class="tl-ops-tab" href="/comercial/imoveis">
+            <span class="tl-ops-tab__label">Imóveis</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="tl-ops-catalog-shell anim-stagger-3">
+        <div class="tl-ops-catalog-shell__head">
+          <div>
+            <div class="tl-ops-section-kicker mono-font">ABA Ativa</div>
+          <h2>Operação comercial organizada em uma estrutura única.</h2>
+          </div>
+          <p id="opsCatalogIntro">
+            Abaixo está a aba que fica ativa agora dentro do Connect Comercial.
+          </p>
+        </div>
+
+        <section class="tl-ops-access-grid" id="operacoesCatalogo">
+          <article class="tl-ops-empty-state">
+            <span class="tl-ops-empty-state__badge mono-font">7LM</span>
+            <h3>Preparando a visão comercial</h3>
+            <p>Estamos carregando a configuração do módulo.</p>
+          </article>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="/02_recursos/02_scripts/operacoes_shared.js?v=20260407-theme-persist1"></script>
+  <script src="/02_recursos/02_scripts/operacoes_catalogo.js?v=20260416-simulacao-reservada1"></script>
+</body>
+</html>

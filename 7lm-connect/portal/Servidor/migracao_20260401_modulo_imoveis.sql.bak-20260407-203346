@@ -1,0 +1,136 @@
+BEGIN;
+
+DO $$
+DECLARE
+  v_dono text;
+BEGIN
+  SELECT pg_get_userbyid(nspowner)
+    INTO v_dono
+    FROM pg_namespace
+   WHERE nspname = 'sevenlm_connect';
+
+  IF v_dono IS NULL THEN
+    RAISE EXCEPTION 'Schema sevenlm_connect nao encontrado para herdar o proprietario.';
+  END IF;
+
+  IF to_regnamespace('connect_comercial') IS NULL THEN
+    EXECUTE format('CREATE SCHEMA connect_comercial AUTHORIZATION %I', v_dono);
+  ELSE
+    EXECUTE format('ALTER SCHEMA connect_comercial OWNER TO %I', v_dono);
+  END IF;
+
+  IF to_regnamespace('connect_financeiro') IS NULL THEN
+    EXECUTE format('CREATE SCHEMA connect_financeiro AUTHORIZATION %I', v_dono);
+  ELSE
+    EXECUTE format('ALTER SCHEMA connect_financeiro OWNER TO %I', v_dono);
+  END IF;
+END
+$$;
+
+CREATE TABLE IF NOT EXISTS connect_comercial.imovel (
+  identificador_imovel uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  titulo text NOT NULL,
+  descricao text,
+  tipo_imovel text,
+  endereco text,
+  cidade text NOT NULL,
+  bairro text NOT NULL,
+  estado text,
+  cep text,
+  valor numeric(14,2),
+  quartos integer,
+  banheiros integer,
+  vagas_garagem integer,
+  area_m2 numeric(12,2),
+  meses_pre_entrega integer NOT NULL DEFAULT 36,
+  meses_pos_entrega integer NOT NULL DEFAULT 24,
+  status text NOT NULL,
+  data_hora_criacao timestamptz NOT NULL DEFAULT NOW(),
+  data_hora_atualizado_em timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_imovel_meses_pre_entrega CHECK (meses_pre_entrega BETWEEN 1 AND 240),
+  CONSTRAINT ck_imovel_meses_pos_entrega CHECK (meses_pos_entrega BETWEEN 0 AND 360)
+);
+
+CREATE INDEX IF NOT EXISTS idx_imovel_titulo
+  ON connect_comercial.imovel (titulo);
+
+CREATE INDEX IF NOT EXISTS idx_imovel_cidade_bairro
+  ON connect_comercial.imovel (cidade, bairro);
+
+CREATE INDEX IF NOT EXISTS idx_imovel_status
+  ON connect_comercial.imovel (status);
+
+CREATE INDEX IF NOT EXISTS idx_imovel_data_criacao
+  ON connect_comercial.imovel (data_hora_criacao DESC);
+
+CREATE TABLE IF NOT EXISTS connect_comercial.imovel_midia (
+  identificador_midia uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  identificador_imovel uuid NOT NULL REFERENCES connect_comercial.imovel(identificador_imovel) ON DELETE CASCADE,
+  tipo_arquivo text NOT NULL,
+  nome_arquivo text NOT NULL,
+  caminho_arquivo text NOT NULL,
+  mime_type text NOT NULL,
+  tamanho_bytes bigint NOT NULL,
+  data_hora_criacao timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_imovel_midia_tipo_arquivo
+    CHECK (tipo_arquivo IN ('foto', 'video'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_imovel_midia_imovel
+  ON connect_comercial.imovel_midia (identificador_imovel, data_hora_criacao DESC);
+
+DROP TRIGGER IF EXISTS trg_imovel_data_hora_atualizado_em ON connect_comercial.imovel;
+CREATE TRIGGER trg_imovel_data_hora_atualizado_em
+BEFORE UPDATE ON connect_comercial.imovel
+FOR EACH ROW
+EXECUTE FUNCTION sevenlm_connect.atualizar_data_hora_atualizacao();
+
+INSERT INTO sevenlm_connect.permissao (nome_permissao, descricao_permissao)
+VALUES
+  ('imoveis.view', 'Permite visualizar a listagem de imoveis.'),
+  ('imoveis.create', 'Permite cadastrar novos imoveis.'),
+  ('imoveis.edit', 'Permite editar dados de imoveis.'),
+  ('imoveis.delete', 'Permite excluir imoveis.'),
+  ('imoveis.media.manage', 'Permite enviar e remover fotos e videos de imoveis.')
+ON CONFLICT (nome_permissao) DO NOTHING;
+
+INSERT INTO sevenlm_connect.perfil_permissao (identificador_perfil, identificador_permissao)
+SELECT perfil.identificador_perfil, permissao.identificador_permissao
+  FROM sevenlm_connect.perfil perfil
+  JOIN sevenlm_connect.permissao permissao
+    ON permissao.nome_permissao IN (
+      'imoveis.view',
+      'imoveis.create',
+      'imoveis.edit',
+      'imoveis.delete',
+      'imoveis.media.manage'
+    )
+ WHERE perfil.nome_perfil = 'Administrador do Portal'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO sevenlm_connect.portal_recurso (
+  codigo_modulo,
+  codigo_recurso,
+  nome_recurso,
+  rota_recurso,
+  icone_recurso,
+  ordem_exibicao,
+  identificador_permissao_visualizar,
+  identificador_permissao_gerenciar
+)
+SELECT
+  'imoveis',
+  'listagem',
+  'Modulo de imoveis',
+  '/imoveis',
+  'home',
+  20,
+  pv.identificador_permissao,
+  pg.identificador_permissao
+FROM sevenlm_connect.permissao pv
+JOIN sevenlm_connect.permissao pg
+  ON pg.nome_permissao = 'imoveis.edit'
+WHERE pv.nome_permissao = 'imoveis.view'
+ON CONFLICT (codigo_modulo, codigo_recurso) DO NOTHING;
+
+COMMIT;

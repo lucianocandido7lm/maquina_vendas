@@ -1,0 +1,382 @@
+(function () {
+  "use strict";
+
+  const shared = window.SevenLMConnectImoveis;
+
+  const ENDPOINT_CRIAR = shared.meta("sevenlm-connect-endpoint-imoveis-criar", "/api/imoveis");
+  const ENDPOINT_DETALHE = shared.meta("sevenlm-connect-endpoint-imoveis-detalhe", "/api/imoveis/{id}");
+  const ENDPOINT_ATUALIZAR = shared.meta("sevenlm-connect-endpoint-imoveis-atualizar", "/api/imoveis/{id}");
+  const ENDPOINT_UPLOAD = shared.meta("sevenlm-connect-endpoint-imoveis-upload", "/api/imoveis/{id}/midias");
+  const ENDPOINT_REMOVER_MIDIA = shared.meta("sevenlm-connect-endpoint-imoveis-remover-midia", "/api/imoveis/{id}/midias/{midia_id}");
+  const PATH_LISTAGEM = shared.meta("sevenlm-connect-path-imoveis-listagem", "/comercial/imoveis");
+  const PATH_CADASTRO = shared.meta("sevenlm-connect-path-imoveis-cadastro", "/comercial/imoveis/cadastro");
+
+  const state = {
+    user: null,
+    id: "",
+    isEdit: false,
+    canCreate: false,
+    canEdit: false,
+    canMedia: false,
+    readOnlyData: false,
+  };
+
+  const el = {
+    feedback: document.getElementById("imoveisFeedback"),
+    tituloPagina: document.getElementById("tituloPaginaImovel"),
+    subtituloPagina: document.getElementById("subtituloPaginaImovel"),
+    btnVoltar: document.getElementById("btnVoltarImoveis"),
+    form: document.getElementById("formImovel"),
+    fieldsDados: document.getElementById("imovelDadosFieldset"),
+    titulo: document.getElementById("imovelTitulo"),
+    descricao: document.getElementById("imovelDescricao"),
+    tipo: document.getElementById("imovelTipo"),
+    endereco: document.getElementById("imovelEndereco"),
+    cidade: document.getElementById("imovelCidade"),
+    bairro: document.getElementById("imovelBairro"),
+    estado: document.getElementById("imovelEstado"),
+    cep: document.getElementById("imovelCep"),
+    valor: document.getElementById("imovelValor"),
+    quartos: document.getElementById("imovelQuartos"),
+    banheiros: document.getElementById("imovelBanheiros"),
+    vagas: document.getElementById("imovelVagas"),
+    area: document.getElementById("imovelArea"),
+    status: document.getElementById("imovelStatus"),
+    btnSalvar: document.getElementById("btnSalvarImovel"),
+    notaReadOnly: document.getElementById("imovelReadOnlyNote"),
+    uploadInput: document.getElementById("imovelMidias"),
+    uploadHint: document.getElementById("imovelUploadHint"),
+    arquivosSelecionados: document.getElementById("imovelArquivosSelecionados"),
+    midiasExistentes: document.getElementById("imovelMidiasExistentes"),
+    uploadSection: document.getElementById("imovelUploadSection"),
+  };
+
+  function buildListPath() {
+    return shared.buildPortalPath(PATH_LISTAGEM);
+  }
+
+  function releaseGate() {
+    document.documentElement.classList.remove("tl-imoveis-form-gated");
+  }
+
+  function currentId() {
+    const params = new URLSearchParams(window.location.search);
+    return (params.get("id") || "").trim();
+  }
+
+  function syncHeader() {
+    if (el.btnVoltar) {
+      el.btnVoltar.href = buildListPath();
+    }
+
+    if (state.isEdit) {
+      if (el.tituloPagina) el.tituloPagina.textContent = state.readOnlyData ? "Midias do imovel" : "Editar imovel";
+      if (el.subtituloPagina) {
+        el.subtituloPagina.textContent = state.readOnlyData
+          ? "Voce possui acesso para gerenciar apenas as midias deste imovel."
+          : "Atualize os dados do imovel e gerencie fotos e videos no mesmo fluxo.";
+      }
+      if (el.btnSalvar) el.btnSalvar.textContent = "Salvar alteracoes";
+      return;
+    }
+
+    if (el.tituloPagina) el.tituloPagina.textContent = "Cadastrar imovel";
+    if (el.subtituloPagina) {
+      el.subtituloPagina.textContent = "Preencha os dados do imovel e, se permitido, envie as fotos e videos na mesma tela.";
+    }
+    if (el.btnSalvar) el.btnSalvar.textContent = "Salvar imovel";
+  }
+
+  function syncPermissionState() {
+    state.canCreate = shared.hasPermission(state.user, "imoveis.create");
+    state.canEdit = shared.hasPermission(state.user, "imoveis.edit");
+    state.canMedia = shared.hasPermission(state.user, "imoveis.media.manage");
+    state.readOnlyData = state.isEdit && !state.canEdit && state.canMedia;
+
+    shared.toggleHidden(el.notaReadOnly, !state.readOnlyData);
+    shared.toggleHidden(
+      el.btnSalvar,
+      state.readOnlyData || (state.isEdit ? !state.canEdit : !state.canCreate)
+    );
+    shared.toggleHidden(el.uploadSection, !state.canMedia);
+
+    if (el.fieldsDados) {
+      el.fieldsDados.disabled = Boolean(state.readOnlyData);
+    }
+
+    if (el.uploadInput && !state.canMedia) {
+      el.uploadInput.value = "";
+    }
+
+    if (el.uploadHint) {
+      el.uploadHint.textContent = state.canMedia
+        ? "Aceite de imagens: jpg, jpeg, png, webp. Videos: mp4, mov e webm."
+        : "Seu perfil atual nao possui permissao para enviar ou remover midias.";
+    }
+
+    syncHeader();
+  }
+
+  function collectPayload() {
+    return {
+      titulo: el.titulo?.value || "",
+      descricao: el.descricao?.value || null,
+      tipo_imovel: el.tipo?.value || null,
+      endereco: el.endereco?.value || null,
+      cidade: el.cidade?.value || "",
+      bairro: el.bairro?.value || "",
+      estado: el.estado?.value || null,
+      cep: el.cep?.value || null,
+      valor: el.valor?.value ? Number(el.valor.value) : null,
+      quartos: el.quartos?.value ? Number(el.quartos.value) : null,
+      banheiros: el.banheiros?.value ? Number(el.banheiros.value) : null,
+      vagas_garagem: el.vagas?.value ? Number(el.vagas.value) : null,
+      area_m2: el.area?.value ? Number(el.area.value) : null,
+      status: el.status?.value || "Disponivel",
+    };
+  }
+
+  function fillForm(item) {
+    if (!item) return;
+    if (el.titulo) el.titulo.value = item.titulo || "";
+    if (el.descricao) el.descricao.value = item.descricao || "";
+    if (el.tipo) el.tipo.value = item.tipo_imovel || "";
+    if (el.endereco) el.endereco.value = item.endereco || "";
+    if (el.cidade) el.cidade.value = item.cidade || "";
+    if (el.bairro) el.bairro.value = item.bairro || "";
+    if (el.estado) el.estado.value = item.estado || "";
+    if (el.cep) el.cep.value = item.cep || "";
+    if (el.valor) el.valor.value = item.valor ?? "";
+    if (el.quartos) el.quartos.value = item.quartos ?? "";
+    if (el.banheiros) el.banheiros.value = item.banheiros ?? "";
+    if (el.vagas) el.vagas.value = item.vagas_garagem ?? "";
+    if (el.area) el.area.value = item.area_m2 ?? "";
+    if (el.status) el.status.value = item.status || "Disponivel";
+  }
+
+  function renderSelectedFiles() {
+    if (!el.arquivosSelecionados) return;
+    const files = Array.from(el.uploadInput?.files || []);
+    if (!files.length) {
+      el.arquivosSelecionados.innerHTML = `
+        <div class="tl-imoveis-empty">
+          <strong>Nenhum arquivo selecionado</strong>
+          <p>Voce pode enviar varias fotos e videos depois de salvar o imovel.</p>
+        </div>
+      `;
+      return;
+    }
+
+    el.arquivosSelecionados.innerHTML = `
+      <div class="tl-imoveis-file-list">
+        ${files.map((file) => `
+          <div class="tl-imoveis-file-list__item">
+            <strong>${shared.escapeHtml(file.name)}</strong>
+            <span>${shared.escapeHtml(shared.formatSize(file.size))}</span>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderMidias(midias) {
+    if (!el.midiasExistentes) return;
+    if (!midias || !midias.length) {
+      el.midiasExistentes.innerHTML = `
+        <div class="tl-imoveis-empty">
+          <strong>Nenhuma midia vinculada</strong>
+          <p>Fotos e videos enviados para o imovel aparecerao aqui.</p>
+        </div>
+      `;
+      return;
+    }
+
+    el.midiasExistentes.innerHTML = `
+      <div class="tl-imoveis-media-grid">
+        ${midias.map((midia) => {
+          const preview = midia.tipo_arquivo === "foto"
+            ? `<img src="${shared.escapeHtml(midia.caminho_arquivo)}" alt="${shared.escapeHtml(midia.nome_arquivo)}" loading="lazy" />`
+            : `<video src="${shared.escapeHtml(midia.caminho_arquivo)}" controls preload="metadata"></video>`;
+
+          return `
+            <article class="tl-imoveis-media-card">
+              ${preview}
+              <div class="tl-imoveis-media-card__body">
+                <span class="tl-imoveis-badge">${shared.escapeHtml(midia.tipo_arquivo)}</span>
+                <strong title="${shared.escapeHtml(midia.nome_arquivo)}">${shared.escapeHtml(midia.nome_arquivo)}</strong>
+                <span>${shared.escapeHtml(shared.formatSize(midia.tamanho_bytes))}</span>
+                <span>${shared.escapeHtml(shared.formatDateTime(midia.data_hora_criacao))}</span>
+                ${state.canMedia ? `
+                  <button
+                    class="tl-imoveis-btn tl-imoveis-btn--ghost"
+                    type="button"
+                    data-action="remove-midia"
+                    data-id="${shared.escapeHtml(midia.id)}"
+                  >
+                    Remover
+                  </button>
+                ` : ""}
+              </div>
+            </article>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  async function carregarImovel() {
+    if (!state.id) return;
+    const payload = await shared.apiRequest(shared.buildEndpoint(ENDPOINT_DETALHE, { id: state.id }), { method: "GET" });
+    const item = payload.item;
+    fillForm(item);
+    renderMidias(item?.midias || []);
+  }
+
+  async function enviarMidias(imovelId) {
+    const files = Array.from(el.uploadInput?.files || []);
+    if (!files.length || !state.canMedia) return null;
+
+    const formData = new FormData();
+    files.forEach((file) => formData.append("arquivos", file));
+
+    const payload = await shared.apiRequest(shared.buildEndpoint(ENDPOINT_UPLOAD, { id: imovelId }), {
+      method: "POST",
+      body: formData,
+    });
+
+    if (el.uploadInput) {
+      el.uploadInput.value = "";
+    }
+    renderSelectedFiles();
+
+    return payload;
+  }
+
+  async function salvarImovel(event) {
+    event.preventDefault();
+
+    const possuiArquivos = Array.from(el.uploadInput?.files || []).length > 0;
+    const payload = collectPayload();
+
+    shared.showInlineMessage(el.feedback, "", "");
+    if (el.btnSalvar) el.btnSalvar.disabled = true;
+
+    try {
+      if (state.isEdit) {
+        if (!state.canEdit) {
+          throw new Error("Seu perfil nao possui permissao para editar os dados do imovel.");
+        }
+
+        await shared.apiRequest(shared.buildEndpoint(ENDPOINT_ATUALIZAR, { id: state.id }), {
+          method: "PUT",
+          body: payload,
+        });
+      } else {
+        if (!state.canCreate) {
+          throw new Error("Seu perfil nao possui permissao para cadastrar imoveis.");
+        }
+
+        const response = await shared.apiRequest(ENDPOINT_CRIAR, {
+          method: "POST",
+          body: payload,
+        });
+        state.id = response.item.id;
+        state.isEdit = true;
+        history.replaceState({}, "", `${shared.buildPortalPath(PATH_CADASTRO)}?id=${encodeURIComponent(state.id)}`);
+        syncPermissionState();
+      }
+
+      let message = "Imovel salvo com sucesso.";
+
+      if (possuiArquivos && state.canMedia) {
+        await enviarMidias(state.id);
+        message = `${message} Midias sincronizadas.`;
+      } else if (possuiArquivos && !state.canMedia) {
+        message = `${message} As midias selecionadas nao foram enviadas porque seu perfil nao possui permissao para isso.`;
+      }
+
+      await carregarImovel();
+      shared.showInlineMessage(el.feedback, "success", message);
+    } catch (error) {
+      shared.showInlineMessage(el.feedback, "error", error.message || "Nao foi possivel salvar o imovel.");
+    } finally {
+      if (el.btnSalvar) el.btnSalvar.disabled = false;
+      releaseGate();
+    }
+  }
+
+  async function removerMidia(identificadorMidia) {
+    if (!identificadorMidia || !state.canMedia || !state.id) return;
+    const confirmar = window.confirm("Deseja remover esta midia do imovel?");
+    if (!confirmar) return;
+
+    try {
+      await shared.apiRequest(
+        shared.buildEndpoint(ENDPOINT_REMOVER_MIDIA, { id: state.id, midia_id: identificadorMidia }),
+        { method: "DELETE" }
+      );
+      await carregarImovel();
+      shared.showInlineMessage(el.feedback, "success", "Midia removida com sucesso.");
+    } catch (error) {
+      shared.showInlineMessage(el.feedback, "error", error.message || "Nao foi possivel remover a midia.");
+    }
+  }
+
+  function bindEvents() {
+    el.form?.addEventListener("submit", salvarImovel);
+    el.uploadInput?.addEventListener("change", renderSelectedFiles);
+    el.midiasExistentes?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-action='remove-midia']");
+      if (!button) return;
+      void removerMidia(button.getAttribute("data-id") || "");
+    });
+  }
+
+  async function guardPage() {
+    state.user = await shared.ensureUser(true);
+    state.id = currentId();
+    state.isEdit = Boolean(state.id);
+    syncPermissionState();
+
+    const podeSeguir = state.isEdit
+      ? (state.canEdit || state.canMedia)
+      : state.canCreate;
+
+    if (!podeSeguir) {
+      shared.queueAccessNotice(
+        state.isEdit
+          ? "Voce nao tem permissao para editar este imovel ou gerenciar as midias dele."
+          : "Voce nao tem permissao para cadastrar imoveis."
+      );
+      window.location.replace(buildListPath());
+      return false;
+    }
+
+    return true;
+  }
+
+  async function boot() {
+    shared.initChrome();
+    bindEvents();
+    renderSelectedFiles();
+
+    const allowed = await guardPage();
+    if (!allowed) return;
+
+    try {
+      if (state.isEdit) {
+        await carregarImovel();
+      } else {
+        renderMidias([]);
+      }
+      releaseGate();
+    } catch (error) {
+      releaseGate();
+      shared.showInlineMessage(el.feedback, "error", error.message || "Nao foi possivel carregar o imovel.");
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    void boot();
+  });
+})();

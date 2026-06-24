@@ -1,0 +1,160 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Configuracoes</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../02_recursos/01_estilos/inicio.css?v=20260406-litefx1" />
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260407-theme-persist1"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260401-textfix2" defer></script>
+</head>
+<body class="tl-home">
+  <div class="tl-atmos-layer">
+    <div class="tl-blob tl-blob--teal"></div>
+    <div class="tl-blob tl-blob--purple"></div>
+    <div id="tl-particles-container"></div>
+    <div class="tl-glass-overlay"></div>
+  </div>
+
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <header class="tl-topbar anim-stagger-1">
+        <div class="tl-topbar__titles">
+          <div class="tl-overline reveal-text">CONFIGURACOES E AMBIENTE</div>
+          <h1 class="tl-title reveal-text delay-1">Preferencias do portal</h1>
+          <p class="tl-subtitle reveal-text delay-2">
+            Resumo da sessao atual, do tema visual e do modelo de seguranca preservado para a base 7LM.
+          </p>
+        </div>
+
+        <div class="tl-topbar__controls">
+          <button id="btnTema" class="tl-btn-icon glass-panel hyper-glass" aria-label="Alternar tema">
+            <div class="icon-wrap">
+              <svg class="icon-sun" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+              <svg class="icon-moon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            </div>
+          </button>
+
+          <div class="tl-userbox glass-panel hyper-glass">
+            <div class="tl-userbox__avatar">
+              <span id="userInitials">7L</span>
+            </div>
+            <div class="tl-userbox__info">
+              <div class="tl-userbox__name" id="nomeUsuario">Carregando...</div>
+              <div class="tl-userbox__meta mono-font" id="metaUsuario">Conectando...</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="tl-kpis anim-stagger-2">
+        <div class="tl-kpi glass-panel hyper-glass">
+          <div class="tl-kpi__icon icon-teal">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="9.5" cy="8" r="3.25"></circle>
+              <path d="M4.75 18.25a5.1 5.1 0 0 1 9.5 0"></path>
+              <path d="m14.9 12.9 1.65 1.65 3.2-3.45"></path>
+            </svg>
+          </div>
+          <div>
+            <span class="tl-kpi__label">Sessao</span>
+            <strong class="tl-kpi__value status-active" id="cfgStatusSessao">Validando...</strong>
+          </div>
+        </div>
+
+        <div class="tl-kpi glass-panel hyper-glass">
+          <div class="tl-kpi__icon icon-purple">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5"></circle>
+              <path d="M12 8v4.2l2.9 1.7"></path>
+              <path d="M17.1 6.9 18.6 5.4"></path>
+            </svg>
+          </div>
+          <div>
+            <span class="tl-kpi__label">Ultimo acesso</span>
+            <strong class="tl-kpi__value mono-font" id="cfgUltimoAcesso">-</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="tl-grid anim-stagger-3">
+        <article class="tl-card glass-panel hyper-glass js-tilt js-spotlight" style="--card-accent: #00B3DE;">
+          <div class="tl-card__glow"></div>
+          <div class="tl-card__sweep"></div>
+          <div class="tl-card__content">
+            <div class="tl-card__header">
+              <div class="tl-card__tag mono-font" style="background: rgba(0, 179, 222, 0.14); color: #00B3DE;">USUARIO</div>
+              <div class="tl-card__meta mono-font">Sessao atual</div>
+            </div>
+            <h2 class="tl-card__title" style="font-size: 1.5rem;" id="cfgUsuarioNome">Carregando...</h2>
+            <p class="tl-card__text">Identificador: <strong id="cfgUsuarioId">-</strong></p>
+          </div>
+        </article>
+
+        <article class="tl-card glass-panel hyper-glass js-tilt js-spotlight" style="--card-accent: #738086;">
+          <div class="tl-card__glow"></div>
+          <div class="tl-card__sweep"></div>
+          <div class="tl-card__content">
+            <div class="tl-card__header">
+              <div class="tl-card__tag mono-font" style="background: rgba(115, 128, 134, 0.14); color: #566268;">TEMA</div>
+              <div class="tl-card__meta mono-font">Preferencia visual</div>
+            </div>
+            <h2 class="tl-card__title" style="font-size: 1.5rem;" id="cfgTemaAtual">-</h2>
+            <p class="tl-card__text">O modo claro/escuro foi preservado e segue configuravel no portal.</p>
+          </div>
+        </article>
+
+        <article class="tl-card glass-panel hyper-glass js-tilt js-spotlight" style="--card-accent: #010101;">
+          <div class="tl-card__glow"></div>
+          <div class="tl-card__sweep"></div>
+          <div class="tl-card__content">
+            <div class="tl-card__header">
+              <div class="tl-card__tag mono-font" style="background: rgba(1, 1, 1, 0.08); color: #010101;">AUTENTICACAO</div>
+              <div class="tl-card__meta mono-font">Camada preservada</div>
+            </div>
+            <h2 class="tl-card__title" style="font-size: 1.5rem;" id="cfgAutenticacao">-</h2>
+            <p class="tl-card__text">A base atual continua usando o fluxo de autenticacao existente, sem recriacao desnecessaria.</p>
+          </div>
+        </article>
+
+        <article class="tl-card glass-panel hyper-glass js-tilt js-spotlight" style="--card-accent: #00B3DE;">
+          <div class="tl-card__glow"></div>
+          <div class="tl-card__sweep"></div>
+          <div class="tl-card__content">
+            <div class="tl-card__header">
+              <div class="tl-card__tag mono-font" style="background: rgba(0, 179, 222, 0.14); color: #00B3DE;">2FA</div>
+              <div class="tl-card__meta mono-font">Microsoft Authenticator</div>
+            </div>
+            <h2 class="tl-card__title" style="font-size: 1.5rem;" id="cfgMfa">-</h2>
+            <p class="tl-card__text">O segundo fator continua integrado para reforcar a seguranca da plataforma institucional 7LM.</p>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="/02_recursos/02_scripts/operacoes_shared.js?v=20260407-theme-persist1"></script>
+  <script src="/02_recursos/02_scripts/pagina_configuracoes_do_usuario.js?v=20260401-textfix2"></script>
+</body>
+</html>
+
+

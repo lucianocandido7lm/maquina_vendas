@@ -1,0 +1,4 @@
+self.__next_f.push([
+  1,
+  '17:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]\n13:null\n',
+]);

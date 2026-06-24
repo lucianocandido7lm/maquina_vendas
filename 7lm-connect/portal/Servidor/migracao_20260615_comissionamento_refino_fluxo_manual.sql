@@ -1,0 +1,121 @@
+begin;
+
+insert into comissionamento.notificacao_templates (
+    codigo,
+    versao,
+    canal,
+    assunto,
+    titulo,
+    corpo_html,
+    corpo_texto,
+    cta_label,
+    cta_url_template,
+    variaveis_obrigatorias,
+    politica_mascaramento,
+    ativo,
+    publicado_em
+)
+values
+(
+    'head_aprovacao_pendente',
+    2,
+    'email',
+    '[{{codigo_comissao}}] Comissão aguardando Aprovação Comercial - {{ciclo}}',
+    'Ação necessária: Aprovação Comercial',
+    '<p>Olá, {{nome_destinatario}}.</p><h3>O que aconteceu</h3><p>A comissão de <strong>{{nome_comissionado}}</strong> foi enviada para análise da Diretoria Comercial.</p><h3>Quem fez</h3><p>{{acao_executada_por_nome}} ({{acao_executada_por_email}}).</p><h3>Comissão</h3><p>ID: <strong>{{codigo_comissao}}</strong><br>Ciclo: <strong>{{ciclo}}</strong><br>Etapa anterior: {{etapa_anterior_usuario}}<br>Etapa atual: {{etapa_nova_usuario}}</p><h3>Próxima ação</h3><p>{{proxima_acao}}</p><p style="color:#667085;font-size:13px;">Correlação: {{correlation_id}}</p>',
+    'O que aconteceu: a comissão de {{nome_comissionado}} foi enviada para Aprovação Comercial. Quem fez: {{acao_executada_por_nome}} ({{acao_executada_por_email}}). Comissão: {{codigo_comissao}} / {{ciclo}}. Próxima ação: {{proxima_acao}}. Correlação: {{correlation_id}}.',
+    'Abrir comissionamento',
+    '{{link_comissionamento}}',
+    array['codigo_comissao','ciclo','nome_comissionado','acao_executada_por_nome','proxima_acao','correlation_id'],
+    '{"valor_liquido":"mascarar"}'::jsonb,
+    true,
+    now()
+),
+(
+    'secretaria_ajuste_solicitado',
+    2,
+    'email',
+    '[{{codigo_comissao}}] Revisão/recalculo solicitado - {{ciclo}}',
+    'Revisão solicitada',
+    '<p>Olá, {{nome_destinatario}}.</p><h3>O que aconteceu</h3><p>Foi solicitado revisão/recalculo da comissão de <strong>{{nome_comissionado}}</strong>. A comissão voltou para <strong>Calculada/Revisão</strong>.</p><h3>Quem fez</h3><p>{{acao_executada_por_nome}} ({{acao_executada_por_email}}).</p><h3>Motivo</h3><p>{{motivo}}</p><h3>Comissão</h3><p>ID: <strong>{{codigo_comissao}}</strong><br>Ciclo: <strong>{{ciclo}}</strong><br>Etapa anterior: {{etapa_anterior_usuario}}<br>Etapa atual: {{etapa_nova_usuario}}</p><h3>Próxima ação</h3><p>{{proxima_acao}}</p><p style="color:#667085;font-size:13px;">Correlação: {{correlation_id}}</p>',
+    'Revisão/recalculo solicitado para {{nome_comissionado}}. Quem fez: {{acao_executada_por_nome}} ({{acao_executada_por_email}}). Motivo: {{motivo}}. Comissão: {{codigo_comissao}} / {{ciclo}}. Próxima ação: {{proxima_acao}}.',
+    'Abrir comissionamento',
+    '{{link_comissionamento}}',
+    array['codigo_comissao','ciclo','nome_comissionado','acao_executada_por_nome','motivo','proxima_acao','correlation_id'],
+    '{"valor_liquido":"mascarar"}'::jsonb,
+    true,
+    now()
+),
+(
+    'secretaria_rejeicao_head',
+    2,
+    'email',
+    '[{{codigo_comissao}}] Comissão devolvida pela Diretoria Comercial - {{ciclo}}',
+    'Comissão devolvida para revisão',
+    '<p>Olá, {{nome_destinatario}}.</p><h3>O que aconteceu</h3><p>A Diretoria Comercial devolveu a comissão de <strong>{{nome_comissionado}}</strong> para revisão da Secretaria.</p><h3>Quem fez</h3><p>{{acao_executada_por_nome}} ({{acao_executada_por_email}}).</p><h3>Motivo</h3><p>{{motivo}}</p><h3>Comissão</h3><p>ID: <strong>{{codigo_comissao}}</strong><br>Ciclo: <strong>{{ciclo}}</strong><br>Etapa anterior: {{etapa_anterior_usuario}}<br>Etapa atual: {{etapa_nova_usuario}}</p><h3>Próxima ação</h3><p>Reabrir a revisão, ajustar o que for necessário e reenviar para Aprovação Comercial.</p><p style="color:#667085;font-size:13px;">Correlação: {{correlation_id}}</p>',
+    'Comissão devolvida pela Diretoria Comercial. Comissão: {{codigo_comissao}} / {{ciclo}}. Comissionado: {{nome_comissionado}}. Quem fez: {{acao_executada_por_nome}}. Motivo: {{motivo}}. Próxima ação: reabrir revisão e reenviar para Aprovação Comercial.',
+    'Abrir comissionamento',
+    '{{link_comissionamento}}',
+    array['codigo_comissao','ciclo','nome_comissionado','acao_executada_por_nome','motivo','correlation_id'],
+    '{"valor_liquido":"mascarar"}'::jsonb,
+    true,
+    now()
+),
+(
+    'comissionado_rejeicao_diretoria',
+    1,
+    'email',
+    '[{{codigo_comissao}}] Sua comissão foi devolvida para revisão - {{ciclo}}',
+    'Comissão em revisão',
+    '<p>Olá, {{nome_destinatario}}.</p><h3>O que aconteceu</h3><p>A Diretoria Comercial devolveu sua comissão para revisão operacional da Secretaria.</p><h3>Motivo informado</h3><p>{{motivo}}</p><h3>Comissão</h3><p>ID: <strong>{{codigo_comissao}}</strong><br>Ciclo: <strong>{{ciclo}}</strong><br>Etapa atual: {{etapa_nova_usuario}}</p><h3>Próxima ação</h3><p>A Secretaria fará a revisão no portal. Você pode acompanhar o andamento pelo 7LM Connect.</p><p style="color:#667085;font-size:13px;">Correlação: {{correlation_id}}</p>',
+    'Sua comissão foi devolvida para revisão. Comissão: {{codigo_comissao}} / {{ciclo}}. Motivo: {{motivo}}. Próxima ação: acompanhar pelo portal.',
+    'Abrir comissionamento',
+    '{{link_comissionamento}}',
+    array['codigo_comissao','ciclo','motivo','correlation_id'],
+    '{"valor_liquido":"mascarar"}'::jsonb,
+    true,
+    now()
+),
+(
+    'financeiro_pacote_pj_enviado',
+    2,
+    'email',
+    '[{{codigo_comissao}}] Nota Fiscal enviada para Pagamento - {{ciclo}}',
+    'Nota Fiscal enviada para Pagamento',
+    '<p>Olá, {{nome_destinatario}}.</p><h3>O que aconteceu</h3><p>A Nota Fiscal da comissão de <strong>{{nome_comissionado}}</strong> foi enviada para o destino operacional <strong>{{destino_pacote}}</strong>.</p><h3>Quem enviou</h3><p>{{nf_enviada_por_nome}} ({{nf_enviada_por_email}}).</p><h3>Dados da NF</h3><p>Número: <strong>{{nf_numero}}</strong><br>Emissão: <strong>{{nf_data_emissao}}</strong><br>Arquivo: <strong>{{nf_nome_arquivo}}</strong><br>Observação: {{nf_observacao}}<br>Anexo: {{nf_anexo_email}}</p><h3>Comissão</h3><p>ID: <strong>{{codigo_comissao}}</strong><br>Ciclo: <strong>{{ciclo}}</strong><br>Etapa atual: Pagamento</p><h3>Próxima ação</h3><p>{{proxima_acao}}</p><p style="color:#667085;font-size:13px;">O valor deve ser consultado somente no portal autenticado. Correlação: {{correlation_id}}</p>',
+    'Nota Fiscal enviada para Pagamento. Comissão: {{codigo_comissao}} / {{ciclo}}. Comissionado: {{nome_comissionado}}. Quem enviou: {{nf_enviada_por_nome}} ({{nf_enviada_por_email}}). NF: {{nf_numero}}, emissão {{nf_data_emissao}}, arquivo {{nf_nome_arquivo}}. Próxima ação: {{proxima_acao}}.',
+    'Abrir comissionamento',
+    '{{link_comissionamento}}',
+    array['codigo_comissao','ciclo','nome_comissionado','nf_enviada_por_nome','nf_numero','nf_data_emissao','nf_nome_arquivo','correlation_id'],
+    '{"valor_liquido":"mascarar","valor_nf":"mascarar"}'::jsonb,
+    true,
+    now()
+),
+(
+    'rh_financeiro_pacote_clt_enviado',
+    2,
+    'email',
+    '[{{codigo_comissao}}] Comissão CLT enviada para Pagamento - {{ciclo}}',
+    'Comissão CLT enviada para Pagamento',
+    '<p>Olá, {{nome_destinatario}}.</p><h3>O que aconteceu</h3><p>A comissão CLT de <strong>{{nome_comissionado}}</strong> foi aprovada pela Diretoria Comercial e enviada para <strong>Pagamento</strong>.</p><h3>Quem fez</h3><p>{{acao_executada_por_nome}} ({{acao_executada_por_email}}).</p><h3>Comissão</h3><p>ID: <strong>{{codigo_comissao}}</strong><br>Ciclo: <strong>{{ciclo}}</strong><br>Destino: {{destino_pacote}}</p><h3>Próxima ação</h3><p>{{proxima_acao}}</p><p style="color:#667085;font-size:13px;">Correlação: {{correlation_id}}</p>',
+    'Comissão CLT enviada para Pagamento. Comissão: {{codigo_comissao}} / {{ciclo}}. Comissionado: {{nome_comissionado}}. Quem fez: {{acao_executada_por_nome}}. Próxima ação: {{proxima_acao}}.',
+    'Abrir comissionamento',
+    '{{link_comissionamento}}',
+    array['codigo_comissao','ciclo','nome_comissionado','acao_executada_por_nome','destino_pacote','correlation_id'],
+    '{"valor_liquido":"mascarar"}'::jsonb,
+    true,
+    now()
+)
+on conflict (codigo, versao, canal) do update set
+    assunto = excluded.assunto,
+    titulo = excluded.titulo,
+    corpo_html = excluded.corpo_html,
+    corpo_texto = excluded.corpo_texto,
+    cta_label = excluded.cta_label,
+    cta_url_template = excluded.cta_url_template,
+    variaveis_obrigatorias = excluded.variaveis_obrigatorias,
+    politica_mascaramento = excluded.politica_mascaramento,
+    ativo = excluded.ativo,
+    publicado_em = excluded.publicado_em;
+
+commit;

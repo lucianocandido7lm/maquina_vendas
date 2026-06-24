@@ -1,0 +1,643 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR" data-preload-root-classes="tl-admin-gated">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Acessos</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/administracao.css?v=20260520-acessos-liberacao-1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/administracao_monitoramento.css?v=20260602-monitoramento-2" />
+
+  <meta name="sevenlm-connect-api-base-url" content="" />
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <meta name="sevenlm-connect-required-permission" content="administracao.view" />
+  <meta name="sevenlm-connect-admin-page-mode" content="acessos" />
+  <meta name="sevenlm-connect-access-fallback" content="/inicio" />
+  <meta name="sevenlm-connect-endpoint-admin-contexto" content="/api/admin/contexto" />
+  <meta name="sevenlm-connect-endpoint-admin-busca-usuarios" content="/api/admin/usuarios" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-detalhe" content="/api/admin/usuarios/{chave}" />
+  <meta name="sevenlm-connect-endpoint-admin-auditoria" content="/api/admin/auditoria" />
+  <meta name="sevenlm-connect-endpoint-admin-monitoramento" content="/api/admin/monitoramento-portal" />
+
+  <meta name="sevenlm-connect-endpoint-admin-criar-usuario" content="/api/admin/usuarios" />
+  <meta name="sevenlm-connect-endpoint-admin-atualizar-usuario" content="/api/admin/usuarios/{chave}" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-perfis" content="/api/admin/usuarios/{chave}/perfis" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-remover-perfil" content="/api/admin/usuarios/{chave}/perfis/{identificador_perfil}" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-permissoes" content="/api/admin/usuarios/{chave}/permissoes" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-remover-permissao" content="/api/admin/usuarios/{chave}/permissoes/{identificador_permissao}" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-forcar-troca-senha" content="/api/admin/usuarios/{chave}/forcar-troca-senha" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-resetar-senha" content="/api/admin/usuarios/{chave}/resetar-senha" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-resetar-senha-padrao" content="/api/admin/usuarios/{chave}/resetar-senha-padrao" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-resetar-mfa" content="/api/admin/usuarios/{chave}/resetar-mfa" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-perfil-principal" content="/api/admin/usuarios/{chave}/perfil-principal" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-desbloquear" content="/api/admin/usuarios/{chave}/desbloquear" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-ativar" content="/api/admin/usuarios/{chave}/ativar" />
+  <meta name="sevenlm-connect-endpoint-admin-usuario-desativar" content="/api/admin/usuarios/{chave}/desativar" />
+
+  <meta name="sevenlm-connect-endpoint-admin-funcionarios" content="/api/admin/funcionarios" />
+  <meta name="sevenlm-connect-endpoint-admin-funcionario-detalhe" content="/api/admin/funcionarios/{identificador_funcionario}" />
+  <meta name="sevenlm-connect-endpoint-admin-funcionario-provisionar" content="/api/admin/funcionarios/{identificador_funcionario}/provisionar" />
+  <meta name="sevenlm-connect-endpoint-admin-quadro-diario" content="/api/admin/funcionarios/quadro-diario" />
+  <meta name="sevenlm-connect-endpoint-admin-quadro-diario-gerar" content="/api/admin/funcionarios/quadro-diario/gerar" />
+  <meta name="sevenlm-connect-endpoint-admin-quadro-diario-atualizar" content="/api/admin/funcionarios/quadro-diario/{identificador_status}" />
+
+  <meta name="sevenlm-connect-endpoint-admin-setores" content="/api/admin/setores" />
+  <meta name="sevenlm-connect-endpoint-admin-setor-perfis" content="/api/admin/setores/{codigo_setor}/perfis" />
+  <meta name="sevenlm-connect-endpoint-admin-setor-remover-perfil" content="/api/admin/setores/{codigo_setor}/perfis/{identificador_perfil}" />
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260520-admin-release-1"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260512-title-fix-1" defer></script>
+</head>
+<body class="tl-admin-page" data-admin-page-mode="acessos">
+
+  <div class="tl-shell">
+
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <header class="tl-topbar anim-stagger-1">
+        <div class="tl-topbar__titles">
+          <div class="tl-overline reveal-text">SISTEMA • IDENTIDADE • PERMISSÕES</div>
+          <h1 class="tl-title reveal-text delay-1">Administração</h1>
+          <p class="tl-subtitle reveal-text delay-2">
+            Central de controle institucional. Pesquise usuários, gerencie perfis, permissões e monitore a auditoria do sistema em tempo real.
+          </p>
+        </div>
+
+        <div class="tl-topbar__controls">
+          <button id="btnTema" class="tl-btn-icon glass-panel hyper-glass" aria-label="Alternar tema">
+            <div class="icon-wrap">
+              <svg class="icon-sun" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+              <svg class="icon-moon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            </div>
+          </button>
+
+          <div class="tl-userbox glass-panel hyper-glass">
+            <div class="tl-userbox__avatar">
+              <span id="userInitials">TL</span>
+            </div>
+            <div class="tl-userbox__info">
+              <div class="tl-userbox__name" id="nomeUsuario">Carregando...</div>
+              <div class="tl-userbox__meta mono-font" id="metaUsuario">Conectando...</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <nav class="tl-admin-tabs" aria-label="Abas do módulo de acessos">
+        <button class="tl-admin-tab is-active" type="button" data-admin-tab="acessos" aria-selected="true">
+          <span class="tl-admin-tab__dot"></span>
+          Acessos
+        </button>
+        <button class="tl-admin-tab" type="button" data-admin-tab="monitoramento" aria-selected="false">
+          <span class="tl-admin-tab__dot"></span>
+          Monitoramento
+        </button>
+      </nav>
+
+      <section id="painelAdminMonitoramento" class="tl-monitor-shell anim-stagger-3" data-admin-tab-panel="monitoramento" hidden>
+        <div class="tl-monitor-head glass-panel hyper-glass">
+          <div>
+            <div class="tl-panel__eyebrow mono-font">PORTAL • TEMPO REAL • CONSULTA</div>
+            <h2 class="tl-monitor-title">Monitoramento do portal</h2>
+            <p class="tl-monitor-copy">Acompanhamento somente leitura de pessoas online por atividade recente, simulações, reservas e movimentação do portal.</p>
+          </div>
+          <div class="tl-monitor-controls">
+            <label class="tl-monitor-select">
+              <span>Janela</span>
+              <select id="monitorJanelaMinutos">
+                <option value="15">15 min</option>
+                <option value="30" selected>30 min</option>
+                <option value="60">1 hora</option>
+                <option value="240">4 horas</option>
+              </select>
+            </label>
+            <button class="tl-btn-secondary" id="btnAtualizarMonitoramento" type="button">Atualizar</button>
+          </div>
+        </div>
+
+        <div class="tl-monitor-status mono-font" id="monitorStatusAtualizacao">Aguardando atualização...</div>
+
+        <div class="tl-monitor-pulse glass-panel hyper-glass">
+          <div class="tl-monitor-pulse__ring" id="monitorPulseRing">
+            <span id="monitorOnlineDestaque">--</span>
+            <small>online</small>
+          </div>
+          <div class="tl-monitor-pulse__copy">
+            <div class="tl-panel__eyebrow mono-font">PULSO DO PORTAL</div>
+            <h3 id="monitorResumoOperacao">Aguardando primeira leitura</h3>
+            <p id="monitorResumoJanela">A tela considera online apenas quem teve movimento dentro da janela selecionada.</p>
+          </div>
+          <div class="tl-monitor-pulse__facts">
+            <div>
+              <span>Sessões abertas</span>
+              <strong id="monitorSessoesAbertas">--</strong>
+            </div>
+            <div>
+              <span>Sem movimento</span>
+              <strong id="monitorSessoesOciosas">--</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="tl-monitor-metrics" aria-live="polite">
+          <div class="tl-monitor-metric glass-panel hyper-glass">
+            <span>Online agora</span>
+            <strong id="monitorUsuariosLogados">--</strong>
+            <small id="monitorSessoesAtivas">-- sessões com movimento</small>
+          </div>
+          <div class="tl-monitor-metric glass-panel hyper-glass">
+            <span>Simulando imóveis</span>
+            <strong id="monitorUsuariosSimulando">--</strong>
+            <small id="monitorSimulacoesJanela">-- simulações na janela</small>
+          </div>
+          <div class="tl-monitor-metric glass-panel hyper-glass">
+            <span>Reservas recentes</span>
+            <strong id="monitorReservasJanela">--</strong>
+            <small id="monitorReservasAtivas">-- reservas ativas</small>
+          </div>
+          <div class="tl-monitor-metric glass-panel hyper-glass">
+            <span>Entradas na janela</span>
+            <strong id="monitorEntradasJanela">--</strong>
+            <small id="monitorSessoesEncerradas">-- encerradas</small>
+          </div>
+        </div>
+
+        <div class="tl-monitor-layout">
+          <article class="tl-monitor-panel tl-monitor-panel--wide glass-panel hyper-glass">
+            <div class="tl-monitor-panel__header">
+              <div>
+                <div class="tl-panel__eyebrow mono-font">ONLINE AGORA</div>
+                <h3>Pessoas com atividade recente</h3>
+              </div>
+              <span class="tl-monitor-pill" id="monitorTotalPessoas">0 online</span>
+            </div>
+            <div id="monitorPessoasAtivas" class="tl-monitor-list tl-scroll" aria-live="polite"></div>
+          </article>
+
+          <article class="tl-monitor-panel glass-panel hyper-glass">
+            <div class="tl-monitor-panel__header">
+              <div>
+                <div class="tl-panel__eyebrow mono-font">SIMULAÇÕES</div>
+                <h3>Imóveis simulados recentemente</h3>
+              </div>
+            </div>
+            <div id="monitorSimulacoesRecentes" class="tl-monitor-list tl-scroll" aria-live="polite"></div>
+          </article>
+
+          <article class="tl-monitor-panel glass-panel hyper-glass">
+            <div class="tl-monitor-panel__header">
+              <div>
+                <div class="tl-panel__eyebrow mono-font">ATIVIDADES</div>
+                <h3>Movimentação recente</h3>
+              </div>
+            </div>
+            <div id="monitorAtividadesRecentes" class="tl-monitor-timeline tl-scroll" aria-live="polite"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="tl-kpis anim-stagger-2">
+        <div class="tl-kpi glass-panel hyper-glass">
+          <div class="tl-kpi__icon icon-teal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </div>
+          <div>
+            <span class="tl-kpi__label">Sessão Ativa</span>
+            <strong class="tl-kpi__value status-active" id="statusSessao">Validando...</strong>
+          </div>
+        </div>
+
+        <div class="tl-kpi glass-panel hyper-glass">
+          <div class="tl-kpi__icon icon-purple">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z"></path>
+              <path d="M9.5 12.5l1.8 1.8 3.7-4.3"></path>
+            </svg>
+          </div>
+          <div>
+            <span class="tl-kpi__label">Nível de Permissão</span>
+            <strong class="tl-kpi__value mono-font" id="statusPermissaoAdmin">Validando...</strong>
+          </div>
+        </div>
+
+        <div class="tl-kpi glass-panel hyper-glass">
+          <div class="tl-kpi__icon icon-neutral">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </div>
+          <div>
+            <span class="tl-kpi__label">Último Acesso</span>
+            <strong class="tl-kpi__value mono-font" id="ultimoLogin">-</strong>
+          </div>
+        </div>
+      </section>
+
+      <section id="painelAdminAcessos" class="tl-admin-grid anim-stagger-3" data-admin-tab-panel="acessos">
+
+        <div class="tl-admin-top-row">
+          <article class="tl-panel tl-panel--pesquisa glass-panel hyper-glass">
+            <div class="tl-panel__header">
+              <div>
+                <div class="tl-panel__eyebrow mono-font">BUSCA • USUÁRIOS</div>
+                <h2 class="tl-panel__title">Pesquisar Usuário</h2>
+              </div>
+              <div class="tl-badge">7LM</div>
+            </div>
+
+            <div class="tl-search-box">
+              <div class="tl-search-input">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <circle cx="11" cy="11" r="7"></circle>
+                  <line x1="20" y1="20" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input id="inputBuscaUsuario" type="text" placeholder="Buscar por nome, e-mail ou matrícula..." autocomplete="off" />
+              </div>
+              <button class="tl-btn-primary pulse-btn" id="btnBuscarUsuario" type="button">Buscar</button>
+              <button class="tl-btn-secondary" id="btnNovoUsuarioExterno" type="button">Novo Usuário</button>
+            </div>
+
+            <div class="tl-search-hint mono-font">
+              Busca por: <span>nome</span> • <span>e-mail</span> • <span>matrícula</span> • <span>identificador</span>
+            </div>
+
+            <div class="tl-search-results-section mt-4 tl-panel-fill">
+              <div id="caixaResultadosBusca" class="tl-directory-list tl-inner-surface tl-scroll" aria-live="polite">
+                <div class="tl-empty-state tl-empty-state--compact">
+                  <div class="tl-empty-state__icon">🔎</div>
+                  <div>
+                    <h3>Aguardando busca</h3>
+                    <p style="font-size: 0.85rem; color: var(--txt-soft);">
+                      Os resultados aparecerão aqui.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="tl-panel tl-panel--colaborador glass-panel hyper-glass">
+            <div class="tl-panel__header">
+              <div>
+                <div class="tl-panel__eyebrow mono-font">ALVO SELECIONADO</div>
+                <h2 class="tl-panel__title">Resumo do Perfil</h2>
+              </div>
+              <div class="tl-panel__header-actions">
+                <div class="tl-badge tl-badge--soft" id="badgeStatusUsuario">Sem seleção</div>
+                <button class="tl-btn-secondary" id="btnProvisionarQuadro" type="button">Editar</button>
+              </div>
+            </div>
+
+            <div class="tl-colab-shell tl-panel-fill">
+              <div id="painelResumoUsuario" class="tl-user-summary tl-inner-surface">
+                <div class="tl-profile-empty">
+                  <div class="tl-profile-empty__icon">👤</div>
+                    <div>
+                      <h3>Selecione um usuário</h3>
+                      <p>Busque ao lado para carregar o resumo executivo do usuário selecionado.</p>
+                    </div>
+                  </div>
+              </div>
+
+              <div class="tl-status-strip" id="painelIndicadoresAlvo">
+                <div class="tl-status-pill">
+                  <span class="tl-status-dot"></span>
+                  <span>Origem: <strong>—</strong></span>
+                </div>
+                <div class="tl-status-pill">
+                  <span class="tl-status-dot"></span>
+                  <span>Status: <strong>—</strong></span>
+                </div>
+                <div class="tl-status-pill">
+                  <span class="tl-status-dot"></span>
+                  <span>Cadastro: <strong>—</strong></span>
+                </div>
+                <div class="tl-status-pill">
+                  <span class="tl-status-dot"></span>
+                  <span>MFA: <strong>—</strong></span>
+                </div>
+                <div class="tl-status-pill">
+                  <span class="tl-status-dot"></span>
+                  <span>Troca de senha: <strong>—</strong></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tl-colab-shell__quadro mt-4">
+              <div class="tl-panel__eyebrow mono-font">DETALHES COMPLEMENTARES</div>
+              <div id="painelQuadroAtual" class="tl-quadro-layout tl-inner-surface tl-scroll">
+                <div class="tl-info-grid">
+                  <div class="tl-info-item">
+                    <span class="tl-info-label">Identificação</span>
+                    <span class="tl-info-value">—</span>
+                  </div>
+
+                  <div class="tl-info-item">
+                    <span class="tl-info-label">Data do quadro</span>
+                    <span class="tl-info-value">—</span>
+                  </div>
+
+                  <div class="tl-info-item tl-info-item--full">
+                    <span class="tl-info-label">Nome</span>
+                    <span class="tl-info-value">Nenhum quadro carregado</span>
+                  </div>
+
+                  <div class="tl-info-item">
+                    <span class="tl-info-label">Status</span>
+                    <span class="tl-info-value">—</span>
+                  </div>
+
+                  <div class="tl-info-item">
+                    <span class="tl-info-label">Status GIP</span>
+                    <span class="tl-info-value">—</span>
+                  </div>
+
+                  <div class="tl-info-item">
+                    <span class="tl-info-label">Status operacional</span>
+                    <span class="tl-info-value">—</span>
+                  </div>
+
+                  <div class="tl-info-item">
+                    <span class="tl-info-label">GH ativo</span>
+                    <span class="tl-info-value">—</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <article class="tl-panel tl-panel--full tl-panel--funcionarios glass-panel hyper-glass">
+          <div class="tl-panel__header">
+            <div>
+              <div class="tl-panel__eyebrow mono-font">FUNCIONÁRIOS • ACESSOS</div>
+              <h2 class="tl-panel__title">Funcionários e provisionamento</h2>
+            </div>
+            <div class="tl-panel__header-actions tl-panel__header-actions--wrap">
+              <button class="tl-btn-primary pulse-btn" id="btnNovoFuncionario" type="button">Novo funcionário</button>
+            </div>
+          </div>
+
+          <div class="tl-access-toolbar">
+            <div class="tl-form-group">
+              <label>Busca</label>
+              <input id="inputFuncionarioBusca" type="text" placeholder="Nome, e-mail, documento ou gestor" />
+            </div>
+            <div class="tl-form-group">
+              <label>Tipo</label>
+              <select id="selectFuncionarioTipo">
+                <option value="">Todos</option>
+                <option value="CORRETOR">Corretores</option>
+                <option value="SDR">SDR</option>
+                <option value="OUTRO">Outros</option>
+              </select>
+            </div>
+            <div class="tl-form-group">
+              <label>Status</label>
+              <select id="selectFuncionarioStatus">
+                <option value="">Todos</option>
+                <option value="ATIVO">Ativos</option>
+                <option value="INATIVO">Inativos</option>
+                <option value="COM_LOGIN">Com login</option>
+                <option value="SEM_LOGIN">Sem login</option>
+              </select>
+            </div>
+            <button class="tl-btn-secondary tl-access-toolbar__button" id="btnFiltrarFuncionarios" type="button">Aplicar filtros</button>
+          </div>
+
+          <div id="resumoFuncionarios" class="tl-access-summary" aria-live="polite"></div>
+          <div id="listaFuncionarios" class="tl-table-surface tl-scroll" aria-live="polite">
+            <div class="tl-empty-state tl-empty-state--compact">
+              <div class="tl-empty-state__icon">ID</div>
+              <div>
+                <h3>Carregando funcionários</h3>
+                <p style="font-size: 0.85rem; color: var(--txt-soft);">A lista de funcionários aparecerá aqui.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="tl-panel tl-panel--full tl-panel--quadro-diario glass-panel hyper-glass">
+          <div class="tl-panel__header">
+            <div>
+              <div class="tl-panel__eyebrow mono-font">QUADRO • DIÁRIO</div>
+              <h2 class="tl-panel__title">Status diário dos funcionários</h2>
+            </div>
+            <div class="tl-panel__header-actions tl-panel__header-actions--wrap">
+              <input id="inputDataQuadro" class="tl-date-control" type="date" />
+              <button class="tl-btn-secondary" id="btnAtualizarQuadro" type="button">Atualizar</button>
+              <button class="tl-btn-primary pulse-btn" id="btnGerarQuadro" type="button">Gerar dia</button>
+            </div>
+          </div>
+
+          <div id="resumoQuadroDiario" class="tl-access-summary" aria-live="polite"></div>
+          <div id="listaQuadroDiario" class="tl-table-surface tl-scroll" aria-live="polite">
+            <div class="tl-empty-state tl-empty-state--compact">
+              <div class="tl-empty-state__icon">D</div>
+              <div>
+                <h3>Carregando quadro diário</h3>
+                <p style="font-size: 0.85rem; color: var(--txt-soft);">Cada funcionário terá uma linha por dia para acompanhamento.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="tl-panel tl-panel--half tl-panel--acoes glass-panel hyper-glass">
+          <div class="tl-panel__header">
+            <div>
+              <div class="tl-panel__eyebrow mono-font">SEGURANÇA DA CONTA</div>
+              <h2 class="tl-panel__title">Ações Rápidas</h2>
+            </div>
+          </div>
+
+          <div id="painelSegurancaUsuario" class="tl-permission-list tl-inner-surface tl-scroll">
+            <div class="tl-security-empty">
+              <div class="tl-security-empty__icon">🔐</div>
+              <div>
+                <h3>Aguardando seleção</h3>
+                <p>Selecione um usuário para visualizar o estado da conta e executar ações administrativas.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="tl-panel tl-panel--half tl-panel--perfis glass-panel hyper-glass" hidden>
+          <div class="tl-panel__header">
+            <div>
+              <div class="tl-panel__eyebrow mono-font">ACESSO BASE</div>
+              <h2 class="tl-panel__title">Perfis Vinculados</h2>
+            </div>
+            <button class="tl-btn-secondary" id="btnAdicionarPerfil" type="button">Adicionar</button>
+          </div>
+
+          <div id="listaPerfisUsuario" class="tl-permission-list tl-inner-surface tl-scroll">
+            <div class="tl-profile-list-empty">
+              <div class="tl-profile-list-empty__icon">🧩</div>
+              <div>
+                <h3>Nenhum perfil carregado</h3>
+                <p>Os perfis vinculados diretamente ao usuário aparecerão aqui.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="tl-panel tl-panel--half tl-panel--perfis glass-panel hyper-glass">
+          <div class="tl-panel__header">
+            <div>
+              <div class="tl-panel__eyebrow mono-font">EXCEÇÕES (OVERRIDE)</div>
+              <h2 class="tl-panel__title">Permissões Diretas</h2>
+            </div>
+            <button class="tl-btn-secondary" id="btnAdicionarPermissao" type="button">Nova Regra</button>
+          </div>
+
+          <div id="listaPermissoesDiretas" class="tl-permission-list tl-inner-surface tl-scroll">
+            <div class="tl-direct-permission-empty">
+              <div class="tl-direct-permission-empty__icon">🛡️</div>
+              <div>
+                <h3>Sem regras carregadas</h3>
+                <p>As exceções Allow e Deny atribuídas diretamente ao usuário aparecerão aqui.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="tl-panel tl-panel--half tl-panel--perfis glass-panel hyper-glass">
+          <div class="tl-panel__header">
+            <div>
+              <div class="tl-panel__eyebrow mono-font">HERANÇA ESTRUTURAL</div>
+              <h2 class="tl-panel__title">Perfis por Setor</h2>
+            </div>
+            <button class="tl-btn-secondary" id="btnGerenciarSetores" type="button">Gerenciar</button>
+          </div>
+
+          <div id="listaSetoresPerfis" class="tl-sector-list tl-inner-surface tl-scroll">
+            <div class="tl-empty-state tl-empty-state--compact">
+              <div class="tl-empty-state__icon">🏢</div>
+              <div>
+                <h3>Nenhuma herança setorial ativa</h3>
+                <p style="font-size: 0.85rem; color: var(--txt-soft);">Os perfis herdados por setor aparecerão aqui.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="tl-panel tl-panel--half tl-panel--perfis glass-panel hyper-glass">
+          <div class="tl-panel__header">
+            <div>
+              <div class="tl-panel__eyebrow mono-font">RESULTADO FINAL</div>
+              <h2 class="tl-panel__title">Acesso Efetivo</h2>
+            </div>
+            <div class="tl-badge tl-badge--soft">Calculado</div>
+          </div>
+
+          <div id="painelAcessoEfetivo" class="tl-access-grid tl-inner-surface tl-scroll">
+            <div class="tl-effective-access-empty">
+              <div class="tl-effective-access-empty__icon">🪪</div>
+              <div>
+                <h3>Aguardando cálculo</h3>
+                <p>Visualize aqui o que o usuário realmente pode acessar no sistema.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="tl-panel tl-panel--half tl-panel--perfis glass-panel hyper-glass" hidden>
+          <div class="tl-panel__header">
+            <div>
+              <div class="tl-panel__eyebrow mono-font">RECURSOS</div>
+              <h2 class="tl-panel__title">Recursos legados</h2>
+            </div>
+            <button class="tl-btn-secondary" id="btnAdicionarDashboardOperacional" type="button">Liberar</button>
+          </div>
+
+          <div id="listaDashboardsOperacionais" class="tl-access-grid tl-inner-surface tl-scroll">
+            <div class="tl-effective-access-empty">
+              <div class="tl-effective-access-empty__icon">...</div>
+              <div>
+                <h3>Aguardando selecao</h3>
+                <p>Os recursos legados atribuídos ao usuário selecionado apareceriam aqui, mas este bloco está desativado nesta fase.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="tl-panel tl-panel--half tl-panel--perfis glass-panel hyper-glass">
+          <div class="tl-panel__header">
+            <div>
+              <div class="tl-panel__eyebrow mono-font">LOGS</div>
+              <h2 class="tl-panel__title">Auditoria de Eventos</h2>
+            </div>
+            <button class="tl-btn-secondary" id="btnAtualizarAuditoria" type="button">Atualizar</button>
+          </div>
+
+          <div id="listaAuditoria" class="tl-timeline tl-inner-surface tl-scroll">
+            <div class="tl-audit-empty">
+              <div class="tl-audit-empty__icon">🧾</div>
+              <div>
+                <h3>Carregando histórico</h3>
+                <p>Os eventos administrativos aparecerão aqui em ordem cronológica.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+      </section>
+    </main>
+  </div>
+
+  <div class="tl-modal-shell" id="modalShell" hidden>
+    <div class="tl-modal-backdrop" data-close-modal="true"></div>
+
+    <div class="tl-modal-card glass-panel hyper-glass" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+      <div class="tl-modal-header">
+        <div>
+          <div class="tl-panel__eyebrow mono-font" id="modalEyebrow">AÇÃO DO SISTEMA</div>
+          <h3 class="tl-modal-title" id="modalTitulo">Configurar Parâmetro</h3>
+        </div>
+
+        <button class="tl-modal-close" id="btnFecharModal" type="button" aria-label="Fechar">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="tl-modal-body" id="modalBody"></div>
+
+      <div class="tl-modal-footer">
+        <button class="tl-btn-secondary" id="btnCancelarModal" type="button">Cancelar</button>
+        <button class="tl-btn-primary pulse-btn" id="btnSalvarModal" type="button">Confirmar e Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/02_recursos/02_scripts/administracao.js?v=20260530-acessos-mfa-reset-1"></script>
+  <script src="/02_recursos/02_scripts/administracao_monitoramento.js?v=20260602-monitoramento-2"></script>
+</body>
+</html>
+
+
+
+
+

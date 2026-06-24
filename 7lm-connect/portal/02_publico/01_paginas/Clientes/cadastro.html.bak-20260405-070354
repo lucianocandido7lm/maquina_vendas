@@ -1,0 +1,749 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Connect Comercial - Clientes</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/inicio.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/operacoes.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/imoveis.css?v=20260405-grouped-lightbox1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/clientes.css?v=20260406-clientes-gridcards2" />
+
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <meta name="sevenlm-connect-required-permission" content="imoveis.view" />
+  <meta name="sevenlm-connect-access-fallback" content="/inicio" />
+
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260406-litefx1"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260401-textfix2" defer></script>
+</head>
+<body class="tl-home tl-ops-page tl-clientes-page">
+  <div class="tl-atmos-layer">
+    <div class="tl-blob tl-blob--teal"></div>
+    <div class="tl-blob tl-blob--purple"></div>
+    <div id="tl-particles-container"></div>
+    <div class="tl-glass-overlay"></div>
+  </div>
+
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <section class="tl-imoveis-hero-shell anim-stagger-1">
+        <div class="tl-imoveis-hero-compact" aria-label="Cabecalho compacto do modulo">
+          <div class="tl-imoveis-hero-compact__rail">
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/imoveis">Imoveis</a>
+            <a class="tl-imoveis-hero-compact__tab is-active" href="/comercial/clientes">Clientes</a>
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/simulador">Simulador</a>
+          </div>
+          <div class="tl-imoveis-hero-compact__actions">
+            <div class="tl-imoveis-hero-compact__user glass-panel hyper-glass">
+              <span class="tl-imoveis-hero-compact__user-name" id="nomeUsuario">Carregando...</span>
+            </div>
+            <button id="btnTema" class="tl-btn-icon glass-panel hyper-glass" aria-label="Alternar tema">
+              <div class="icon-wrap">
+                <svg class="icon-sun" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="5"></circle>
+                  <line x1="12" y1="1" x2="12" y2="3"></line>
+                  <line x1="12" y1="21" x2="12" y2="23"></line>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                  <line x1="1" y1="12" x2="3" y2="12"></line>
+                  <line x1="21" y1="12" x2="23" y2="12"></line>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <svg class="icon-moon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+              </div>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="tl-clientes-shell anim-stagger-2">
+        <div class="tl-clientes-shell__head">
+          <div>
+            <span class="tl-imoveis-eyebrow mono-font">BASE DE CLIENTES</span>
+            <h2>Gestao de clientes aprovados</h2>
+            <p>Consulte a base cadastrada e abra um novo atendimento apenas quando precisar registrar um cliente.</p>
+          </div>
+        </div>
+
+        <section class="tl-clientes-lista" aria-label="Clientes cadastrados">
+          <div class="tl-clientes-lista__head">
+            <div>
+              <h3>Clientes cadastrados</h3>
+              <p id="clientesResumo" class="tl-clientes-lista__summary">Carregando base de clientes...</p>
+            </div>
+            <div class="tl-clientes-lista__actions">
+              <button id="btnMostrarCadastro" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Novo cliente</button>
+            </div>
+          </div>
+          <div class="tl-clientes-lista__toolbar">
+            <label class="tl-clientes-busca" for="clientesBusca">
+              <span class="tl-clientes-busca__icon" aria-hidden="true"></span>
+              <input id="clientesBusca" type="search" placeholder="Buscar por nome, CPF, cidade ou contato..." autocomplete="off" />
+            </label>
+          </div>
+          <div id="clientesLista" class="tl-clientes-lista__grid"></div>
+        </section>
+
+        <div id="clientesModal" class="tl-clientes-modal" hidden aria-hidden="true">
+          <div class="tl-clientes-modal__backdrop" data-action="fechar-modal"></div>
+          <div class="tl-clientes-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="clientesModalTitulo">
+            <form class="tl-clientes-form" novalidate>
+          <section class="tl-clientes-form-topbar">
+            <div>
+              <span class="tl-imoveis-eyebrow mono-font">NOVO CADASTRO</span>
+              <h3 id="clientesModalTitulo">Cadastro completo do cliente</h3>
+            </div>
+            <button id="btnVoltarLista" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Fechar</button>
+          </section>
+
+          <section class="tl-clientes-card">
+            <h3>Dados pessoais</h3>
+            <div class="tl-clientes-grid">
+              <div class="tl-imoveis-field">
+                <label for="clienteNome">Nome completo</label>
+                <input id="clienteNome" type="text" placeholder="Nome do cliente" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteNascimento">Data de nascimento</label>
+                <input id="clienteNascimento" type="text" class="tl-clientes-date" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteSexo">Sexo</label>
+                <select id="clienteSexo" class="tl-clientes-select">
+                  <option value="">Selecione</option>
+                  <option>Feminino</option>
+                  <option>Masculino</option>
+                  <option>Nao informado</option>
+                </select>
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteCpf">CPF</label>
+                <input id="clienteCpf" type="text" placeholder="000.000.000-00" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteRg">RG</label>
+                <input id="clienteRg" type="text" placeholder="Documento de identidade" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteEstadoCivil">Estado civil</label>
+                <select id="clienteEstadoCivil" class="tl-clientes-select">
+                  <option value="">Selecione</option>
+                  <option>Solteiro</option>
+                  <option>Casado</option>
+                  <option>Uniao estavel</option>
+                  <option>Divorciado</option>
+                  <option>Viuvo</option>
+                </select>
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteRegimeCasamento">Regime de casamento</label>
+                <select id="clienteRegimeCasamento" class="tl-clientes-select">
+                  <option value="">Selecione</option>
+                  <option>Comunhao parcial</option>
+                  <option>Comunhao universal</option>
+                  <option>Separacao total</option>
+                  <option>Participacao final</option>
+                  <option>Nao se aplica</option>
+                </select>
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteNacionalidade">Nacionalidade</label>
+                <select id="clienteNacionalidade" class="tl-clientes-select">
+                  <option value="">Selecione</option>
+                  <option selected>Brasileiro</option>
+                  <option>Argentino</option>
+                  <option>Boliviano</option>
+                  <option>Chileno</option>
+                  <option>Colombiano</option>
+                  <option>Paraguaio</option>
+                  <option>Peruano</option>
+                  <option>Uruguaio</option>
+                  <option>Venezuelano</option>
+                  <option>Portugues</option>
+                  <option>Italiano</option>
+                  <option>Espanhol</option>
+                  <option>Alemao</option>
+                  <option>Frances</option>
+                  <option>Outro</option>
+                </select>
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteNomeMae">Nome da mae</label>
+                <input id="clienteNomeMae" type="text" placeholder="Nome completo da mae" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteNomePai">Nome do pai</label>
+                <input id="clienteNomePai" type="text" placeholder="Nome completo do pai" />
+              </div>
+            </div>
+          </section>
+
+          <section class="tl-clientes-card">
+            <h3>Contato</h3>
+            <div class="tl-clientes-grid">
+              <div class="tl-imoveis-field">
+                <label for="clienteEmail">E-mail</label>
+                <input id="clienteEmail" type="email" placeholder="email@dominio.com" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteTelefone">Telefone</label>
+                <input id="clienteTelefone" type="text" placeholder="(00) 0000-0000" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteCelular">Celular</label>
+                <input id="clienteCelular" type="text" placeholder="(00) 00000-0000" />
+              </div>
+            </div>
+          </section>
+
+          <section class="tl-clientes-card">
+            <h3>Endereco</h3>
+            <div class="tl-clientes-grid">
+              <div class="tl-imoveis-field">
+                <label for="clienteCep">CEP</label>
+                <input id="clienteCep" type="text" placeholder="00000-000" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteEndereco">Logradouro</label>
+                <input id="clienteEndereco" type="text" placeholder="Rua, avenida, etc." readonly />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteNumero">Numero</label>
+                <input id="clienteNumero" type="text" placeholder="Numero" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteComplemento">Complemento</label>
+                <input id="clienteComplemento" type="text" placeholder="Apartamento, bloco, etc." />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteBairro">Bairro</label>
+                <input id="clienteBairro" type="text" readonly />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteCidade">Cidade</label>
+                <input id="clienteCidade" type="text" readonly />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteEstado">Estado</label>
+                <input id="clienteEstado" type="text" readonly />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteTempoResidencia">Tempo de residencia</label>
+                <input id="clienteTempoResidencia" type="text" placeholder="Anos de residencia" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteSituacaoMoradia">Situacao de moradia</label>
+                <select id="clienteSituacaoMoradia" class="tl-clientes-select">
+                  <option value="">Selecione</option>
+                  <option>Proprio</option>
+                  <option>Alugado</option>
+                  <option>Financiado</option>
+                  <option>Cedido</option>
+                  <option>Outro</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="tl-clientes-card">
+            <h3>Renda familiar</h3>
+            <div class="tl-clientes-grid">
+              <div class="tl-imoveis-field">
+                <label for="clienteRendaPrincipal">Renda principal</label>
+                <input id="clienteRendaPrincipal" type="text" placeholder="R$ 0,00" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteRendaConjuge">Renda conjuge</label>
+                <input id="clienteRendaConjuge" type="text" placeholder="R$ 0,00" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteOutrasRendas">Outras rendas</label>
+                <input id="clienteOutrasRendas" type="text" placeholder="R$ 0,00" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteRendaTotal">Renda familiar total</label>
+                <input id="clienteRendaTotal" type="text" placeholder="R$ 0,00" readonly aria-readonly="true" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteRendaFormal">Renda formal</label>
+                <input id="clienteRendaFormal" type="text" placeholder="R$ 0,00" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteRendaInformal">Renda informal</label>
+                <input id="clienteRendaInformal" type="text" placeholder="R$ 0,00" />
+              </div>
+            </div>
+          </section>
+
+          <section class="tl-clientes-card">
+            <h3>Perfil familiar</h3>
+            <div class="tl-clientes-grid">
+              <div class="tl-imoveis-field">
+                <label for="clienteMoradores">Numero de moradores</label>
+                <input id="clienteMoradores" type="text" inputmode="numeric" placeholder="0" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteDependentes">Dependentes</label>
+                <input id="clienteDependentes" type="text" inputmode="numeric" placeholder="0" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteFilhos">Numero de filhos</label>
+                <input id="clienteFilhos" type="text" inputmode="numeric" placeholder="0" />
+              </div>
+            </div>
+          </section>
+
+          <section class="tl-clientes-card">
+            <h3>Profissao e ocupacao</h3>
+            <div class="tl-clientes-grid">
+              <div class="tl-imoveis-field">
+                <label for="clienteProfissao">Profissao</label>
+                <input id="clienteProfissao" type="text" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteEmpresa">Empresa atual</label>
+                <input id="clienteEmpresa" type="text" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteCargo">Cargo</label>
+                <input id="clienteCargo" type="text" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteTempoEmprego">Tempo de emprego</label>
+                <input id="clienteTempoEmprego" type="text" placeholder="Anos de emprego" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteTipoContrato">Tipo de contrato</label>
+                <select id="clienteTipoContrato" class="tl-clientes-select">
+                  <option value="">Selecione</option>
+                  <option>CLT</option>
+                  <option>PJ</option>
+                  <option>Autonomo</option>
+                  <option>Empresario</option>
+                  <option>Aposentado</option>
+                  <option>Pensionista</option>
+                  <option>Informal</option>
+                  <option>Outro</option>
+                </select>
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteEscolaridade">Escolaridade</label>
+                <select id="clienteEscolaridade" class="tl-clientes-select">
+                  <option value="">Selecione</option>
+                  <option>Fundamental</option>
+                  <option>Medio</option>
+                  <option>Tecnico</option>
+                  <option>Superior</option>
+                  <option>Pos-graduacao</option>
+                  <option>Outro</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="tl-clientes-card">
+            <h3>Patrimonio e obrigacoes</h3>
+            <div class="tl-clientes-grid">
+              <div class="tl-imoveis-field">
+                <label for="clienteImovelProprio">Possui imovel proprio?</label>
+                <select id="clienteImovelProprio" class="tl-clientes-select">
+                  <option value="">Selecione</option>
+                  <option>Sim</option>
+                  <option>Nao</option>
+                </select>
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteVeiculo">Possui veiculo?</label>
+                <select id="clienteVeiculo" class="tl-clientes-select">
+                  <option value="">Selecione</option>
+                  <option>Sim</option>
+                  <option>Nao</option>
+                </select>
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteFinanciamentos">Financiamentos em andamento</label>
+                <input id="clienteFinanciamentos" type="text" placeholder="Descreva" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteCartaoCredito">Cartao de credito</label>
+                <input id="clienteCartaoCredito" type="text" placeholder="Limite total" />
+              </div>
+            </div>
+          </section>
+
+          <section class="tl-clientes-card">
+            <h3>Despesas mensais</h3>
+            <div class="tl-clientes-grid">
+              <div class="tl-imoveis-field">
+                <label for="clienteAluguel">Aluguel / financiamento atual</label>
+                <input id="clienteAluguel" type="text" placeholder="R$ 0,00" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteDespesasFixas">Despesas fixas</label>
+                <input id="clienteDespesasFixas" type="text" placeholder="R$ 0,00" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="clienteDespesasVariaveis">Despesas variaveis</label>
+                <input id="clienteDespesasVariaveis" type="text" placeholder="R$ 0,00" />
+              </div>
+            </div>
+          </section>
+
+          <section class="tl-clientes-card">
+            <h3>Documentacao e observacoes</h3>
+            <div class="tl-clientes-grid">
+              <div class="tl-imoveis-field">
+                <label for="clienteStatusDocumental">Status documental</label>
+                <select id="clienteStatusDocumental" class="tl-clientes-select">
+                  <option value="">Selecione</option>
+                  <option>Completa</option>
+                  <option>Pendente</option>
+                  <option>Em analise</option>
+                  <option>Inconsistente</option>
+                </select>
+              </div>
+              <div class="tl-imoveis-field tl-clientes-field--full">
+                <label for="clienteDocumentacaoPendente">Documentacao pendente</label>
+                <textarea id="clienteDocumentacaoPendente" rows="3" placeholder="Liste os documentos pendentes para este cliente."></textarea>
+              </div>
+              <div class="tl-imoveis-field tl-clientes-field--full">
+                <label for="clienteObservacoes">Notas do corretor</label>
+                <textarea id="clienteObservacoes" rows="5" placeholder="Registre detalhes importantes sobre o cliente."></textarea>
+              </div>
+            </div>
+          </section>
+
+          <section class="tl-clientes-card tl-clientes-card--composicao" id="clienteComposicaoSection">
+            <div class="tl-clientes-composicao__head">
+              <div>
+                <h3>Composicao familiar</h3>
+                <p id="clientesComposicaoResumo" class="tl-clientes-composicao__summary">Salve o cliente para habilitar a composicao familiar vinculada.</p>
+              </div>
+              <button id="btnAdicionarComposicao" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Adicionar composicao familiar</button>
+            </div>
+            <div id="clientesComposicaoLista" class="tl-clientes-composicao__lista"></div>
+          </section>
+
+          <div id="clientesFeedback" class="tl-clientes-feedback" aria-live="polite"></div>
+          <div class="tl-clientes-actions">
+            <button id="btnSalvarCliente" class="tl-imoveis-btn" type="button">Salvar cadastro</button>
+            <button class="tl-imoveis-btn tl-imoveis-btn--secondary" type="reset">Limpar</button>
+          </div>
+            </form>
+          </div>
+        </div>
+
+        <div id="clientesComposicaoModal" class="tl-clientes-modal" hidden aria-hidden="true">
+          <div class="tl-clientes-modal__backdrop" data-action="fechar-composicao"></div>
+          <div class="tl-clientes-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="clientesComposicaoTitulo">
+            <form id="clientesComposicaoForm" class="tl-clientes-form" novalidate>
+              <section class="tl-clientes-form-topbar">
+                <div>
+                  <span class="tl-imoveis-eyebrow mono-font">COMPOSICAO FAMILIAR</span>
+                  <h3 id="clientesComposicaoTitulo">Novo membro vinculado</h3>
+                </div>
+                <button id="btnFecharComposicao" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Fechar</button>
+              </section>
+
+              <section class="tl-clientes-card">
+                <h3>Dados pessoais</h3>
+                <div class="tl-clientes-grid">
+                  <div class="tl-imoveis-field">
+                    <label for="membroNome">Nome completo</label>
+                    <input id="membroNome" type="text" placeholder="Nome completo" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroCpf">CPF</label>
+                    <input id="membroCpf" type="text" placeholder="000.000.000-00" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroRg">RG</label>
+                    <input id="membroRg" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroNascimento">Data de nascimento</label>
+                    <input id="membroNascimento" type="text" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroSexo">Sexo</label>
+                    <select id="membroSexo" class="tl-clientes-select">
+                      <option value="">Selecione</option>
+                      <option>Feminino</option>
+                      <option>Masculino</option>
+                      <option>Nao informado</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroParentesco">Parentesco</label>
+                    <select id="membroParentesco" class="tl-clientes-select">
+                      <option value="">Selecione</option>
+                      <option>Conjuge</option>
+                      <option>Companheiro(a)</option>
+                      <option>Filho(a)</option>
+                      <option>Pai</option>
+                      <option>Mae</option>
+                      <option>Irmao(ã)</option>
+                      <option>Outro</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroEstadoCivil">Estado civil</label>
+                    <select id="membroEstadoCivil" class="tl-clientes-select">
+                      <option value="">Selecione</option>
+                      <option>Solteiro</option>
+                      <option>Casado</option>
+                      <option>Uniao estavel</option>
+                      <option>Divorciado</option>
+                      <option>Viuvo</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroNacionalidade">Nacionalidade</label>
+                    <input id="membroNacionalidade" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroNomeMae">Nome da mae</label>
+                    <input id="membroNomeMae" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroNomePai">Nome do pai</label>
+                    <input id="membroNomePai" type="text" />
+                  </div>
+                </div>
+              </section>
+
+              <section class="tl-clientes-card">
+                <h3>Contato e endereco</h3>
+                <div class="tl-clientes-grid">
+                  <div class="tl-imoveis-field">
+                    <label for="membroTelefone">Telefone</label>
+                    <input id="membroTelefone" type="text" placeholder="(00) 0000-0000" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroCelular">Celular</label>
+                    <input id="membroCelular" type="text" placeholder="(00) 00000-0000" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroEmail">E-mail</label>
+                    <input id="membroEmail" type="email" placeholder="email@dominio.com" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroMoraComCliente">Mora com cliente principal?</label>
+                    <select id="membroMoraComCliente" class="tl-clientes-select">
+                      <option value="false" selected>Nao</option>
+                      <option value="true">Sim</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroUsarEnderecoCliente">Usar endereco do cliente principal?</label>
+                    <select id="membroUsarEnderecoCliente" class="tl-clientes-select">
+                      <option value="false" selected>Nao</option>
+                      <option value="true">Sim</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroCep">CEP</label>
+                    <input id="membroCep" type="text" placeholder="00000-000" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroLogradouro">Logradouro</label>
+                    <input id="membroLogradouro" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroNumero">Numero</label>
+                    <input id="membroNumero" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroComplemento">Complemento</label>
+                    <input id="membroComplemento" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroBairro">Bairro</label>
+                    <input id="membroBairro" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroCidade">Cidade</label>
+                    <input id="membroCidade" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroEstado">Estado</label>
+                    <input id="membroEstado" type="text" />
+                  </div>
+                </div>
+              </section>
+
+              <section class="tl-clientes-card">
+                <h3>Renda, analise e documentacao</h3>
+                <div class="tl-clientes-grid">
+                  <div class="tl-imoveis-field">
+                    <label for="membroRendaMensal">Renda mensal</label>
+                    <input id="membroRendaMensal" type="text" placeholder="R$ 0,00" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroOutrasRendas">Outras rendas</label>
+                    <input id="membroOutrasRendas" type="text" placeholder="R$ 0,00" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroRendaTotal">Renda total considerada</label>
+                    <input id="membroRendaTotal" type="text" placeholder="R$ 0,00" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroProfissao">Profissao</label>
+                    <input id="membroProfissao" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroOcupacao">Ocupacao</label>
+                    <input id="membroOcupacao" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroEmpresaAtual">Empresa atual</label>
+                    <input id="membroEmpresaAtual" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroCargo">Cargo</label>
+                    <input id="membroCargo" type="text" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroTempoEmprego">Tempo de emprego (anos)</label>
+                    <input id="membroTempoEmprego" type="text" placeholder="0" />
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroTipoContrato">Tipo de contrato</label>
+                    <select id="membroTipoContrato" class="tl-clientes-select">
+                      <option value="">Selecione</option>
+                      <option>Registrado</option>
+                      <option>Autonomo</option>
+                      <option>Empresario</option>
+                      <option>Aposentado</option>
+                      <option>Pensionista</option>
+                      <option>Informal</option>
+                      <option>Outro</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroEscolaridade">Escolaridade</label>
+                    <select id="membroEscolaridade" class="tl-clientes-select">
+                      <option value="">Selecione</option>
+                      <option>Fundamental</option>
+                      <option>Medio</option>
+                      <option>Tecnico</option>
+                      <option>Superior</option>
+                      <option>Pos-graduacao</option>
+                      <option>Outro</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroSituacaoMoradia">Situacao de moradia</label>
+                    <select id="membroSituacaoMoradia" class="tl-clientes-select">
+                      <option value="">Selecione</option>
+                      <option>Proprio</option>
+                      <option>Alugado</option>
+                      <option>Financiado</option>
+                      <option>Cedido</option>
+                      <option>Outro</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroCompoeRenda">Compoe renda?</label>
+                    <select id="membroCompoeRenda" class="tl-clientes-select">
+                      <option value="true" selected>Sim</option>
+                      <option value="false">Nao</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroIncluirAnalise">Incluir na analise?</label>
+                    <select id="membroIncluirAnalise" class="tl-clientes-select">
+                      <option value="true" selected>Sim</option>
+                      <option value="false">Nao</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroIncluirFinanceira">Incluir na composicao financeira?</label>
+                    <select id="membroIncluirFinanceira" class="tl-clientes-select">
+                      <option value="true" selected>Sim</option>
+                      <option value="false">Nao</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroIncluirConfissao">Incluir na confissao de divida?</label>
+                    <select id="membroIncluirConfissao" class="tl-clientes-select">
+                      <option value="false" selected>Nao</option>
+                      <option value="true">Sim</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroResponsavelDocumentacao">Responsavel por documentacao?</label>
+                    <select id="membroResponsavelDocumentacao" class="tl-clientes-select">
+                      <option value="false" selected>Nao</option>
+                      <option value="true">Sim</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroPrincipalComprador">Principal comprador?</label>
+                    <select id="membroPrincipalComprador" class="tl-clientes-select">
+                      <option value="false" selected>Nao</option>
+                      <option value="true">Sim</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroAtivo">Membro ativo?</label>
+                    <select id="membroAtivo" class="tl-clientes-select">
+                      <option value="true" selected>Sim</option>
+                      <option value="false">Nao</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field">
+                    <label for="membroStatusDocumental">Status documental</label>
+                    <select id="membroStatusDocumental" class="tl-clientes-select">
+                      <option value="">Selecione</option>
+                      <option>Completa</option>
+                      <option>Pendente</option>
+                      <option>Em analise</option>
+                      <option>Inconsistente</option>
+                    </select>
+                  </div>
+                  <div class="tl-imoveis-field tl-clientes-field--full">
+                    <label for="membroDocumentacaoPendente">Documentacao pendente</label>
+                    <textarea id="membroDocumentacaoPendente" rows="3" placeholder="Liste os documentos pendentes deste membro."></textarea>
+                  </div>
+                  <div class="tl-imoveis-field tl-clientes-field--full">
+                    <label for="membroObservacoes">Observacoes do corretor</label>
+                    <textarea id="membroObservacoes" rows="4" placeholder="Observacoes sobre este membro da composicao."></textarea>
+                  </div>
+                </div>
+              </section>
+
+              <div id="clientesComposicaoFeedback" class="tl-clientes-feedback" aria-live="polite"></div>
+              <div class="tl-clientes-actions">
+                <button id="btnSalvarComposicao" class="tl-imoveis-btn" type="submit">Salvar membro</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/02_recursos/02_scripts/operacoes_shared.js?v=20260401-textfix2"></script>
+  <script src="/02_recursos/02_scripts/clientes_cadastro.js?v=20260405-clientes-lista-editar1"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.SevenLMConnectOperacoes && window.SevenLMConnectOperacoes.initChrome) {
+        window.SevenLMConnectOperacoes.initChrome();
+      }
+    });
+  </script>
+</body>
+</html>
+
+

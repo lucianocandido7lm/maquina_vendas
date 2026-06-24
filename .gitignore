@@ -1,0 +1,43 @@
+# Environment and secrets
+.env
+.env.*
+**/.env
+**/.env.*
+
+# VCS / editor
+**/.git/
+**/.DS_Store
+
+# Dependencies and build caches
+**/node_modules/
+**/.npm/
+**/.cache/
+**/__pycache__/
+**/.venv/
+**/venv/
+
+# Framework/build outputs
+**/.next/
+**/dist/
+**/build/
+**/coverage/
+
+# Logs
+*.log
+
+# Archives and backups
+**/backups/
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+
+# Release artifacts
+**/releases/
+
+# Local machine/runtime folders that should not go to remote
+7lm-connect/tela-corretor-integrado/
+7lm-connect/portal/03_registros/segredos/
+gente-e-cultura/
+totvs_airflow/

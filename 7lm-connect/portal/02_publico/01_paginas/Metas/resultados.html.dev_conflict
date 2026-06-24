@@ -1,0 +1,184 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR" data-preload-root-classes="tl-metas-gated">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Abertura e Objetivos</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/inicio.css?v=20260425-modulos-qa1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/metas_resultados.css?v=20260520-api-indicadores-1" />
+
+  <meta name="sevenlm-connect-api-base-url" content="" />
+  <meta name="sevenlm-connect-local-fallback" content="off" />
+  <meta name="sevenlm-connect-metas-data-mode" content="api" />
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <meta name="sevenlm-connect-required-permission" content="metas.resultados.view" />
+  <meta name="sevenlm-connect-access-fallback" content="/inicio" />
+  <meta name="sevenlm-connect-endpoint-metas-referencias" content="/api/metas/referencias" />
+  <meta name="sevenlm-connect-endpoint-metas-indicadores" content="/api/metas/indicadores" />
+  <meta name="sevenlm-connect-endpoint-metas-corretores" content="/api/metas/corretores" />
+  <meta name="sevenlm-connect-endpoint-metas-gestores" content="/api/metas/gestores" />
+  <meta name="sevenlm-connect-endpoint-metas-gerenciais" content="/api/metas/gerenciais" />
+  <meta name="sevenlm-connect-endpoint-metas-regionais" content="/api/metas/regionais" />
+  <meta name="sevenlm-connect-endpoint-resultados-metas" content="/api/resultados/metas" />
+  <meta name="sevenlm-connect-endpoint-metas-historico" content="/api/metas/historico" />
+  <meta name="sevenlm-connect-endpoint-metas-importacao-preview" content="/api/metas/importacao/preview" />
+  <meta name="sevenlm-connect-endpoint-metas-importacao-confirmar" content="/api/metas/importacao/confirmar" />
+
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260520-admin-release-1" defer></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260513-title-modules-1" defer></script>
+  <script src="/02_recursos/02_scripts/metas_resultados.js?v=20260520-api-indicadores-1" defer></script>
+</head>
+<body class="tl-metas-page">
+  <div class="tl-shell tl-metas-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-metas-main">
+      <header class="tl-metas-hero">
+        <div class="tl-metas-hero__copy">
+          <span class="tl-metas-eyebrow">MÃQUINA DE VENDAS | GESTÃƒO COMERCIAL</span>
+          <h1>Abertura e Objetivos</h1>
+          <p>Cadastre metas com versionamento, acompanhe resultado por indicador e consulte auditoria sem perder o contexto comercial.</p>
+        </div>
+        <div class="tl-metas-userbox">
+          <button id="btnTema" class="tl-metas-icon-btn" type="button" aria-label="Alternar tema">â—</button>
+          <div class="tl-metas-user">
+            <div class="tl-metas-user__avatar" id="userInitials">7L</div>
+            <div class="tl-metas-user__copy">
+              <strong id="nomeUsuario">Carregando...</strong>
+              <span id="metaUsuario">Validando acesso...</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="tl-metas-tabs" aria-label="NavegaÃ§Ã£o do mÃ³dulo">
+        <a href="/metas/corretores" data-tab="corretores">Metas dos Corretores</a>
+        <a href="/metas/gestores" data-tab="gestores">Metas dos Gestores</a>
+        <a href="/metas/regionais" data-tab="regionais">Metas Regionais</a>
+        <a href="/metas/gerenciais" data-tab="gerenciais">Metas Gerenciais</a>
+        <a href="/metas/historico" data-tab="historico">HistÃ³rico</a>
+        <a href="/metas/indicadores" data-tab="indicadores">Indicadores</a>
+      </section>
+
+      <section class="tl-metas-filterbar">
+        <label>MÃªs <select id="filtroMes"></select></label>
+        <label>Ano <input id="filtroAno" type="number" min="2020" max="2100" /></label>
+        <label>Equipe <select id="filtroEquipe"><option value="">Todas</option></select></label>
+        <label>Gestor <select id="filtroGestor"><option value="">Todos</option></select></label>
+        <label>Corretor <select id="filtroCorretor"><option value="">Todos</option></select></label>
+        <label>Indicador <select id="filtroIndicador"><option value="">Todos</option></select></label>
+        <button id="btnAplicarFiltros" type="button">Aplicar filtros</button>
+      </section>
+
+      <section id="feedbackMetas" class="tl-metas-feedback" aria-live="polite"></section>
+
+      <section id="viewIndicadores" class="tl-metas-view" data-view="indicadores" hidden>
+        <article class="tl-metas-panel">
+          <div class="tl-metas-panel__head">
+            <span>CADASTRO</span>
+            <h2>Indicadores</h2>
+            <button class="tl-metas-primary" type="button" data-open-form="indicador">Novo indicador</button>
+          </div>
+          <div id="tabelaIndicadores" class="tl-metas-table"></div>
+        </article>
+      </section>
+
+      <section id="viewCorretores" class="tl-metas-view" data-view="corretores">
+        <div class="tl-metas-kpis">
+          <article><span>Com meta</span><strong id="kpiCorretoresComMeta">0</strong></article>
+          <article><span>Sem meta</span><strong id="kpiCorretoresSemMeta">0</strong></article>
+          <article><span>Metas cadastradas</span><strong id="kpiCorretoresMetas">0</strong></article>
+          <article><span>Ãšltimo dia para alterar</span><strong id="kpiPrazoAlteracao">-</strong></article>
+        </div>
+
+        <article class="tl-metas-panel">
+          <div class="tl-metas-panel__head">
+            <span>INPUT</span>
+            <h2>Metas dos corretores</h2>
+            <button class="tl-metas-primary" type="button" data-open-form="corretor">Cadastrar meta</button>
+          </div>
+          <p class="tl-metas-hint">Ao salvar, a meta anterior serÃ¡ encerrada e uma nova versÃ£o serÃ¡ criada.</p>
+          <div id="tabelaCorretores" class="tl-metas-table"></div>
+        </article>
+      </section>
+
+      <section id="viewGestores" class="tl-metas-view" data-view="gestores" hidden>
+        <div class="tl-metas-kpis">
+          <article><span>Total de gestores</span><strong id="kpiGestoresTotal">0</strong></article>
+          <article><span>Meta manual</span><strong id="kpiGestoresManual">0</strong></article>
+          <article><span>Meta automÃ¡tica</span><strong id="kpiGestoresAuto">0</strong></article>
+          <article><span>Total oficial</span><strong id="kpiGestoresOficial">0</strong></article>
+        </div>
+        <article class="tl-metas-panel">
+          <div class="tl-metas-panel__head">
+            <span>GESTÃƒO</span>
+            <h2>Metas dos gestores</h2>
+            <button class="tl-metas-primary" type="button" data-open-form="gestor">Cadastrar meta manual</button>
+          </div>
+          <div id="tabelaGestores" class="tl-metas-table"></div>
+        </article>
+      </section>
+
+      <section id="viewGerenciais" class="tl-metas-view" data-view="gerenciais" hidden>
+        <article class="tl-metas-panel">
+          <div class="tl-metas-panel__head">
+            <span>GERENCIAL</span>
+            <h2>Empreendimento e global</h2>
+            <button class="tl-metas-primary" type="button" data-open-form="gerencial">Nova meta gerencial</button>
+          </div>
+          <div id="tabelaGerenciais" class="tl-metas-table"></div>
+        </article>
+      </section>
+
+      <section id="viewRegionais" class="tl-metas-view" data-view="regionais" hidden>
+        <article class="tl-metas-panel">
+          <div class="tl-metas-panel__head">
+            <span>REGIONAL</span>
+            <h2>Metas regionais</h2>
+            <button class="tl-metas-primary" type="button" data-open-form="regional">Nova meta regional</button>
+          </div>
+          <div id="tabelaRegionais" class="tl-metas-table"></div>
+        </article>
+      </section>
+
+      <section id="viewHistorico" class="tl-metas-view" data-view="historico" hidden>
+        <article class="tl-metas-panel">
+          <div class="tl-metas-panel__head">
+            <span>AUDITORIA</span>
+            <h2>HistÃ³rico de alteraÃ§Ãµes</h2>
+          </div>
+          <div class="tl-metas-audit-filters">
+            <label>Tipo de meta
+              <select id="filtroHistoricoTipo">
+                <option value="">Todos</option>
+                <option value="COLABORADOR">Colaborador</option>
+                <option value="GERENCIAL">Gerencial</option>
+              </select>
+            </label>
+            <label>AÃ§Ã£o
+              <select id="filtroHistoricoAcao">
+                <option value="">Todas</option>
+                <option value="CRIACAO">CriaÃ§Ã£o</option>
+                <option value="ALTERACAO">AlteraÃ§Ã£o</option>
+                <option value="INATIVACAO">InativaÃ§Ã£o</option>
+                <option value="REATIVACAO">ReativaÃ§Ã£o</option>
+              </select>
+            </label>
+            <label>UsuÃ¡rio que alterou
+              <select id="filtroHistoricoUsuario"><option value="">Todos</option></select>
+            </label>
+          </div>
+          <div id="tabelaHistorico" class="tl-metas-table"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div id="modalMetas" class="tl-metas-modal" hidden></div>
+</body>
+</html>

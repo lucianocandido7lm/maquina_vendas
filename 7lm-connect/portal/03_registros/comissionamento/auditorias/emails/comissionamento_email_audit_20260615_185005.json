@@ -1,0 +1,1206 @@
+{
+  "run_id": "20260615185005",
+  "ciclo": "2026-06-fluxo-manual",
+  "modo_execucao": "dry_run",
+  "provider_configurado": {
+    "provider": "microsoft_graph",
+    "modo": "teste_allowlist",
+    "send_enabled_env": true,
+    "provider_env": "microsoft_graph",
+    "allowlist": [
+      "automacaoprocessos@7lm.com.br",
+      "hudson.porto@7lm.com.br",
+      "inovacao@7lm.com.br"
+    ],
+    "destinatario_forcado": "hudson.porto@7lm.com.br"
+  },
+  "dados_teste": {
+    "reset_inicial": {
+      "ciclo_id": "2026-06-fluxo-manual",
+      "fonte": "copias isoladas de identidades reais do ciclo 2026-06",
+      "decisoes_aplicadas": {
+        "aprovador": "perfil configuravel por ciclo",
+        "valores_email": "somente no portal autenticado",
+        "destino_financeiro": "individual e pacote consolidado",
+        "prazo_nf_dias": 2,
+        "disparo_manual": "apenas Secretaria",
+        "escopo_produtivo": "2026-06"
+      },
+      "resumo": {
+        "resultados": 13,
+        "pjs_autonomos": 13,
+        "clt": 0,
+        "em_secretaria": 5,
+        "em_aprovacao": 3,
+        "aguardando_nf": 3,
+        "pagamento": 2
+      },
+      "eventos": 13,
+      "filas_email_controladas": 0,
+      "comissoes": [
+        {
+          "cenario": "calculo_base",
+          "resultado_id": "manual-2026-06-calculo-base",
+          "codigo_comissao": "COM-202606-95EFCE",
+          "nome": "ROBSON - Teste Calculo Base",
+          "status": "calculado",
+          "status_nf": "pendente_nf",
+          "status_financeiro": "nao_enviado",
+          "status_pagamento": "nao_enviado",
+          "acoes_permitidas": [
+            "enviar_head",
+            "solicitar_ajuste"
+          ],
+          "evento_id": "6c82eb58-e603-4c1b-9e15-1bab95c21497",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao inicial em Calculada/Revisao para testar fluxo completo ate NF e retorno por revisao/recalculo."
+        },
+        {
+          "cenario": "revisao_nf",
+          "resultado_id": "manual-2026-06-revisao-nf",
+          "codigo_comissao": "COM-202606-92F0A5",
+          "nome": "FRANCISCO - Teste Revisao NF",
+          "status": "revisao_necessaria",
+          "status_nf": "pendente_nf",
+          "status_financeiro": "nao_enviado",
+          "status_pagamento": "nao_enviado",
+          "acoes_permitidas": [
+            "enviar_head",
+            "solicitar_ajuste"
+          ],
+          "evento_id": "37a6c9fb-cfbd-42a6-9768-3febf6bf97b4",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao inicial em Revisao necessaria para testar retorno da etapa de NF para Secretaria."
+        },
+        {
+          "cenario": "rejeicao_comercial",
+          "resultado_id": "manual-2026-06-rejeicao-comercial",
+          "codigo_comissao": "COM-202606-AD17C8",
+          "nome": "JOSUÉ - Teste Rejeicao Comercial",
+          "status": "aguardando_head_comercial",
+          "status_nf": "pendente_nf",
+          "status_financeiro": "nao_enviado",
+          "status_pagamento": "nao_enviado",
+          "acoes_permitidas": [
+            "aprovar_head",
+            "rejeitar",
+            "solicitar_ajuste"
+          ],
+          "evento_id": "95351f4d-b795-4c3b-b800-39de496dda30",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao inicial em Calculada/Revisao para testar reprovar/devolver pela Aprovacao Comercial."
+        },
+        {
+          "cenario": "aprovacao_comercial",
+          "resultado_id": "manual-2026-06-refazer-calculo-comercial",
+          "codigo_comissao": "COM-202606-58823B",
+          "nome": "ANA CLEIA - Teste Aprovacao Comercial",
+          "status": "aguardando_head_comercial",
+          "status_nf": "pendente_nf",
+          "status_financeiro": "nao_enviado",
+          "status_pagamento": "nao_enviado",
+          "acoes_permitidas": [
+            "aprovar_head",
+            "rejeitar",
+            "solicitar_ajuste"
+          ],
+          "evento_id": "64221df8-ea1c-4e52-9cb7-6781dced40fd",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao aguardando Aprovacao Comercial para demonstrar Aprovar e Reprovar/devolver."
+        },
+        {
+          "cenario": "reabrir_editar_regra",
+          "resultado_id": "manual-2026-06-reabrir-editar-regra",
+          "codigo_comissao": "COM-202606-8ED375",
+          "nome": "THOMAZ - Teste Reabrir Editar Regra",
+          "status": "revisao_necessaria",
+          "status_nf": "pendente_nf",
+          "status_financeiro": "nao_enviado",
+          "status_pagamento": "nao_enviado",
+          "acoes_permitidas": [
+            "enviar_head",
+            "solicitar_ajuste"
+          ],
+          "evento_id": "d8685a9e-a73f-4abd-a3af-976157e3c0e9",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao inicial em Revisao necessaria para testar edicao de regra e retomada da esteira."
+        },
+        {
+          "cenario": "nf_pagamento",
+          "resultado_id": "manual-2026-06-nf-pagamento",
+          "codigo_comissao": "COM-202606-7B10F0",
+          "nome": "JORDAN - Teste NF Pagamento",
+          "status": "aguardando_nf",
+          "status_nf": "solicitada",
+          "status_financeiro": "nao_enviado",
+          "status_pagamento": "nao_enviado",
+          "acoes_permitidas": [
+            "reenviar_lembrete_nf"
+          ],
+          "evento_id": "a5e94b64-bff5-4493-b057-11a42c60f07d",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao inicial em Calculada/Revisao para testar envio de NF e encaminhamento para Pagamento."
+        },
+        {
+          "cenario": "nf_recalculo_recomeca",
+          "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+          "codigo_comissao": "COM-202606-4ED2BC",
+          "nome": "RAFAEL - Teste NF Recalculo Recomeca",
+          "status": "aguardando_nf",
+          "status_nf": "solicitada",
+          "status_financeiro": "nao_enviado",
+          "status_pagamento": "nao_enviado",
+          "acoes_permitidas": [
+            "reenviar_lembrete_nf"
+          ],
+          "evento_id": "5a26edcc-c648-46ba-815f-bb06cf9b7427",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao inicial em Calculada/Revisao para testar recalculo na NF e recomeco do fluxo."
+        },
+        {
+          "cenario": "secretaria_calculada",
+          "resultado_id": "manual-2026-06-secretaria-alana",
+          "codigo_comissao": "COM-202606-F3C731",
+          "nome": "ALANA - Teste Secretaria Alana",
+          "status": "calculado",
+          "status_nf": "pendente_nf",
+          "status_financeiro": "nao_enviado",
+          "status_pagamento": "nao_enviado",
+          "acoes_permitidas": [
+            "enviar_head",
+            "solicitar_ajuste"
+          ],
+          "evento_id": "1a075bd5-c517-4116-8eb9-39340f9d372e",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao calculada na Secretaria para demonstrar fila inicial."
+        },
+        {
+          "cenario": "pagamento",
+          "resultado_id": "manual-2026-06-pagamento-daiana",
+          "codigo_comissao": "COM-202606-EE6FDC",
+          "nome": "DAIANA - Teste Pagamento Daiana",
+          "status": "enviada_pagamento",
+          "status_nf": "recebida",
+          "status_financeiro": "pacote_enviado",
+          "status_pagamento": "aguardando_pagamento",
+          "acoes_permitidas": [],
+          "evento_id": "1f71e582-4995-4f55-936e-aa94f24bc1f7",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao com NF recebida e pacote enviado para pagamento."
+        },
+        {
+          "cenario": "aprovacao_comercial_taveira",
+          "resultado_id": "manual-2026-06-head-taveira",
+          "codigo_comissao": "COM-202606-534051",
+          "nome": "TAVEIRA - Teste Head Taveira",
+          "status": "aguardando_head_comercial",
+          "status_nf": "pendente_nf",
+          "status_financeiro": "nao_enviado",
+          "status_pagamento": "nao_enviado",
+          "acoes_permitidas": [
+            "aprovar_head",
+            "rejeitar",
+            "solicitar_ajuste"
+          ],
+          "evento_id": "dbed7395-de64-4e5f-ac0e-5aee049c2e1b",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao aguardando Aprovacao Comercial para demonstrar fila do gestor."
+        },
+        {
+          "cenario": "aguardando_nf_geisi",
+          "resultado_id": "manual-2026-06-nf-geisi",
+          "codigo_comissao": "COM-202606-43E501",
+          "nome": "GEISI - Teste NF Geisi",
+          "status": "aguardando_nf",
+          "status_nf": "solicitada",
+          "status_financeiro": "nao_enviado",
+          "status_pagamento": "nao_enviado",
+          "acoes_permitidas": [
+            "reenviar_lembrete_nf"
+          ],
+          "evento_id": "9ee8f830-7dbe-4ed8-8bc2-4d99926162bb",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao aguardando envio de Nota Fiscal."
+        },
+        {
+          "cenario": "pagamento_bruno",
+          "resultado_id": "manual-2026-06-pagamento-bruno",
+          "codigo_comissao": "COM-202606-F307CC",
+          "nome": "BRUNO - Teste Pagamento Bruno",
+          "status": "enviada_pagamento",
+          "status_nf": "recebida",
+          "status_financeiro": "pacote_enviado",
+          "status_pagamento": "aguardando_pagamento",
+          "acoes_permitidas": [],
+          "evento_id": "f01168fc-3574-4785-b11f-833744e86f17",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao com NF recebida e em pagamento para demonstrar etapa final."
+        },
+        {
+          "cenario": "secretaria_calculada_luiz",
+          "resultado_id": "manual-2026-06-secretaria-luiz",
+          "codigo_comissao": "COM-202606-30BAE5",
+          "nome": "LUIZ - Teste Secretaria Luiz",
+          "status": "calculado",
+          "status_nf": "pendente_nf",
+          "status_financeiro": "nao_enviado",
+          "status_pagamento": "nao_enviado",
+          "acoes_permitidas": [
+            "enviar_head",
+            "solicitar_ajuste"
+          ],
+          "evento_id": "28b2987e-64dc-4788-aa65-03c0358f137a",
+          "notificacao_id": null,
+          "filas_email": 0,
+          "descricao": "Comissao calculada na Secretaria com valor real do Excel."
+        }
+      ]
+    },
+    "resultado_revisao_nf": "manual-2026-06-revisao-nf",
+    "resultado_rejeicao_comercial": "manual-2026-06-rejeicao-comercial",
+    "resultado_refazer_calculo_comercial": "manual-2026-06-refazer-calculo-comercial",
+    "resultado_reabrir_editar_regra": "manual-2026-06-reabrir-editar-regra",
+    "resultado_nf_pagamento": "manual-2026-06-nf-pagamento",
+    "resultado_nf_recalculo_recomeca": "manual-2026-06-nf-recalculo-recomeca"
+  },
+  "passos": [
+    {
+      "acao": "enviar_head",
+      "resultado_id": "manual-2026-06-revisao-nf",
+      "comissionado": "FRANCISCO - Teste Revisao NF",
+      "template": "head_aprovacao_pendente",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "revisao_necessaria",
+      "status_novo": "aguardando_head_comercial",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "a359d070-9861-4131-b22f-14a59435c1cf",
+        "criado_em": "2026-06-15T18:50:08.099533+00:00"
+      },
+      "notificacao": {
+        "id": "cdd75ecc-78f4-4947-a171-d2a641f9abd5",
+        "evento_notificacao": {
+          "id": "a3d01762-a1de-46c3-b46c-87bd806eb3c0",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-revisao-nf:enviar_head:head_aprovacao_pendente",
+          "tipo_evento": "head_aprovacao_pendente",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-revisao-nf",
+          "criado_em": "2026-06-15T18:50:08.115117+00:00"
+        },
+        "filas": [
+          {
+            "id": "b0932905-4959-4ccd-9240-4a492d4581a8",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "head_aprovacao_pendente",
+            "template_versao": 2
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "b0932905-4959-4ccd-9240-4a492d4581a8",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-24ff542f-494a-462d-a37e-aacf0f8e5fdf"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-revisao-nf:enviar_head:head_aprovacao_pendente",
+      "criado_em": "2026-06-15T18:50:08.205109+00:00"
+    },
+    {
+      "acao": "aprovar_head",
+      "resultado_id": "manual-2026-06-revisao-nf",
+      "comissionado": "FRANCISCO - Teste Revisao NF",
+      "template": "comissionado_nf_solicitada",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_head_comercial",
+      "status_novo": "aguardando_nf",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "solicitada",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "b558f056-8126-4570-be78-f0a7d559752d",
+        "criado_em": "2026-06-15T18:50:08.213255+00:00"
+      },
+      "notificacao": {
+        "id": "931df6c1-7ff8-4b74-90c4-1072970e62cc",
+        "evento_notificacao": {
+          "id": "1a6d6a45-0e66-4cd1-a8f5-e21895c4cdc8",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-revisao-nf:aprovar_head:comissionado_nf_solicitada",
+          "tipo_evento": "comissionado_nf_solicitada",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-revisao-nf",
+          "criado_em": "2026-06-15T18:50:08.219976+00:00"
+        },
+        "filas": [
+          {
+            "id": "6ebb560d-0181-4e73-87a6-52e2c76eecce",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "comissionado_nf_solicitada",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "6ebb560d-0181-4e73-87a6-52e2c76eecce",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-9d64eec9-c43a-4ced-8410-95d54ffd2e64"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-revisao-nf:aprovar_head:comissionado_nf_solicitada",
+      "criado_em": "2026-06-15T18:50:08.267673+00:00"
+    },
+    {
+      "acao": "solicitar_ajuste",
+      "resultado_id": "manual-2026-06-revisao-nf",
+      "comissionado": "FRANCISCO - Teste Revisao NF",
+      "template": "secretaria_ajuste_solicitado",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_nf",
+      "status_novo": "revisao_necessaria",
+      "status_nf_anterior": "solicitada",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "6323df56-113a-4d93-a08e-8ce905267910",
+        "criado_em": "2026-06-15T18:50:08.290982+00:00"
+      },
+      "notificacao": {
+        "id": "dc0d3452-cec2-41e3-97aa-27b4fe795e4d",
+        "evento_notificacao": {
+          "id": "281b3adb-f372-4775-be20-df5e25283579",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-revisao-nf:solicitar_ajuste:secretaria_ajuste_solicitado",
+          "tipo_evento": "secretaria_ajuste_solicitado",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-revisao-nf",
+          "criado_em": "2026-06-15T18:50:08.304862+00:00"
+        },
+        "filas": [
+          {
+            "id": "e132aad1-159c-434d-9f6c-1a23150be7a6",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "secretaria_ajuste_solicitado",
+            "template_versao": 3
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "e132aad1-159c-434d-9f6c-1a23150be7a6",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-ef9651cb-4a70-4b02-bafc-4211d92a05fb"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-revisao-nf:solicitar_ajuste:secretaria_ajuste_solicitado",
+      "criado_em": "2026-06-15T18:50:08.329788+00:00"
+    },
+    {
+      "acao": "enviar_head",
+      "resultado_id": "manual-2026-06-rejeicao-comercial",
+      "comissionado": "JOSUÉ - Teste Rejeicao Comercial",
+      "template": "head_aprovacao_pendente",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_head_comercial",
+      "status_novo": "aguardando_head_comercial",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "ff6b5c75-04b6-4cf0-b3d5-81d364b1c848",
+        "criado_em": "2026-06-15T18:50:08.336920+00:00"
+      },
+      "notificacao": {
+        "id": "08f9662d-d32f-4b50-8a88-bf43d3ce62ea",
+        "evento_notificacao": {
+          "id": "4554947d-b24f-4b7b-854e-a07e8045f1a8",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-rejeicao-comercial:enviar_head:head_aprovacao_pendente",
+          "tipo_evento": "head_aprovacao_pendente",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-rejeicao-comercial",
+          "criado_em": "2026-06-15T18:50:08.363881+00:00"
+        },
+        "filas": [
+          {
+            "id": "6afbdac5-cf59-4d36-b234-6aa69ac7dec3",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "head_aprovacao_pendente",
+            "template_versao": 2
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "6afbdac5-cf59-4d36-b234-6aa69ac7dec3",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-de327e05-ba60-48e2-bbc0-7b5a0b70a536"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-rejeicao-comercial:enviar_head:head_aprovacao_pendente",
+      "criado_em": "2026-06-15T18:50:08.388824+00:00"
+    },
+    {
+      "acao": "rejeitar",
+      "resultado_id": "manual-2026-06-rejeicao-comercial",
+      "comissionado": "JOSUÉ - Teste Rejeicao Comercial",
+      "template": "secretaria_rejeicao_head",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_head_comercial",
+      "status_novo": "revisao_necessaria",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "d750c90f-6f1b-4965-ab81-a5edd341fc8a",
+        "criado_em": "2026-06-15T18:50:08.397196+00:00"
+      },
+      "notificacao": {
+        "id": "58ebf1af-77b3-4b82-9b53-550965716497",
+        "evento_notificacao": {
+          "id": "e2a72c15-712e-4d1d-8b7f-d6ab1e341638",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-rejeicao-comercial:rejeitar:secretaria_rejeicao_head",
+          "tipo_evento": "secretaria_rejeicao_head",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-rejeicao-comercial",
+          "criado_em": "2026-06-15T18:50:08.403922+00:00"
+        },
+        "filas": [
+          {
+            "id": "c1ae8720-4964-4cbe-9ee0-3fa855365b27",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "secretaria_rejeicao_head",
+            "template_versao": 2
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "c1ae8720-4964-4cbe-9ee0-3fa855365b27",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-6f764aec-844f-4617-a803-0a567c77cb35"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-rejeicao-comercial:rejeitar:secretaria_rejeicao_head",
+      "criado_em": "2026-06-15T18:50:08.427353+00:00"
+    },
+    {
+      "acao": "enviar_head",
+      "resultado_id": "manual-2026-06-refazer-calculo-comercial",
+      "comissionado": "ANA CLEIA - Teste Aprovacao Comercial",
+      "template": "head_aprovacao_pendente",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_head_comercial",
+      "status_novo": "aguardando_head_comercial",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "6c99ee36-673c-4581-9de8-8910af724779",
+        "criado_em": "2026-06-15T18:50:08.433733+00:00"
+      },
+      "notificacao": {
+        "id": "dbc50de5-1d59-455e-bb08-bd0b114cd8c9",
+        "evento_notificacao": {
+          "id": "04a36294-a565-47f4-9356-bd27b2ab633b",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-refazer-calculo-comercial:enviar_head:head_aprovacao_pendente",
+          "tipo_evento": "head_aprovacao_pendente",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-refazer-calculo-comercial",
+          "criado_em": "2026-06-15T18:50:08.439678+00:00"
+        },
+        "filas": [
+          {
+            "id": "e649afc0-b08e-48fc-88b5-9d01bf8496ef",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "head_aprovacao_pendente",
+            "template_versao": 2
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "e649afc0-b08e-48fc-88b5-9d01bf8496ef",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-c676a249-402c-44f1-bf09-6c73464e6ca9"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-refazer-calculo-comercial:enviar_head:head_aprovacao_pendente",
+      "criado_em": "2026-06-15T18:50:08.461093+00:00"
+    },
+    {
+      "acao": "solicitar_ajuste",
+      "resultado_id": "manual-2026-06-refazer-calculo-comercial",
+      "comissionado": "ANA CLEIA - Teste Aprovacao Comercial",
+      "template": "secretaria_ajuste_solicitado",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_head_comercial",
+      "status_novo": "revisao_necessaria",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "0328d12e-1e51-4a92-8f9d-04174e5268eb",
+        "criado_em": "2026-06-15T18:50:08.467856+00:00"
+      },
+      "notificacao": {
+        "id": "d3ed32a9-41c3-486f-a028-6afc85ae9b42",
+        "evento_notificacao": {
+          "id": "a038c97c-3b7c-47a8-bd0a-db2ae845ab45",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-refazer-calculo-comercial:solicitar_ajuste:secretaria_ajuste_solicitado",
+          "tipo_evento": "secretaria_ajuste_solicitado",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-refazer-calculo-comercial",
+          "criado_em": "2026-06-15T18:50:08.473225+00:00"
+        },
+        "filas": [
+          {
+            "id": "38262794-1b87-4d62-b816-ec89e69fb0e7",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "secretaria_ajuste_solicitado",
+            "template_versao": 3
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "38262794-1b87-4d62-b816-ec89e69fb0e7",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-814a0562-80a4-4129-822e-6d5a0951cefa"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-refazer-calculo-comercial:solicitar_ajuste:secretaria_ajuste_solicitado",
+      "criado_em": "2026-06-15T18:50:08.497164+00:00"
+    },
+    {
+      "acao": "editar_regra_01",
+      "resultado_id": "manual-2026-06-reabrir-editar-regra",
+      "comissionado": "THOMAZ - Teste Reabrir Editar Regra",
+      "template": "sem_email",
+      "destinatario": null,
+      "status_anterior": "revisao_necessaria",
+      "status_novo": "calculado",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "2909a826-efe6-422f-ab86-e20b0213e2e7",
+        "criado_em": "2026-06-15T18:50:08.502695+00:00"
+      },
+      "notificacao": null,
+      "filas_processadas": [],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-reabrir-editar-regra:editar_regra_01:sem_email",
+      "criado_em": "2026-06-15T18:50:08.503398+00:00"
+    },
+    {
+      "acao": "enviar_head",
+      "resultado_id": "manual-2026-06-reabrir-editar-regra",
+      "comissionado": "THOMAZ - Teste Reabrir Editar Regra",
+      "template": "head_aprovacao_pendente",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "calculado",
+      "status_novo": "aguardando_head_comercial",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "29d4a81a-708c-421d-afe8-a3b1f93aca54",
+        "criado_em": "2026-06-15T18:50:08.508712+00:00"
+      },
+      "notificacao": {
+        "id": "50a966fb-6004-431e-8e67-8fba079eb6a9",
+        "evento_notificacao": {
+          "id": "dcb0c631-f408-4653-ac19-84e2383b9e4b",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-reabrir-editar-regra:enviar_head:head_aprovacao_pendente",
+          "tipo_evento": "head_aprovacao_pendente",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-reabrir-editar-regra",
+          "criado_em": "2026-06-15T18:50:08.513016+00:00"
+        },
+        "filas": [
+          {
+            "id": "2311f512-ab90-4d53-8bf9-1a3404c05bbc",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "head_aprovacao_pendente",
+            "template_versao": 2
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "2311f512-ab90-4d53-8bf9-1a3404c05bbc",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-c65da943-fd2b-4d4f-9b5b-4be70d6b09e5"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-reabrir-editar-regra:enviar_head:head_aprovacao_pendente",
+      "criado_em": "2026-06-15T18:50:08.529045+00:00"
+    },
+    {
+      "acao": "aprovar_head",
+      "resultado_id": "manual-2026-06-reabrir-editar-regra",
+      "comissionado": "THOMAZ - Teste Reabrir Editar Regra",
+      "template": "comissionado_nf_solicitada",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_head_comercial",
+      "status_novo": "aguardando_nf",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "solicitada",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "8b33daf5-220a-4f4c-8bb2-e2847bb94e40",
+        "criado_em": "2026-06-15T18:50:08.541734+00:00"
+      },
+      "notificacao": {
+        "id": "7f81c8c4-f581-478c-93a2-0d68b560a959",
+        "evento_notificacao": {
+          "id": "968ac20f-89c0-4233-a1dc-37931c6b27b3",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-reabrir-editar-regra:aprovar_head:comissionado_nf_solicitada",
+          "tipo_evento": "comissionado_nf_solicitada",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-reabrir-editar-regra",
+          "criado_em": "2026-06-15T18:50:08.552010+00:00"
+        },
+        "filas": [
+          {
+            "id": "a290a4df-7c25-43c2-8285-22f4a8586095",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "comissionado_nf_solicitada",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "a290a4df-7c25-43c2-8285-22f4a8586095",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-31305af6-33e3-44ae-8944-a6f3d7468f00"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-reabrir-editar-regra:aprovar_head:comissionado_nf_solicitada",
+      "criado_em": "2026-06-15T18:50:08.583831+00:00"
+    },
+    {
+      "acao": "enviar_head",
+      "resultado_id": "manual-2026-06-nf-pagamento",
+      "comissionado": "JORDAN - Teste NF Pagamento",
+      "template": "head_aprovacao_pendente",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_nf",
+      "status_novo": "aguardando_head_comercial",
+      "status_nf_anterior": "solicitada",
+      "status_nf_novo": "solicitada",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "d9ecd98f-b47a-4d65-8556-a32e9dca9049",
+        "criado_em": "2026-06-15T18:50:08.593380+00:00"
+      },
+      "notificacao": {
+        "id": "24beeb07-b830-426b-a414-edbb5e1e9e7d",
+        "evento_notificacao": {
+          "id": "8ec9b14d-d230-4e8e-83b6-edf7d0ede907",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-pagamento:enviar_head:head_aprovacao_pendente",
+          "tipo_evento": "head_aprovacao_pendente",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-nf-pagamento",
+          "criado_em": "2026-06-15T18:50:08.598618+00:00"
+        },
+        "filas": [
+          {
+            "id": "1c7ac528-4dfa-4285-af5f-d7e0f92f9927",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "head_aprovacao_pendente",
+            "template_versao": 2
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "1c7ac528-4dfa-4285-af5f-d7e0f92f9927",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-059e9a22-4b1c-47e4-acc7-7894238d5826"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-pagamento:enviar_head:head_aprovacao_pendente",
+      "criado_em": "2026-06-15T18:50:08.631899+00:00"
+    },
+    {
+      "acao": "aprovar_head",
+      "resultado_id": "manual-2026-06-nf-pagamento",
+      "comissionado": "JORDAN - Teste NF Pagamento",
+      "template": "comissionado_nf_solicitada",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_head_comercial",
+      "status_novo": "aguardando_nf",
+      "status_nf_anterior": "solicitada",
+      "status_nf_novo": "solicitada",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "32ef9a3d-10b6-4aeb-8bba-a426c211527a",
+        "criado_em": "2026-06-15T18:50:08.640756+00:00"
+      },
+      "notificacao": {
+        "id": "8b357d0d-b1ce-4900-b6f3-8e46b5146134",
+        "evento_notificacao": {
+          "id": "2de18ec9-e4b0-44a3-aa10-052c90f48595",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-pagamento:aprovar_head:comissionado_nf_solicitada",
+          "tipo_evento": "comissionado_nf_solicitada",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-nf-pagamento",
+          "criado_em": "2026-06-15T18:50:08.661571+00:00"
+        },
+        "filas": [
+          {
+            "id": "83e0a771-9133-4755-8317-10aa044caf3e",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "comissionado_nf_solicitada",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "83e0a771-9133-4755-8317-10aa044caf3e",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-8ab1f3ab-d7fb-4c18-a4e5-4df0ef244995"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-pagamento:aprovar_head:comissionado_nf_solicitada",
+      "criado_em": "2026-06-15T18:50:08.713111+00:00"
+    },
+    {
+      "acao": "enviar_nf_financeiro",
+      "resultado_id": "manual-2026-06-nf-pagamento",
+      "comissionado": "JORDAN - Teste NF Pagamento",
+      "template": "financeiro_pacote_pj_enviado",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_nf",
+      "status_novo": "enviada_pagamento",
+      "status_nf_anterior": "solicitada",
+      "status_nf_novo": "recebida",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "pacote_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "aguardando_pagamento",
+      "evento_negocio": {
+        "id": "40607d81-837b-47e3-a096-a9687eafdc91",
+        "criado_em": "2026-06-15T18:50:08.728355+00:00"
+      },
+      "notificacao": {
+        "id": "04afe1ce-4a73-4789-9242-470530add8a1",
+        "evento_notificacao": {
+          "id": "676e133b-2f6c-4afe-8c89-772a5bb25902",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-pagamento:enviar_nf_financeiro:financeiro_pacote_pj_enviado",
+          "tipo_evento": "financeiro_pacote_pj_enviado",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-nf-pagamento",
+          "criado_em": "2026-06-15T18:50:08.735469+00:00"
+        },
+        "filas": [
+          {
+            "id": "edb9d679-273d-4eaf-8fef-463f79d5cd0d",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "financeiro_pacote_pj_enviado",
+            "template_versao": 3
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "edb9d679-273d-4eaf-8fef-463f79d5cd0d",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-1f876cc7-1044-416b-80b1-6ae321744190"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-pagamento:enviar_nf_financeiro:financeiro_pacote_pj_enviado",
+      "criado_em": "2026-06-15T18:50:08.765425+00:00"
+    },
+    {
+      "acao": "enviar_head",
+      "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+      "comissionado": "RAFAEL - Teste NF Recalculo Recomeca",
+      "template": "head_aprovacao_pendente",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_nf",
+      "status_novo": "aguardando_head_comercial",
+      "status_nf_anterior": "solicitada",
+      "status_nf_novo": "solicitada",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "758f9ef5-9dfa-4b21-aabc-d33a18ace38f",
+        "criado_em": "2026-06-15T18:50:08.785333+00:00"
+      },
+      "notificacao": {
+        "id": "d5bf6ce2-0d04-4098-b64a-010244b0d2d8",
+        "evento_notificacao": {
+          "id": "4ed29f17-945f-4fe9-b716-d1db0477cb7d",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-recalculo-recomeca:enviar_head:head_aprovacao_pendente",
+          "tipo_evento": "head_aprovacao_pendente",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+          "criado_em": "2026-06-15T18:50:08.810715+00:00"
+        },
+        "filas": [
+          {
+            "id": "3c7f0d5f-b9f3-43da-897b-f749b6279508",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "head_aprovacao_pendente",
+            "template_versao": 2
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "3c7f0d5f-b9f3-43da-897b-f749b6279508",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-e8d90756-ef8a-4b12-927b-35028d62521b"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-recalculo-recomeca:enviar_head:head_aprovacao_pendente",
+      "criado_em": "2026-06-15T18:50:08.841054+00:00"
+    },
+    {
+      "acao": "aprovar_head",
+      "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+      "comissionado": "RAFAEL - Teste NF Recalculo Recomeca",
+      "template": "comissionado_nf_solicitada",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_head_comercial",
+      "status_novo": "aguardando_nf",
+      "status_nf_anterior": "solicitada",
+      "status_nf_novo": "solicitada",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "4fb4cc28-bc3a-437d-b8ce-75ab28db5f86",
+        "criado_em": "2026-06-15T18:50:08.855688+00:00"
+      },
+      "notificacao": {
+        "id": "dd56221e-11e7-4112-8975-8f23b76b9e53",
+        "evento_notificacao": {
+          "id": "6e2c37c9-d7c0-42c1-88b6-68c19b32b1b0",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-recalculo-recomeca:aprovar_head:comissionado_nf_solicitada",
+          "tipo_evento": "comissionado_nf_solicitada",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+          "criado_em": "2026-06-15T18:50:08.865481+00:00"
+        },
+        "filas": [
+          {
+            "id": "8b4d5d9a-3694-45f0-b58d-599e3e16e06b",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "comissionado_nf_solicitada",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "8b4d5d9a-3694-45f0-b58d-599e3e16e06b",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-afbb5c5b-8f4b-4dca-afdb-0c3b40168e01"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-recalculo-recomeca:aprovar_head:comissionado_nf_solicitada",
+      "criado_em": "2026-06-15T18:50:08.909855+00:00"
+    },
+    {
+      "acao": "solicitar_ajuste",
+      "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+      "comissionado": "RAFAEL - Teste NF Recalculo Recomeca",
+      "template": "secretaria_ajuste_solicitado",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_nf",
+      "status_novo": "revisao_necessaria",
+      "status_nf_anterior": "solicitada",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "08b71b32-2815-4f09-a53b-294d3df694e4",
+        "criado_em": "2026-06-15T18:50:08.930439+00:00"
+      },
+      "notificacao": {
+        "id": "15f4c7ff-816b-4b22-b404-d75bf692d8cb",
+        "evento_notificacao": {
+          "id": "456f322a-076d-4491-9fa3-449a4f9a5eb9",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-recalculo-recomeca:solicitar_ajuste:secretaria_ajuste_solicitado",
+          "tipo_evento": "secretaria_ajuste_solicitado",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+          "criado_em": "2026-06-15T18:50:08.945423+00:00"
+        },
+        "filas": [
+          {
+            "id": "80f7d986-83d1-4ee4-80d0-921ba2b8ebfb",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "secretaria_ajuste_solicitado",
+            "template_versao": 3
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "80f7d986-83d1-4ee4-80d0-921ba2b8ebfb",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-9820c871-5a28-4f7d-90e2-f4d3a4e951ed"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-recalculo-recomeca:solicitar_ajuste:secretaria_ajuste_solicitado",
+      "criado_em": "2026-06-15T18:50:09.007924+00:00"
+    },
+    {
+      "acao": "recalcular_secretaria",
+      "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+      "comissionado": "RAFAEL - Teste NF Recalculo Recomeca",
+      "template": "sem_email",
+      "destinatario": null,
+      "status_anterior": "revisao_necessaria",
+      "status_novo": "calculado",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "4eb3eac3-62fe-434f-acea-8cef41ed05ed",
+        "criado_em": "2026-06-15T18:50:09.015168+00:00"
+      },
+      "notificacao": null,
+      "filas_processadas": [],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-recalculo-recomeca:recalcular_secretaria:sem_email",
+      "criado_em": "2026-06-15T18:50:09.016881+00:00"
+    },
+    {
+      "acao": "enviar_head",
+      "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+      "comissionado": "RAFAEL - Teste NF Recalculo Recomeca",
+      "template": "head_aprovacao_pendente",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "calculado",
+      "status_novo": "aguardando_head_comercial",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "0c622ee6-035c-4e8f-999a-6bb47bdd6cad",
+        "criado_em": "2026-06-15T18:50:09.027752+00:00"
+      },
+      "notificacao": {
+        "id": "e831aae4-e4bd-40fb-8d45-2cb1e279bc9c",
+        "evento_notificacao": {
+          "id": "4ed29f17-945f-4fe9-b716-d1db0477cb7d",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-recalculo-recomeca:enviar_head:head_aprovacao_pendente",
+          "tipo_evento": "head_aprovacao_pendente",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+          "criado_em": "2026-06-15T18:50:08.810715+00:00"
+        },
+        "filas": [
+          {
+            "id": "3c7f0d5f-b9f3-43da-897b-f749b6279508",
+            "status": "ignorado_idempotencia",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "head_aprovacao_pendente",
+            "template_versao": 2
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "3c7f0d5f-b9f3-43da-897b-f749b6279508",
+          "status": "simulado",
+          "tentativas": 2,
+          "provider_message_id": "dry-run-4738bbff-0963-4202-9edd-f8a5a0e4720a"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-recalculo-recomeca:enviar_head:head_aprovacao_pendente",
+      "criado_em": "2026-06-15T18:50:09.084904+00:00"
+    },
+    {
+      "acao": "aprovar_head",
+      "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+      "comissionado": "RAFAEL - Teste NF Recalculo Recomeca",
+      "template": "comissionado_nf_solicitada",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_head_comercial",
+      "status_novo": "aguardando_nf",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "solicitada",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "d4321e2d-52d9-4d92-8438-0cfca6530c2b",
+        "criado_em": "2026-06-15T18:50:09.098099+00:00"
+      },
+      "notificacao": {
+        "id": "397e366a-397d-47c0-a17f-779e8b6f533f",
+        "evento_notificacao": {
+          "id": "6e2c37c9-d7c0-42c1-88b6-68c19b32b1b0",
+          "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-recalculo-recomeca:aprovar_head:comissionado_nf_solicitada",
+          "tipo_evento": "comissionado_nf_solicitada",
+          "ciclo_id": "2026-06-fluxo-manual",
+          "resultado_id": "manual-2026-06-nf-recalculo-recomeca",
+          "criado_em": "2026-06-15T18:50:08.865481+00:00"
+        },
+        "filas": [
+          {
+            "id": "8b4d5d9a-3694-45f0-b58d-599e3e16e06b",
+            "status": "ignorado_idempotencia",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "comissionado_nf_solicitada",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "8b4d5d9a-3694-45f0-b58d-599e3e16e06b",
+          "status": "simulado",
+          "tentativas": 2,
+          "provider_message_id": "dry-run-54495db8-5a1f-4bd5-baa0-7b602e3c3191"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615185005:manual-2026-06-nf-recalculo-recomeca:aprovar_head:comissionado_nf_solicitada",
+      "criado_em": "2026-06-15T18:50:09.156126+00:00"
+    }
+  ],
+  "negativos": [
+    {
+      "cenario": "Auditoria sem CLT no ciclo 2026-06-fluxo-manual",
+      "resultado": "bloqueado_esperado",
+      "motivo": "Todos os resultados de auditoria foram classificados como PJ_AUTONOMO com NF obrigatoria.",
+      "fila_criada": false,
+      "timestamp": "2026-06-15T18:50:09.162066+00:00"
+    },
+    {
+      "cenario": "Destinatario fora da allowlist",
+      "resultado": "bloqueado_esperado",
+      "motivo": "Nenhum destinatario permitido pela allowlist de teste.",
+      "destinatario": "fora.allowlist@example.com",
+      "fila_criada": false,
+      "timestamp": "2026-06-15T18:50:09.163525+00:00"
+    },
+    {
+      "cenario": "pagamento_concluido nao gera e-mail",
+      "resultado": "bloqueado_esperado",
+      "motivo": "Escopo da auditoria para em pacote_pagamento_enviado; nenhuma notificacao foi criada.",
+      "evento_negocio": {
+        "id": "8534746b-7300-43dd-bb6e-2168e4439489",
+        "criado_em": "2026-06-15T18:50:09.166826+00:00"
+      },
+      "fila_criada": false,
+      "timestamp": "2026-06-15T18:50:09.170182+00:00"
+    }
+  ],
+  "validacoes_interface": {
+    "comissionado_revisao_nf_primeira_etapa": true,
+    "secretaria_rejeicao_comercial_primeira_etapa": true,
+    "secretaria_refazer_calculo_primeira_etapa": true,
+    "historico_edicao_regra_e_aprovacao": true,
+    "nf_enviada_para_pagamento": true,
+    "nf_recalculo_recomecou_fluxo": true
+  },
+  "reset_final": "executado_no_finally",
+  "contagens": {
+    "eventos_esperados": 22,
+    "emails_esperados": 17,
+    "emails_aceitos_graph": 0,
+    "emails_simulados": 17,
+    "falhas_permanentes": 0,
+    "falhas_retry": 0,
+    "bloqueios_esperados": 3
+  },
+  "gerado_em": "2026-06-15T18:50:09.173317+00:00"
+}

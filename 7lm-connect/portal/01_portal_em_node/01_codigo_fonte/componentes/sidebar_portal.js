@@ -1,0 +1,184 @@
+"use strict";
+
+function normalizarTexto(valor) {
+  return String(valor || "").trim();
+}
+
+function normalizarBasePath(valor) {
+  const texto = normalizarTexto(valor);
+  if (!texto || texto === "/") return "";
+  return `/${texto.replace(/^\/+|\/+$/g, "")}`;
+}
+
+function aplicarBasePath(basePath, caminho = "/") {
+  const rota = normalizarTexto(caminho) || "/";
+  const caminhoNormalizado = rota.startsWith("/") ? rota : `/${rota}`;
+  if (!basePath) {
+    return caminhoNormalizado;
+  }
+
+  return caminhoNormalizado === "/" ? basePath : `${basePath}${caminhoNormalizado}`;
+}
+
+function detectarItemAtivo(caminhoPublico = "/") {
+  const caminho = normalizarTexto(caminhoPublico).toLowerCase();
+
+  if (
+    caminho.includes("/01_paginas/administracao/") ||
+    caminho.includes("/administracao/")
+  ) {
+    return "acessos";
+  }
+
+  if (caminho.includes("/configuracoes")) {
+    return "configuracoes";
+  }
+
+  if (caminho.includes("/financeiro")) {
+    return "financeiro";
+  }
+
+  if (
+    caminho.includes("/comercial") ||
+    caminho.includes("/imoveis") ||
+    caminho.includes("/01_paginas/imoveis/") ||
+    caminho.includes("/clientes") ||
+    caminho.includes("/01_paginas/clientes/") ||
+    caminho.includes("/plataforma") ||
+    caminho.includes("/01_paginas/operacoes/")
+  ) {
+    return "comercial";
+  }
+
+  return "inicio";
+}
+
+function classeItem(ativo) {
+  return ativo ? "tl-nav__item js-magnetic is-active" : "tl-nav__item js-magnetic";
+}
+
+function renderizarLinkItem(config, itemAtivo) {
+  const ativo = config.chave === itemAtivo;
+  const href = config.href ? ` href="${config.href}"` : "";
+  const ariaCurrent = ativo ? ' aria-current="page"' : "";
+  const permission = config.permission ? ` data-permission="${config.permission}"` : "";
+  const id = config.id ? ` id="${config.id}"` : "";
+
+  return `          <a class="${classeItem(ativo)}"${href}${id} data-tooltip="${config.tooltip}"${permission}${ariaCurrent} style="--nav-color: ${config.color};">
+            <div class="nav-icon">
+              ${config.icone}
+            </div>
+            <span class="nav-text">${config.rotulo}</span>
+          </a>`;
+}
+
+function renderizarSidebarPortal(caminhoPublico = "/", opcoes = {}) {
+  const itemAtivo = detectarItemAtivo(caminhoPublico);
+  const basePath = normalizarBasePath(opcoes.basePath);
+  const logoSrcLight = aplicarBasePath(basePath, "/02_recursos/03_imagens/logo_7lm.svg");
+  const logoSrcDark = aplicarBasePath(basePath, "/02_recursos/03_imagens/logo_7lm_dark.png");
+  const itens = [
+    {
+      chave: "inicio",
+      href: aplicarBasePath(basePath, "/inicio"),
+      tooltip: "In&iacute;cio",
+      rotulo: "In&iacute;cio",
+      color: "#22C55E",
+      icone:
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>',
+    },
+    {
+      chave: "comercial",
+      href: aplicarBasePath(basePath, "/comercial/imoveis"),
+      tooltip: "M\u00E1quina de Vendas",
+      rotulo: "M\u00E1quina de Vendas",
+      color: "#F59E0B",
+      icone:
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-6 9 6"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-5h6v5"></path><path d="M7.5 13h3"></path><path d="M13.5 13h3"></path></svg>',
+    },
+    {
+      chave: "financeiro",
+      href: aplicarBasePath(basePath, "/financeiro"),
+      tooltip: "Connect Financeiro",
+      rotulo: "Connect Financeiro",
+      color: "#10B981",
+      icone:
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 10h18"></path><path d="M8 15h3"></path></svg>',
+    },
+    {
+      chave: "acessos",
+      secao: "sistema",
+      href: aplicarBasePath(basePath, "/administracao/acessos"),
+      id: "menuAcessos",
+      tooltip: "Acessos",
+      rotulo: "Acessos",
+      permission: "administracao.view",
+      color: "#8B5CF6",
+      icone:
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z"></path><path d="M9.5 12.5l1.8 1.8 3.7-4.3"></path></svg>',
+    },
+    {
+      chave: "configuracoes",
+      secao: "sistema",
+      href: aplicarBasePath(basePath, "/configuracoes"),
+      id: "menuConfiguracoes",
+      tooltip: "Configura&ccedil;&otilde;es",
+      rotulo: "Configura&ccedil;&otilde;es",
+      color: "#EC4899",
+      icone:
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1-.33H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .33-1V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.13.32.2.66.2 1s-.07.68-.2 1Z"></path></svg>',
+    },
+  ];
+  const itensPrincipais = itens.filter((item) => item.secao !== "sistema");
+  const itensSistema = itens.filter((item) => item.secao === "sistema");
+
+  return `    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar">
+      <button
+        id="btnToggleSidebar"
+        class="tl-btn-toggle"
+        type="button"
+        aria-label="Recolher menu lateral"
+        aria-controls="sidebar"
+        aria-expanded="true"
+        title="Recolher menu"
+      >
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M11.5 5.5L7.5 10l4 4.5"></path>
+        </svg>
+      </button>
+
+      <div class="tl-brand tl-brand--logo-only" aria-label="7LM">
+        <div class="tl-brand-icon">
+          <img class="tl-brand-logo-image tl-brand-logo--light" src="${logoSrcLight}" alt="7LM" />
+          <img class="tl-brand-logo-image tl-brand-logo--dark" src="${logoSrcDark}" alt="7LM" />
+        </div>
+      </div>
+
+      <div class="tl-nav-scroll">
+        <nav class="tl-nav">
+          <span class="tl-nav__label mono-font">Principal</span>
+
+${itensPrincipais.map((item) => renderizarLinkItem(item, itemAtivo)).join("\n")}
+
+          <span class="tl-nav__label mono-font" style="margin-top: 24px;">Sistema</span>
+
+${itensSistema.map((item) => renderizarLinkItem(item, itemAtivo)).join("\n")}
+
+          <button class="tl-nav__item js-magnetic" type="button" id="btnLogout" data-tooltip="Sair" style="--nav-color: #FF453A;">
+            <div class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+            </div>
+            <span class="nav-text">Sair</span>
+          </button>
+        </nav>
+      </div>
+    </aside>`;
+}
+
+module.exports = {
+  renderizarSidebarPortal,
+};

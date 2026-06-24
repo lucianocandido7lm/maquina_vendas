@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor Financeiro - Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header class="navbar" style="position:relative;">
+        <div class="nav-left">
+            <i class="fa-solid fa-chart-line logo-icon"></i>
+            <h1 style="max-width: 400px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="MONITOR FINANCEIRO | Macroprocesso 5 - Contas a Pagar - Conciliação - Cheque Moradia">MONITOR FINANCEIRO - Dashboard</h1>
+        </div>
+        <div class="nav-center">
+            <a href="dashboard.html" class="nav-tab active">Monitor de Pagamento</a>
+            <a href="index.html" class="nav-tab">Títulos lançados</a>
+            <a href="extrato.html" class="nav-tab">Extrato detalhado</a>
+        </div>
+        <div class="nav-right">
+            <div class="date-info">
+                <i class="fa-regular fa-calendar"></i> 24 Abril 2026
+            </div>
+            <button class="icon-btn"><i class="fa-regular fa-bell"></i></button>
+            <button class="icon-btn"><i class="fa-regular fa-circle-question"></i></button>
+            <img src="https://via.placeholder.com/30" class="user-avatar" alt="7LM">
+        </div>
+    </header>
+
+    <main class="tela2-grid">
+        <!-- TOP: Saldos e Extrato -->
+        <div class="tela2-top">
+            <div class="panel">
+                <div class="panel-header"><i class="fa-solid fa-wallet"></i> Saldo Bancário Resumido</div>
+                <div class="saldo-grid">
+                    <div class="saldo-card">
+                        <div class="saldo-card-header">
+                            <span><i class="fa-solid fa-building-columns"></i> Banco ABC</span>
+                            <i class="fa-solid fa-arrow-up text-green"></i>
+                        </div>
+                        <h3>R$ 2.890.450</h3>
+                        <div class="status text-green">Conciliado</div>
+                    </div>
+                    <div class="saldo-card">
+                        <div class="saldo-card-header">
+                            <span><i class="fa-solid fa-building-columns"></i> Banco Eanco</span>
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </div>
+                        <h3>R$ 1.320.760</h3>
+                        <div class="status text-yellow">A conferir ></div>
+                    </div>
+                    <div class="saldo-card">
+                        <div class="saldo-card-header">
+                            <span><i class="fa-solid fa-box"></i> CAIXA</span>
+                        </div>
+                        <h3 style="color:var(--color-vence-hoje)">R$ 845.330</h3>
+                        <div class="status text-green">Conciliado</div>
+                    </div>
+                    <div class="saldo-card">
+                        <div class="saldo-card-header">
+                            <span><i class="fa-solid fa-building-columns"></i> Banco 123</span>
+                        </div>
+                        <h3 style="color:var(--color-pago)">R$ 512.200</h3>
+                        <div class="status text-red">Divergência R$ 20.200</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header" style="justify-content:space-between">
+                    <div><i class="fa-solid fa-list"></i> Extrato por Banco</div>
+                    <div class="search-wrapper">
+                        <i class="fa-solid fa-magnifying-glass" style="font-size:11px"></i>
+                        <input type="text" class="search-input" placeholder="Buscar banco..." style="width:180px; padding:6px 12px 6px 28px; font-size:12px;">
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Banco</th>
+                                <th>Saldo Sistema</th>
+                                <th>Saldo Extrato</th>
+                                <th>Diferença</th>
+                                <th>Status</th>
+                                <th>Última Atualização</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Banco ABC S.A.</td>
+                                <td>R$ 2.890.450</td>
+                                <td>R$ 2.890.450</td>
+                                <td>R$ 0</td>
+                                <td><span class="badge-status badge-conciliado"><i class="fa-solid fa-check"></i> Conciliado</span></td>
+                                <td>Hoje 07:00</td>
+                            </tr>
+                            <tr>
+                                <td>Banco Eanco</td>
+                                <td>R$ 1.320.760</td>
+                                <td>R$ 1.298.560</td>
+                                <td class="text-red">R$ -22.200</td>
+                                <td><span class="badge-status badge-alerta"><i class="fa-solid fa-circle-exclamation"></i> A conferir</span></td>
+                                <td>Hoje 06:55</td>
+                            </tr>
+                            <tr>
+                                <td>CAIXA Econômica</td>
+                                <td>R$ 845.330</td>
+                                <td>R$ 845.330</td>
+                                <td>R$ 0</td>
+                                <td><span class="badge-status badge-conciliado"><i class="fa-solid fa-check"></i> Conciliado</span></td>
+                                <td>Hoje 07:10</td>
+                            </tr>
+                            <tr>
+                                <td>Banco 123</td>
+                                <td>R$ 512.200</td>
+                                <td>R$ 492.000</td>
+                                <td class="text-red">R$ -20.200</td>
+                                <td><span class="badge-status badge-divergencia"><i class="fa-solid fa-xmark"></i> Divergência</span></td>
+                                <td>Ontem 19:30</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- MIDDLE: Vencimentos, Fila, Autorização -->
+        <div class="tela2-middle">
+            <div class="panel">
+                <div class="panel-header"><i class="fa-regular fa-calendar-days"></i> Painel de Vencimentos</div>
+                <div class="vencimentos-summary">
+                    <div class="v-box atrasado"><h4>Atrasados</h4><strong>6</strong> | <span style="font-size:12px">R$ 482.750</span></div>
+                    <div class="v-box vencehoje"><h4>Vence Hoje</h4><strong>5</strong> | <span style="font-size:12px">R$ 105.800</span></div>
+                </div>
+                <div class="vencimentos-summary">
+                    <div class="v-box alerta"><h4>Alerta (3 dias)</h4><strong>8</strong> | <span style="font-size:12px">R$ 325.760</span></div>
+                    <div class="v-box planejado"><h4>Planejados</h4><strong>22</strong> | <span style="font-size:12px">R$ 1.184.400</span></div>
+                </div>
+                <!-- Small recent list -->
+                <div class="table-responsive" style="margin-top:10px;">
+                    <table class="table" style="font-size:11px;">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Fornecedor</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>A-1023</td><td>Altôneso Pene...</td><td>R$ 362.800</td><td class="text-red">Atrasado</td></tr>
+                            <tr><td>B-715</td><td>Projeto Fiamess</td><td>R$ 133.260</td><td class="text-yellow">Vence Hoje</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header"><i class="fa-solid fa-layer-group"></i> Fila Inteligente de Pagamento</div>
+                <div style="font-size:12px; color:var(--text-secondary); margin-bottom:12px;">Total R$ 1.239.400 - 37 Títulos (Ranqueado por IA)</div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <tbody>
+                            <tr>
+                                <td><span style="color:var(--color-vence-hoje); font-weight:bold;">95</span></td>
+                                <td>Alcântara Materiais</td>
+                                <td>R$ 263.800</td>
+                                <td>1 dia</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color:var(--color-alerta); font-weight:bold;">81</span></td>
+                                <td>Transportes Lima</td>
+                                <td>R$ 482.750</td>
+                                <td>2 dias</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color:var(--color-alerta); font-weight:bold;">85</span></td>
+                                <td>Elétrica Luz</td>
+                                <td>R$ 845.530</td>
+                                <td>3 dias</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color:var(--color-atrasados); font-weight:bold;">92</span></td>
+                                <td>EngCiv Construções</td>
+                                <td>R$ 179.450</td>
+                                <td>3 dias</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header"><i class="fa-solid fa-chart-pie"></i> Status de Autorização</div>
+                <div style="display:flex; flex-direction:column; gap:16px; align-items:center; height:100%; justify-content:center">
+                    <div style="position:relative; height:150px; width:100%;">
+                        <canvas id="autorizacaoChart"></canvas>
+                    </div>
+                    <div class="donut-legend">
+                        <div class="legend-item"><div class="dot aguardando"></div> Aguardando</div>
+                        <div class="legend-item"><div class="dot autorizado"></div> Autorizado</div>
+                        <div class="legend-item"><div class="dot programado"></div> Programado</div>
+                        <div class="legend-item"><div class="dot pago"></div> Pago</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTTOM: Programação, Conciliação, Cheque Moradia -->
+        <div class="tela2-bottom">
+            <div class="panel">
+                <div class="panel-header"><i class="fa-solid fa-chart-column"></i> Programação de Pagamentos</div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
+                    <div><span style="font-size:11px; color:var(--text-secondary)">Hoje</span><br><strong>R$ 105.800</strong></div>
+                    <div><span style="font-size:11px; color:var(--text-secondary)">Semana</span><br><strong>R$ 325.760</strong></div>
+                    <div><span style="font-size:11px; color:var(--text-secondary)">Mês</span><br><strong>R$ 1.490.200</strong></div>
+                </div>
+                <div class="chart-container-bar">
+                    <canvas id="progBarChart"></canvas>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header"><i class="fa-solid fa-scale-balanced"></i> Conciliação Bancária</div>
+                <div class="conciliacao-indicators" style="margin-top:10px;">
+                    <div class="circle-progress">
+                        <span>86%</span>
+                        <label>Conciliações atrasadas</label>
+                    </div>
+                    <div class="conciliacao-stats">
+                        <div class="c-stat">
+                            <div class="c-stat-left"><i class="fa-solid fa-check" style="color:var(--color-conciliado)"></i> Conciliados</div>
+                            <strong>1.286</strong>
+                        </div>
+                        <div class="c-stat">
+                            <div class="c-stat-left"><i class="fa-solid fa-xmark" style="color:var(--color-vence-hoje)"></i> Divergências</div>
+                            <strong>67</strong>
+                        </div>
+                        <div class="c-stat">
+                            <div class="c-stat-left"><i class="fa-solid fa-triangle-exclamation" style="color:var(--color-atrasados)"></i> Não Conciliados</div>
+                            <strong>21</strong>
+                        </div>
+                    </div>
+                </div>
+                <div style="font-size:12px; margin-top:20px; color:var(--text-secondary)">
+                    Tempo Médio: <strong style="color:var(--color-conciliado)">1,8 dias</strong>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header"><i class="fa-solid fa-money-check-dollar"></i> Monitor Cheque Moradia</div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:12px; background:var(--bg-color); padding:10px; border-radius:6px; border:1px solid var(--border-color);">
+                    <div style="text-align:center">Emitidos Mês<br><strong style="font-size:14px">R$ 2.300.000</strong></div>
+                    <div style="text-align:center">Compensados<br><strong style="font-size:14px; color:var(--color-conciliado)">R$ 2.350.000</strong></div>
+                    <div style="text-align:center">Pendentes<br><strong style="font-size:14px; color:var(--color-vence-hoje)">150</strong></div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table" style="font-size:11px">
+                        <thead>
+                            <tr><th>Beneficiário</th><th>Valor</th><th>Enviado</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Res. do Sol</td><td>R$ 26.000</td><td>22/04</td><td><span class="badge-status badge-conciliado" style="padding:2px 6px;">Compensado</span></td></tr>
+                            <tr><td>Res. Vista Verde</td><td>R$ 33.000</td><td>23/04</td><td><span class="badge-status badge-conciliado" style="padding:2px 6px;">Compensado</span></td></tr>
+                            <tr><td>Res. Parque Azul</td><td>R$ 25.000</td><td>24/04</td><td><span class="badge-status badge-alerta" style="padding:2px 6px;">Pendente</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

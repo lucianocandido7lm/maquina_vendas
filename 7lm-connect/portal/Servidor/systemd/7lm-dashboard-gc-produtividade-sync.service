@@ -1,0 +1,16 @@
+[Unit]
+Description=7LM Dashboard GC Produtividade sync
+After=network-online.target 7lm-connect-api.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=sevenlm
+Group=sevenlm
+WorkingDirectory=/opt/7lm-connect/portal/01_codigo_fonte/api_7lm_connect
+EnvironmentFile=/opt/7lm-connect/portal/.env
+EnvironmentFile=-/opt/7lm-connect/portal/.dashboard_gc_source.env
+EnvironmentFile=-/opt/7lm-connect/portal/.dashboard_comercial_source.env
+ExecStart=/opt/7lm-connect/portal/.venv/bin/python /opt/7lm-connect/portal/01_codigo_fonte/api_7lm_connect/scripts/sincronizar_dashboard_gc_produtividade.py
+Nice=5
+IOSchedulingClass=best-effort

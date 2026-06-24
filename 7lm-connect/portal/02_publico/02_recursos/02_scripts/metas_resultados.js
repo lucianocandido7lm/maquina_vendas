@@ -1,0 +1,1665 @@
+(function () {
+  "use strict";
+
+  const TOKEN_KEY = ["sevenlm_connect_token_de_acesso", "sevenlm_connect_token_de_acesso"];
+  const portalState = window.SevenLMConnectPortalState || null;
+
+  function meta(name, fallback) {
+    return document.querySelector(`meta[name="${name}"]`)?.getAttribute("content") || fallback;
+  }
+
+  function detectApiBaseUrl() {
+    try {
+      const { protocol, hostname, port, origin } = window.location;
+      if ((hostname === "127.0.0.1" || hostname === "localhost") && port === "3000") {
+        return `${protocol}//${hostname}:8000`;
+      }
+      return origin;
+    } catch {
+      return "http://127.0.0.1:8000";
+    }
+  }
+
+  function resolveApiBaseUrl() {
+    const detected = detectApiBaseUrl();
+    const configured = String(meta("sevenlm-connect-api-base-url", "") || "").trim();
+    if (!configured) return detected;
+
+    try {
+      const url = new URL(configured, window.location.origin);
+      const isLocalConfig = url.hostname === "127.0.0.1" || url.hostname === "localhost";
+      const isLocalPage = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+      if (isLocalConfig && !isLocalPage) return detected;
+    } catch {
+      return detected;
+    }
+
+    return configured;
+  }
+
+  const API_BASE_URL = resolveApiBaseUrl();
+  const ENDPOINTS = {
+    me: meta("sevenlm-connect-endpoint-me", "/api/me"),
+    referencias: meta("sevenlm-connect-endpoint-metas-referencias", "/api/metas/referencias"),
+    indicadores: meta("sevenlm-connect-endpoint-metas-indicadores", "/api/metas/indicadores"),
+    corretores: meta("sevenlm-connect-endpoint-metas-corretores", "/api/metas/corretores"),
+    gestores: meta("sevenlm-connect-endpoint-metas-gestores", "/api/metas/gestores"),
+    gerenciais: meta("sevenlm-connect-endpoint-metas-gerenciais", "/api/metas/gerenciais"),
+    regionais: meta("sevenlm-connect-endpoint-metas-regionais", "/api/metas/regionais"),
+    resultados: meta("sevenlm-connect-endpoint-resultados-metas", "/api/resultados/metas"),
+    historico: meta("sevenlm-connect-endpoint-metas-historico", "/api/metas/historico"),
+    importPreview: meta("sevenlm-connect-endpoint-metas-importacao-preview", "/api/metas/importacao/preview"),
+    importConfirmar: meta("sevenlm-connect-endpoint-metas-importacao-confirmar", "/api/metas/importacao/confirmar"),
+  };
+
+  let el = {};
+  let views = {};
+  const DEFAULT_TAB = "corretores";
+  const AVAILABLE_TABS = new Set(["corretores", "gestores", "regionais", "gerenciais", "historico", "indicadores"]);
+  const LOCAL_STORAGE_KEY = "sevenlm_abertura_objetivos_local_v2";
+  const LOCAL_FALLBACK_MODE = String(meta("sevenlm-connect-local-fallback", "auto") || "auto").toLowerCase();
+  const METAS_DATA_MODE = String(meta("sevenlm-connect-metas-data-mode", "api") || "api").toLowerCase();
+  const FORCE_LOCAL_DATA = ["local", "browser", "offline"].includes(METAS_DATA_MODE);
+
+  function collectElements() {
+    el = {
+      nomeUsuario: document.getElementById("nomeUsuario"),
+      metaUsuario: document.getElementById("metaUsuario"),
+      userInitials: document.getElementById("userInitials"),
+      btnTema: document.getElementById("btnTema"),
+      feedback: document.getElementById("feedbackMetas"),
+      filtroMes: document.getElementById("filtroMes"),
+      filtroAno: document.getElementById("filtroAno"),
+      filtroEquipe: document.getElementById("filtroEquipe"),
+      filtroGestor: document.getElementById("filtroGestor"),
+      filtroCorretor: document.getElementById("filtroCorretor"),
+      filtroIndicador: document.getElementById("filtroIndicador"),
+      filtroHistoricoTipo: document.getElementById("filtroHistoricoTipo"),
+      filtroHistoricoAcao: document.getElementById("filtroHistoricoAcao"),
+      filtroHistoricoUsuario: document.getElementById("filtroHistoricoUsuario"),
+      btnAplicarFiltros: document.getElementById("btnAplicarFiltros"),
+      modal: document.getElementById("modalMetas"),
+      inputImportacao: document.getElementById("inputImportacao"),
+      previewImportacao: document.getElementById("previewImportacao"),
+    };
+
+    views = {
+      corretores: document.getElementById("viewCorretores"),
+      gestores: document.getElementById("viewGestores"),
+      regionais: document.getElementById("viewRegionais"),
+      gerenciais: document.getElementById("viewGerenciais"),
+      resultados: document.getElementById("viewResultados"),
+      historico: document.getElementById("viewHistorico"),
+      indicadores: document.getElementById("viewIndicadores"),
+    };
+  }
+
+  const state = {
+    user: null,
+    permissoes: {},
+    referencias: {
+      usuarios: [],
+      indicadores: [],
+      equipes: [],
+      regioes: [],
+      empreendimentos: [],
+    },
+    activeTab: DEFAULT_TAB,
+    corretores: [],
+    gestores: [],
+    regionais: [],
+    gerenciais: [],
+    resultados: [],
+    historico: [],
+    indicadores: [],
+    importacaoValida: [],
+    localMode: false,
+    localReason: "",
+    localDb: null,
+  };
+
+  function readSession(key) {
+    const keys = Array.isArray(key) ? key : [key];
+    try {
+      for (const item of keys) {
+        const value = window.sessionStorage.getItem(item);
+        if (value) return value;
+      }
+    } catch {}
+    return "";
+  }
+
+  function isLocalLikeHost() {
+    const host = String(window.location.hostname || "").toLowerCase();
+    return !host || host === "localhost" || host === "127.0.0.1" || host === "::1";
+  }
+
+  function shouldUseLocalFallback(error) {
+    if (LOCAL_FALLBACK_MODE === "off") return false;
+    if (LOCAL_FALLBACK_MODE === "on") return true;
+    const status = Number(error?.status || 0);
+    if (status === 401 || status === 403) return isLocalLikeHost();
+    return !status || status === 404 || status >= 500 || isLocalLikeHost();
+  }
+
+  function monthShift(month, year, offset) {
+    const date = new Date(Number(year), Number(month) - 1 + Number(offset || 0), 1);
+    return { mes: date.getMonth() + 1, ano: date.getFullYear() };
+  }
+
+  function localMonthKey(month, year) {
+    return `${Number(year)}-${String(Number(month)).padStart(2, "0")}`;
+  }
+
+  function localRowId(prefix, parts = []) {
+    return `${prefix}-${parts.map((item) => String(item ?? "").replace(/[^a-z0-9]+/gi, "-")).join("-")}`.toLowerCase();
+  }
+
+  function createLocalSeed() {
+    const now = new Date();
+    const mesAtual = now.getMonth() + 1;
+    const anoAtual = now.getFullYear();
+    const meses = [-3, -2, -1, 0].map((offset) => monthShift(mesAtual, anoAtual, offset));
+    const usuarios = [
+      { identificador_usuario: "gestor-qa-1", nome_completo: "Gestor Comercial 1", correio_eletronico: "gestor1@7lm.local", perfis: ["Gestor Comercial"], equipes: ["EQUIPE-A"] },
+      { identificador_usuario: "gestor-qa-2", nome_completo: "Gestor Comercial 2", correio_eletronico: "gestor2@7lm.local", perfis: ["Gestor Comercial"], equipes: ["EQUIPE-B"] },
+      { identificador_usuario: "corretor-qa-1", nome_completo: "QA Corretor 1 Metas", correio_eletronico: "corretor1@7lm.local", perfis: ["Corretor"], equipes: ["EQUIPE-A"], gestor_id: "gestor-qa-1" },
+      { identificador_usuario: "corretor-qa-2", nome_completo: "QA Corretor 2 Metas", correio_eletronico: "corretor2@7lm.local", perfis: ["Corretor"], equipes: ["EQUIPE-A"], gestor_id: "gestor-qa-1" },
+      { identificador_usuario: "corretor-qa-3", nome_completo: "QA Corretor 3 Metas", correio_eletronico: "corretor3@7lm.local", perfis: ["Corretor"], equipes: ["EQUIPE-B"], gestor_id: "gestor-qa-2" },
+      { identificador_usuario: "corretor-qa-4", nome_completo: "QA Corretor 4 Metas", correio_eletronico: "corretor4@7lm.local", perfis: ["Corretor"], equipes: ["EQUIPE-B"], gestor_id: "gestor-qa-2" },
+    ];
+    const indicadores = [
+      { id: 1, codigo: "LEADS", nome: "Leads" },
+      { id: 2, codigo: "VISITAS", nome: "Visitas" },
+      { id: 3, codigo: "VENDAS_FINALIZADAS", nome: "Vendas finalizadas" },
+    ];
+    const equipes = [
+      { codigo: "EQUIPE-A", nome: "Equipe A" },
+      { codigo: "EQUIPE-B", nome: "Equipe B" },
+    ];
+    const plano = [
+      { usuario_id: "corretor-qa-1", indicador_id: 1, valores: [110, 118, 125, 125], realizado: 86 },
+      { usuario_id: "corretor-qa-2", indicador_id: 1, valores: [72, 78, 80, 80], realizado: 82 },
+      { usuario_id: "corretor-qa-3", indicador_id: 1, valores: [64, 68, 70, 70], realizado: 49 },
+      { usuario_id: "corretor-qa-4", indicador_id: 1, valores: [55, 60, 62, 62], realizado: 60 },
+      { usuario_id: "corretor-qa-1", indicador_id: 2, valores: [12, 13, 14, 14], realizado: 8 },
+      { usuario_id: "corretor-qa-2", indicador_id: 2, valores: [10, 11, 12, 12], realizado: 11 },
+      { usuario_id: "corretor-qa-3", indicador_id: 2, valores: [9, 10, 11, 11], realizado: 9 },
+      { usuario_id: "corretor-qa-4", indicador_id: 2, valores: [8, 9, 10, 10], realizado: 11 },
+    ];
+    const metasColaboradores = [];
+    plano.forEach((item) => {
+      meses.forEach((periodo, index) => {
+        const indicador = indicadores.find((indicadorItem) => Number(indicadorItem.id) === Number(item.indicador_id));
+        const usuario = usuarios.find((usuarioItem) => usuarioItem.identificador_usuario === item.usuario_id);
+        metasColaboradores.push({
+          id: localRowId("meta", [item.usuario_id, item.indicador_id, periodo.ano, periodo.mes]),
+          usuario_id: item.usuario_id,
+          usuario_nome: usuario?.nome_completo || item.usuario_id,
+          usuario_email: usuario?.correio_eletronico || "",
+          tipo_usuario: "CORRETOR",
+          indicador_id: item.indicador_id,
+          indicador_codigo: indicador?.codigo || String(item.indicador_id),
+          indicador_nome: indicador?.nome || "",
+          mes_referencia: periodo.mes,
+          ano_referencia: periodo.ano,
+          meta_valor: item.valores[index],
+          valor_realizado: index === meses.length - 1 ? item.realizado : Math.round(item.valores[index] * 0.82),
+          origem_meta: "MANUAL",
+          data_inicio: `${periodo.ano}-${String(periodo.mes).padStart(2, "0")}-01`,
+          data_fim: endOfMonthIso(periodo.ano, periodo.mes),
+          versao: 1,
+          ativo: true,
+        });
+      });
+    });
+    return {
+      version: 2,
+      updatedAt: new Date().toISOString(),
+      user: {
+        identificador_usuario: "gestor-qa-1",
+        nome_completo: "Administrador",
+        correio_eletronico: "admin@7lm.local",
+      },
+      permissoes: {
+        admin: true,
+        manage: true,
+        gerenciais: true,
+        resultados: false,
+        importar: true,
+        escopo: "GLOBAL",
+      },
+      referencias: {
+        usuarios,
+        indicadores,
+        equipes,
+        regioes: [{ codigo: "GO", nome: "Goias" }, { codigo: "DF", nome: "Distrito Federal" }],
+        empreendimentos: [{ codigo: "CAT", nome: "CAT" }],
+      },
+      metas_colaboradores: metasColaboradores,
+      metas_gerenciais: [
+        {
+          id: localRowId("gerencial", ["global", 1, anoAtual, mesAtual]),
+          tipo_meta: "GLOBAL",
+          visao_meta: "DIRETORIA",
+          pessoa_nome: "Sem pessoa",
+          regiao_id: "",
+          empreendimento_id: "",
+          indicador_id: 1,
+          indicador_codigo: "LEADS",
+          meta_regra: ">",
+          meta_valor: 520,
+          fato_consolidado: 520,
+          peso: 1,
+          mes_referencia: mesAtual,
+          ano_referencia: anoAtual,
+          ativo: true,
+        },
+        {
+          id: localRowId("regional", ["go", 1, anoAtual, mesAtual]),
+          tipo_meta: "Regional",
+          visao_meta: "COORDENADOR",
+          pessoa_nome: "Sem pessoa",
+          regiao_id: "GO",
+          empreendimento_id: "",
+          indicador_id: 1,
+          indicador_codigo: "LEADS",
+          meta_regra: ">",
+          meta_valor: 320,
+          fato_consolidado: 320,
+          peso: 1,
+          mes_referencia: mesAtual,
+          ano_referencia: anoAtual,
+          ativo: true,
+        },
+      ],
+      historico: [],
+    };
+  }
+
+  function loadLocalDb() {
+    if (state.localDb) return state.localDb;
+    try {
+      const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.version === 2) {
+          state.localDb = parsed;
+          return parsed;
+        }
+      }
+    } catch {}
+    state.localDb = createLocalSeed();
+    saveLocalDb();
+    return state.localDb;
+  }
+
+  function saveLocalDb() {
+    if (!state.localDb) return;
+    state.localDb.updatedAt = new Date().toISOString();
+    try {
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state.localDb));
+    } catch {}
+  }
+
+  function activateLocalMode(reason, options = {}) {
+    const currentUser = state.user;
+    if (!state.localMode) {
+      state.localMode = true;
+      state.localReason = reason?.message || "Modulo sem API de metas";
+      loadLocalDb();
+      document.documentElement.setAttribute("data-metas-data-source", "local");
+    }
+    state.user = options.preserveUser && currentUser ? currentUser : state.localDb.user;
+    state.permissoes = state.localDb.permissoes || {};
+    state.referencias = state.localDb.referencias || state.referencias;
+    applyUser(state.user);
+    populateFilters();
+    refreshPermissionControls();
+  }
+
+  function showLocalModeNotice() {
+    if (!state.localMode) return;
+    setFeedback("warning", "Base local ativa: Abertura e Objetivos está operando sem API de metas. Cadastros, filtros e histórico ficam salvos neste navegador.");
+  }
+
+  function referenceUser(userId) {
+    return (loadLocalDb().referencias.usuarios || []).find((item) => String(item.identificador_usuario) === String(userId));
+  }
+
+  function referenceIndicator(indicatorIdOrCode) {
+    const text = String(indicatorIdOrCode || "");
+    return (loadLocalDb().referencias.indicadores || []).find((item) => String(item.id) === text || String(item.codigo) === text);
+  }
+
+  function asNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function rowPeriodMatches(row, filters) {
+    return (!filters.mes || Number(row.mes_referencia) === Number(filters.mes))
+      && (!filters.ano || Number(row.ano_referencia) === Number(filters.ano));
+  }
+
+  function rowIndicatorMatches(row, indicatorFilter) {
+    if (!indicatorFilter) return true;
+    return String(row.indicador_id) === String(indicatorFilter) || String(row.indicador_codigo) === String(indicatorFilter);
+  }
+
+  function rowTeamMatches(row, teamFilter) {
+    if (!teamFilter) return true;
+    const user = referenceUser(row.usuario_id || row.pessoa_id);
+    return (user?.equipes || []).includes(teamFilter);
+  }
+
+  function rowManagerMatches(row, managerFilter) {
+    if (!managerFilter) return true;
+    const user = referenceUser(row.usuario_id || row.pessoa_id);
+    if (String(row.usuario_id) === String(managerFilter)) return true;
+    return String(user?.gestor_id || "") === String(managerFilter);
+  }
+
+  function rowBrokerMatches(row, brokerFilter) {
+    if (!brokerFilter) return true;
+    return String(row.usuario_id || row.pessoa_id || "") === String(brokerFilter);
+  }
+
+  function filterLocalCollaboratorRows(type, filters) {
+    return (loadLocalDb().metas_colaboradores || [])
+      .filter((row) => row.ativo !== false)
+      .filter((row) => String(row.tipo_usuario) === type)
+      .filter((row) => rowPeriodMatches(row, filters))
+      .filter((row) => rowIndicatorMatches(row, filters.indicador))
+      .filter((row) => rowTeamMatches(row, filters.equipe))
+      .filter((row) => rowManagerMatches(row, filters.gestor))
+      .filter((row) => type === "CORRETOR" ? rowBrokerMatches(row, filters.corretor) : true);
+  }
+
+  function previousThreeMonths(month, year) {
+    return [-3, -2, -1].map((offset) => monthShift(month, year, offset));
+  }
+
+  function isSameLocalPeriod(row, period) {
+    return Number(row.mes_referencia) === Number(period.mes) && Number(row.ano_referencia) === Number(period.ano);
+  }
+
+  function localBrokerPotential(indicatorId, month, year) {
+    const periods = previousThreeMonths(month, year);
+    const rows = (loadLocalDb().metas_colaboradores || []).filter((row) =>
+      row.ativo !== false
+      && row.tipo_usuario === "CORRETOR"
+      && Number(row.indicador_id) === Number(indicatorId)
+      && periods.some((period) => isSameLocalPeriod(row, period))
+    );
+    const brokers = new Set(rows.map((row) => row.usuario_id));
+    const brokerCount = brokers.size;
+    const total = rows.reduce((sum, row) => sum + asNumber(row.meta_valor), 0);
+    const months = periods.map((period) => {
+      const monthRows = rows.filter((row) => isSameLocalPeriod(row, period));
+      const totalMeta = monthRows.reduce((sum, row) => sum + asNumber(row.meta_valor), 0);
+      return {
+        mes: period.mes,
+        ano: period.ano,
+        meta_valor: brokerCount > 0 ? totalMeta / brokerCount : 0,
+        total_meta: totalMeta,
+        corretores: brokerCount,
+      };
+    });
+    return {
+      meta_potencial: brokerCount > 0 ? total / brokerCount : 0,
+      meses: months,
+    };
+  }
+
+  function localIndividualHistory(row) {
+    const periods = previousThreeMonths(row.mes_referencia, row.ano_referencia);
+    return periods.map((period) => {
+      const item = (loadLocalDb().metas_colaboradores || []).find((candidate) =>
+        candidate.ativo !== false
+        && candidate.tipo_usuario === row.tipo_usuario
+        && String(candidate.usuario_id) === String(row.usuario_id)
+        && Number(candidate.indicador_id) === Number(row.indicador_id)
+        && isSameLocalPeriod(candidate, period)
+      );
+      return {
+        mes: period.mes,
+        ano: period.ano,
+        meta_valor: asNumber(item?.meta_valor),
+      };
+    });
+  }
+
+  function localStatus(row) {
+    const meta = asNumber(row.meta_valor);
+    const realizado = asNumber(row.valor_realizado);
+    if (meta <= 0) return "Sem meta cadastrada";
+    const percent = (realizado / meta) * 100;
+    if (percent >= 100) return "Dentro do esperado";
+    if (percent >= 70) return "Abaixo do esperado";
+    return "Critico";
+  }
+
+  function enrichLocalCollaborator(row) {
+    const user = referenceUser(row.usuario_id);
+    const indicator = referenceIndicator(row.indicador_id);
+    const potential = row.tipo_usuario === "CORRETOR"
+      ? localBrokerPotential(row.indicador_id, row.mes_referencia, row.ano_referencia)
+      : { meta_potencial: row.meta_potencial ?? row.meta_valor, meses: localIndividualHistory(row) };
+    return {
+      ...row,
+      usuario_nome: row.usuario_nome || user?.nome_completo || row.usuario_id,
+      usuario_email: row.usuario_email || user?.correio_eletronico || "",
+      indicador_codigo: row.indicador_codigo || indicator?.codigo || row.indicador_id,
+      indicador_nome: row.indicador_nome || indicator?.nome || "",
+      meta_potencial: potential.meta_potencial,
+      historico_meta_potencial_3_meses: potential.meses,
+      historico_meta_3_meses: localIndividualHistory(row),
+      status_resultado: row.status_resultado || localStatus(row),
+    };
+  }
+
+  function localListCorretores() {
+    return filterLocalCollaboratorRows("CORRETOR", getFilters()).map(enrichLocalCollaborator);
+  }
+
+  function localAutomaticManagerMeta(managerId, indicatorId, month, year) {
+    return (loadLocalDb().metas_colaboradores || [])
+      .filter((row) => row.ativo !== false && row.tipo_usuario === "CORRETOR")
+      .filter((row) => Number(row.indicador_id) === Number(indicatorId))
+      .filter((row) => Number(row.mes_referencia) === Number(month) && Number(row.ano_referencia) === Number(year))
+      .filter((row) => String(referenceUser(row.usuario_id)?.gestor_id || "") === String(managerId))
+      .reduce((sum, row) => sum + asNumber(row.meta_valor), 0);
+  }
+
+  function localAutomaticManagerHistory(managerId, indicatorId, month, year) {
+    return previousThreeMonths(month, year).map((period) => ({
+      mes: period.mes,
+      ano: period.ano,
+      meta_valor: localAutomaticManagerMeta(managerId, indicatorId, period.mes, period.ano),
+    }));
+  }
+
+  function localListGestores() {
+    const filters = getFilters();
+    const month = Number(filters.mes || new Date().getMonth() + 1);
+    const year = Number(filters.ano || new Date().getFullYear());
+    const managers = (loadLocalDb().referencias.usuarios || []).filter((user) =>
+      (user.perfis || []).join(" ").toLowerCase().match(/gestor|gerente|coordenador|diretor/)
+    );
+    const indicators = (loadLocalDb().referencias.indicadores || []).filter((indicator) => rowIndicatorMatches({
+      indicador_id: indicator.id,
+      indicador_codigo: indicator.codigo,
+    }, filters.indicador));
+    const rows = [];
+    managers.forEach((manager) => {
+      if (filters.gestor && String(manager.identificador_usuario) !== String(filters.gestor)) return;
+      if (filters.equipe && !(manager.equipes || []).includes(filters.equipe)) return;
+      indicators.forEach((indicator) => {
+        const manual = (loadLocalDb().metas_colaboradores || []).find((row) =>
+          row.ativo !== false
+          && row.tipo_usuario === "GESTOR"
+          && String(row.usuario_id) === String(manager.identificador_usuario)
+          && Number(row.indicador_id) === Number(indicator.id)
+          && Number(row.mes_referencia) === month
+          && Number(row.ano_referencia) === year
+        );
+        const automatic = localAutomaticManagerMeta(manager.identificador_usuario, indicator.id, month, year);
+        const official = manual ? asNumber(manual.meta_valor) : automatic;
+        const history = localAutomaticManagerHistory(manager.identificador_usuario, indicator.id, month, year);
+        rows.push({
+          id: manual?.id || localRowId("gestor-auto", [manager.identificador_usuario, indicator.id, year, month]),
+          usuario_id: manager.identificador_usuario,
+          usuario_nome: manager.nome_completo,
+          usuario_email: manager.correio_eletronico || "",
+          tipo_usuario: "GESTOR",
+          indicador_id: indicator.id,
+          indicador_codigo: indicator.codigo,
+          indicador_nome: indicator.nome,
+          mes_referencia: month,
+          ano_referencia: year,
+          meta_potencial: automatic,
+          meta_automatica: automatic,
+          meta_manual: manual ? asNumber(manual.meta_valor) : null,
+          meta_valor: official,
+          meta_oficial: official,
+          origem_meta: manual ? "MANUAL" : "AUTOMATICA",
+          historico_meta_3_meses: history,
+          historico_meta_potencial_3_meses: history,
+          ativo: true,
+        });
+      });
+    });
+    return rows;
+  }
+
+  function localListGerenciais(regionalOnly = false) {
+    const filters = getFilters();
+    return (loadLocalDb().metas_gerenciais || [])
+      .filter((row) => row.ativo !== false)
+      .filter((row) => regionalOnly ? row.tipo_meta === "Regional" : row.tipo_meta !== "Regional")
+      .filter((row) => rowPeriodMatches(row, filters))
+      .filter((row) => rowIndicatorMatches(row, filters.indicador));
+  }
+
+  function localRecordHistory({ metaId, tipoMeta, acao, pessoaNome, indicadorCodigo, anterior, novo, motivo }) {
+    loadLocalDb().histórico.unshift({
+      id: localRowId("hist", [Date.now(), metaId]),
+      meta_id: metaId,
+      created_at: new Date().toISOString(),
+      usuario_responsavel_nome: state.user?.nome_completo || "Administrador",
+      pessoa_impactada_nome: pessoaNome || "-",
+      indicador_codigo: indicadorCodigo || "-",
+      tipo_meta: tipoMeta || "COLABORADOR",
+      acao: acao || "ALTERACAO",
+      valor_anterior: anterior ? { meta_valor: anterior.meta_valor, versao: anterior.versao } : null,
+      valor_novo: novo ? { meta_valor: novo.meta_valor, versao: novo.versao } : null,
+      motivo: motivo || "Alteracao local em Abertura e Objetivos",
+    });
+  }
+
+  function localSaveCollaborator(kind, payload, currentId = "") {
+    const db = loadLocalDb();
+    const type = kind === "gestor" ? "GESTOR" : "CORRETOR";
+    const indicator = referenceIndicator(payload.indicador_id);
+    const user = referenceUser(payload.usuario_id);
+    const previous = db.metas_colaboradores.find((row) =>
+      row.ativo !== false
+      && (currentId ? String(row.id) === String(currentId) : (
+        row.tipo_usuario === type
+        && String(row.usuario_id) === String(payload.usuario_id)
+        && Number(row.indicador_id) === Number(payload.indicador_id)
+        && Number(row.mes_referencia) === Number(payload.mes_referencia)
+        && Number(row.ano_referencia) === Number(payload.ano_referencia)
+      ))
+    );
+    if (previous) previous.ativo = false;
+    const next = {
+      id: localRowId("meta-local", [type, payload.usuario_id, payload.indicador_id, payload.ano_referencia, payload.mes_referencia, Date.now()]),
+      usuario_id: payload.usuario_id,
+      usuario_nome: user?.nome_completo || payload.usuario_id,
+      usuario_email: user?.correio_eletronico || "",
+      tipo_usuario: type,
+      indicador_id: Number(payload.indicador_id),
+      indicador_codigo: indicator?.codigo || String(payload.indicador_id),
+      indicador_nome: indicator?.nome || "",
+      mes_referencia: Number(payload.mes_referencia),
+      ano_referencia: Number(payload.ano_referencia),
+      meta_valor: asNumber(payload.meta_valor),
+      valor_realizado: asNumber(previous?.valor_realizado),
+      origem_meta: type === "GESTOR" ? "MANUAL" : "MANUAL",
+      data_inicio: payload.data_inicio || `${payload.ano_referencia}-${String(payload.mes_referencia).padStart(2, "0")}-01`,
+      data_fim: payload.data_fim || endOfMonthIso(payload.ano_referencia, payload.mes_referencia),
+      versao: asNumber(previous?.versao) + 1 || 1,
+      ativo: true,
+    };
+    db.metas_colaboradores.push(next);
+    localRecordHistory({
+      metaId: next.id,
+      tipoMeta: "COLABORADOR",
+      acao: previous ? "ALTERACAO" : "CRIACAO",
+      pessoaNome: next.usuario_nome,
+      indicadorCodigo: next.indicador_codigo,
+      anterior: previous,
+      novo: next,
+      motivo: payload.motivo_alteracao,
+    });
+    saveLocalDb();
+    return next;
+  }
+
+  function localSaveGerencial(payload) {
+    const db = loadLocalDb();
+    const indicator = referenceIndicator(payload.indicador_id);
+    const next = {
+      id: localRowId("gerencial-local", [payload.tipo_meta, payload.indicador_id, payload.ano_referencia, payload.mes_referencia, Date.now()]),
+      tipo_meta: payload.tipo_meta || "GLOBAL",
+      visao_meta: payload.visao_meta || "-",
+      pessoa_nome: payload.pessoa_id ? referenceUser(payload.pessoa_id)?.nome_completo : "Sem pessoa",
+      pessoa_id: payload.pessoa_id || "",
+      regiao_id: payload.regiao_id || "",
+      empreendimento_id: payload.empreendimento_id || "",
+      indicador_id: Number(payload.indicador_id),
+      indicador_codigo: indicator?.codigo || String(payload.indicador_id),
+      indicador_nome: indicator?.nome || "",
+      meta_regra: payload.meta_regra || ">",
+      meta_valor: asNumber(payload.meta_valor || payload.fato_consolidado),
+      fato_1: asNumber(payload.fato_1),
+      fato_2: asNumber(payload.fato_2),
+      fato_consolidado: asNumber(payload.meta_valor || payload.fato_consolidado),
+      peso: asNumber(payload.peso || 1),
+      mes_referencia: Number(payload.mes_referencia),
+      ano_referencia: Number(payload.ano_referencia),
+      ativo: true,
+    };
+    db.metas_gerenciais.push(next);
+    localRecordHistory({
+      metaId: next.id,
+      tipoMeta: "Gerencial",
+      acao: "CRIACAO",
+      pessoaNome: next.pessoa_nome,
+      indicadorCodigo: next.indicador_codigo,
+      novo: next,
+      motivo: payload.observacao,
+    });
+    saveLocalDb();
+    return next;
+  }
+
+  function trimTrailingSlash(value) {
+    return String(value || "").replace(/\/+$/, "");
+  }
+
+  function ensureLeadingSlash(value) {
+    const text = String(value || "");
+    return text.startsWith("/") ? text : `/${text}`;
+  }
+
+  function endpoint(path, params = {}) {
+    let url = /^https?:\/\//i.test(path) ? path : `${trimTrailingSlash(API_BASE_URL)}${ensureLeadingSlash(path)}`;
+    Object.entries(params).forEach(([key, value]) => {
+      url = url.replace(`{${key}}`, encodeURIComponent(String(value ?? "")));
+    });
+    return url;
+  }
+
+  function withQuery(path, params = {}) {
+    const url = new URL(endpoint(path), window.location.origin);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        url.searchParams.set(key, value);
+      }
+    });
+    return url.toString();
+  }
+
+  async function safeJson(response) {
+    const text = await response.text().catch(() => "");
+    if (!text) return {};
+    try { return JSON.parse(text); } catch { return {}; }
+  }
+
+  async function api(path, options = {}) {
+    const finalUrl = /^https?:\/\//i.test(path) ? path : endpoint(path);
+    const token = readSession(TOKEN_KEY);
+    const headers = { Accept: "application/json", ...(options.headers || {}) };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (options.body && !(options.body instanceof FormData)) headers["Content-Type"] = "application/json";
+    const response = await fetch(finalUrl, {
+      cache: "no-store",
+      credentials: "same-origin",
+      ...options,
+      headers,
+      body: options.body && !(options.body instanceof FormData) ? JSON.stringify(options.body) : options.body,
+    });
+    const payload = await safeJson(response);
+    if (!response.ok) {
+      const detail = payload?.detail;
+      const error = new Error(typeof detail === "string" ? detail : payload?.mensagem || "Não foi possível concluir a operação.");
+      error.status = response.status;
+      error.payload = payload;
+      throw error;
+    }
+    return payload;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function formatNumber(value) {
+    const number = Number(value || 0);
+    return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(number);
+  }
+
+  function formatMoney(value) {
+    const number = Number(value || 0);
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(number);
+  }
+
+  function formatPercent(value) {
+    if (value === null || value === undefined) return "-";
+    return `${Number(value || 0).toFixed(2).replace(".", ",")}%`;
+  }
+
+  function formatDate(value) {
+    if (!value) return "-";
+    const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return "-";
+    return new Intl.DateTimeFormat("pt-BR").format(date);
+  }
+
+  function formatMesAno(row) {
+    const mes = Number(row?.mes_referencia || row?.mes);
+    const ano = Number(row?.ano_referencia || row?.ano);
+    if (!mes || !ano) return "-";
+    return `${String(mes).padStart(2, "0")}/${ano}`;
+  }
+
+  function normalizeHistoryList(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.filter(Boolean);
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  function escapeAttr(value) {
+    return escapeHtml(value).replace(/\n/g, "&#10;");
+  }
+
+  function historyTooltip(row, title, key = "historico_meta_3_meses") {
+    const items = normalizeHistoryList(row?.[key]);
+    if (!items.length) return "";
+    const lines = items.map((item) => {
+      const value = formatNumber(item.meta_valor ?? item.media_individual ?? 0);
+      if (item.total_meta !== undefined || item.corretores !== undefined) {
+        return `${formatMesAno(item)}: ${value} por corretor (total ${formatNumber(item.total_meta || 0)} / ${formatNumber(item.corretores || 0)} corretor(es))`;
+      }
+      return `${formatMesAno(item)}: ${value}`;
+    });
+    return `${title}\n${lines.join("\n")}`;
+  }
+
+  function valueWithTooltip(value, tooltip) {
+    if (!tooltip) return escapeHtml(value);
+    return `<span class="tl-metas-tooltip" tabindex="0" data-tooltip="${escapeAttr(tooltip)}">${escapeHtml(value)}</span>`;
+  }
+
+  function todayIso() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function endOfMonthIso(year, month) {
+    return new Date(Number(year), Number(month), 0).toISOString().slice(0, 10);
+  }
+
+  function initialsFromName(value) {
+    const parts = String(value || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "7L";
+    return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() || "").join("");
+  }
+
+  function setFeedback(variant, message) {
+    if (!el.feedback) return;
+    el.feedback.dataset.variant = variant || "";
+    el.feedback.textContent = message || "";
+  }
+
+  function canManage() {
+    return !!(state.permissoes.manage || state.permissoes.admin);
+  }
+
+  function canManageGerenciais() {
+    return !!(state.permissoes.gerenciais || state.permissoes.admin);
+  }
+
+  function canManageResultados() {
+    return !!(state.permissoes.resultados || state.permissoes.admin);
+  }
+
+  function canImportar() {
+    return !!(state.permissoes.importar || state.permissoes.admin);
+  }
+
+  function canManageIndicadores() {
+    return !!state.permissoes.admin;
+  }
+
+  function escopoAtual() {
+    return String(state.permissoes?.escopo || "PESSOAL").toUpperCase();
+  }
+
+  function syncFilterControl(control, { hidden = false, disabled = false, value } = {}) {
+    const wrapper = control?.closest("label");
+    if (wrapper) wrapper.hidden = !!hidden;
+    if (!control) return;
+    control.disabled = !!disabled;
+    if (value !== undefined && value !== null) control.value = value;
+  }
+
+  function refreshPermissionControls() {
+    document.querySelectorAll('[data-open-form="corretor"], [data-open-form="gestor"]').forEach((button) => {
+      button.hidden = !canManage();
+    });
+    document.querySelectorAll('[data-open-form="gerencial"], [data-open-form="regional"]').forEach((button) => {
+      button.hidden = !canManageGerenciais();
+    });
+    document.querySelectorAll('[data-open-form="resultado"]').forEach((button) => {
+      button.hidden = !canManageResultados();
+    });
+    document.querySelectorAll('[data-open-form="indicador"]').forEach((button) => {
+      button.hidden = !canManageIndicadores();
+    });
+    document.querySelectorAll(".tl-metas-import").forEach((label) => {
+      label.hidden = state.localMode || !canImportar();
+    });
+
+    const scope = escopoAtual();
+    const selfId = state.user?.identificador_usuario || "";
+
+    if (scope === "GLOBAL") {
+      syncFilterControl(el.filtroEquipe, { hidden: false, disabled: false });
+      syncFilterControl(el.filtroGestor, { hidden: false, disabled: false });
+      syncFilterControl(el.filtroCorretor, { hidden: false, disabled: false });
+      return;
+    }
+
+    if (scope === "GESTOR") {
+      syncFilterControl(el.filtroEquipe, {
+        hidden: false,
+        disabled: (el.filtroEquipe?.options?.length || 0) <= 2,
+      });
+      syncFilterControl(el.filtroGestor, {
+        hidden: false,
+        disabled: true,
+        value: selfId,
+      });
+      syncFilterControl(el.filtroCorretor, { hidden: false, disabled: false });
+      return;
+    }
+
+    syncFilterControl(el.filtroEquipe, { hidden: true, disabled: true, value: "" });
+    syncFilterControl(el.filtroGestor, { hidden: true, disabled: true, value: "" });
+    syncFilterControl(el.filtroCorretor, {
+      hidden: false,
+      disabled: true,
+      value: selfId,
+    });
+  }
+
+  function getActiveTabFromPath() {
+    const path = window.location.pathname.replace(/\/+$/, "");
+    if (path.endsWith("/corretores")) return "corretores";
+    if (path.endsWith("/gestores")) return "gestores";
+    if (path.endsWith("/regionais")) return "regionais";
+    if (path.endsWith("/gerenciais")) return "gerenciais";
+    if (path.endsWith("/historico")) return "historico";
+    if (path.endsWith("/indicadores")) return "indicadores";
+    return DEFAULT_TAB;
+  }
+
+  function activateTab(tab) {
+    state.activeTab = views[tab] && AVAILABLE_TABS.has(tab) ? tab : DEFAULT_TAB;
+    Object.entries(views).forEach(([key, node]) => {
+      if (node) node.hidden = key !== state.activeTab;
+    });
+    document.querySelectorAll(".tl-metas-tabs a[data-tab]").forEach((link) => {
+      link.classList.toggle("is-active", link.dataset.tab === state.activeTab);
+    });
+  }
+
+  function getFilters() {
+    return {
+      mes: el.filtroMes?.value || "",
+      ano: el.filtroAno?.value || "",
+      equipe: el.filtroEquipe?.value || "",
+      gestor: el.filtroGestor?.value || "",
+      corretor: el.filtroCorretor?.value || "",
+      indicador: el.filtroIndicador?.value || "",
+    };
+  }
+
+  function getHistoricoFilters() {
+    const filters = getFilters();
+    return {
+      mes: filters.mes,
+      ano: filters.ano,
+      pessoa: filters.corretor,
+      indicador: filters.indicador,
+      tipo_meta: el.filtroHistoricoTipo?.value || "",
+      acao: el.filtroHistoricoAcao?.value || "",
+      usuario_responsavel: el.filtroHistoricoUsuario?.value || "",
+    };
+  }
+
+  function fillSelect(select, items, valueKey, labelKey, placeholder) {
+    if (!select) return;
+    const current = select.value;
+    select.innerHTML = `<option value="">${escapeHtml(placeholder || "Todos")}</option>`;
+    items.forEach((item) => {
+      const value = item[valueKey];
+      const label = typeof labelKey === "function" ? labelKey(item) : item[labelKey];
+      select.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`);
+    });
+    select.value = current;
+  }
+
+  function populateFilters() {
+    const now = new Date();
+    if (el.filtroMes && !el.filtroMes.options.length) {
+      for (let month = 1; month <= 12; month += 1) {
+        el.filtroMes.insertAdjacentHTML("beforeend", `<option value="${month}">${String(month).padStart(2, "0")}</option>`);
+      }
+      el.filtroMes.value = String(now.getMonth() + 1);
+    }
+    if (el.filtroAno && !el.filtroAno.value) el.filtroAno.value = String(now.getFullYear());
+    fillSelect(el.filtroIndicador, state.referencias.indicadores || [], "codigo", (item) => `${item.codigo} - ${item.nome}`, "Todos");
+    fillSelect(el.filtroEquipe, state.referencias.equipes || [], "codigo", (item) => item.nome || item.codigo, "Todas");
+    const usuarios = state.referencias.usuarios || [];
+    const gestores = usuarios.filter((u) => (u.perfis || []).join(" ").toLowerCase().match(/gestor|gerente|coordenador|diretor/));
+    fillSelect(el.filtroGestor, gestores, "identificador_usuario", "nome_completo", "Todos");
+    fillSelect(el.filtroCorretor, usuarios, "identificador_usuario", "nome_completo", "Todos");
+    fillSelect(el.filtroHistoricoUsuario, usuarios, "identificador_usuario", "nome_completo", "Todos");
+  }
+
+  function rowStatusClass(status) {
+    const text = String(status || "").toLowerCase();
+    if (text.includes("abaixo") || text.includes("sem resultado")) return "tl-badge tl-badge--warn";
+    if (text.includes("acima") || text.includes("dentro")) return "tl-badge tl-badge--ok";
+    if (text.includes("critico") || text.includes("crítico") || text.includes("sem meta")) return "tl-badge tl-badge--bad";
+    return "tl-badge";
+  }
+
+  function renderTable(targetId, headers, rows, emptyMessage) {
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    if (!rows.length) {
+      target.innerHTML = `<div class="tl-metas-empty">${escapeHtml(emptyMessage || "Nenhum registro encontrado para os filtros selecionados.")}</div>`;
+      return;
+    }
+    target.innerHTML = `
+      <table>
+        <thead><tr>${headers.map((h) => `<th>${escapeHtml(h.label)}</th>`).join("")}</tr></thead>
+        <tbody>
+          ${rows.map((row) => `
+            <tr>
+              ${headers.map((h) => `<td>${typeof h.render === "function" ? h.render(row) : escapeHtml(row[h.key] ?? "-")}</td>`).join("")}
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function loadUser() {
+    const cached = portalState?.getStoredUser?.();
+    if (cached) applyUser(cached);
+    if (!readSession(TOKEN_KEY) && shouldUseLocalFallback({ status: 401, message: "Sessao local sem token" })) {
+      activateLocalMode({ message: "Sessao local sem token" });
+      return;
+    }
+    try {
+      const payload = await api(ENDPOINTS.me);
+      const user = payload?.usuario || payload?.user || payload?.data || payload;
+      if (user) {
+        state.user = user;
+        portalState?.cacheUser?.(user);
+        applyUser(user);
+        if (FORCE_LOCAL_DATA) {
+          activateLocalMode({ message: "Modulo configurado para dados locais" }, { preserveUser: true });
+        }
+      }
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      activateLocalMode(error);
+    }
+  }
+
+  function applyUser(user) {
+    state.user = user;
+    const name = user?.nome_completo || user?.nome || "Usuário";
+    if (el.nomeUsuario) el.nomeUsuario.textContent = name;
+    if (el.metaUsuario) el.metaUsuario.textContent = user?.correio_eletronico || user?.email || "Sessão ativa";
+    if (el.userInitials) el.userInitials.textContent = initialsFromName(name);
+  }
+
+  async function loadReferencias() {
+    if (state.localMode) {
+      state.referencias = loadLocalDb().referencias || state.referencias;
+      state.permissoes = loadLocalDb().permissoes || {};
+      populateFilters();
+      refreshPermissionControls();
+      showLocalModeNotice();
+      return;
+    }
+    try {
+      const payload = await api(ENDPOINTS.referencias);
+      state.referencias = payload?.referencias || state.referencias;
+      state.permissoes = payload?.permissoes || {};
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      activateLocalMode(error);
+    }
+    populateFilters();
+    refreshPermissionControls();
+  }
+
+  async function loadCorretores() {
+    if (state.localMode) {
+      const filters = getFilters();
+      state.corretores = localListCorretores();
+      renderCorretores({ itens: state.corretores, prazo_alteracao: endOfMonthIso(filters.ano, filters.mes) });
+      showLocalModeNotice();
+      return;
+    }
+    try {
+      const payload = await api(withQuery(ENDPOINTS.corretores, getFilters()));
+      state.corretores = payload?.itens || [];
+      renderCorretores(payload);
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      activateLocalMode(error);
+      await loadCorretores();
+    }
+  }
+
+  function renderCorretores(payload) {
+    const items = state.corretores;
+    document.getElementById("kpiCorretoresComMeta").textContent = formatNumber(new Set(items.map((i) => i.usuario_id)).size);
+    document.getElementById("kpiCorretoresSemMeta").textContent = "0";
+    document.getElementById("kpiCorretoresMetas").textContent = formatNumber(items.length);
+    document.getElementById("kpiPrazoAlteracao").textContent = formatDate(payload?.prazo_alteracao);
+    renderTable("tabelaCorretores", [
+      { label: "Corretor", render: (r) => escapeHtml(r.usuario_nome || "-") },
+      { label: "Indicador", render: (r) => escapeHtml(r.indicador_codigo || "-") },
+      { label: "Meta potencial", render: (r) => valueWithTooltip(formatNumber(r.meta_potencial), historyTooltip(r, "Meta potencial dos 3 últimos meses", "historico_meta_potencial_3_meses")) },
+      { label: "Meta atual", render: (r) => valueWithTooltip(formatNumber(r.meta_valor), historyTooltip(r, "Meta atual dos 3 últimos meses")) },
+      { label: "Nova meta", render: (r) => `<input type="number" min="0" step="0.01" value="${escapeHtml(r.meta_valor || 0)}" data-new-meta="${escapeHtml(r.id)}">` },
+      { label: "Mês/Ano", render: (r) => formatMesAno(r) },
+      { label: "Status", render: (r) => `<span class="${rowStatusClass(r.status_resultado)}">${escapeHtml(r.status_resultado || "-")}</span>` },
+      { label: "Ações", render: (r) => canManage() ? `<button class="tl-badge" data-save-corretor="${escapeHtml(r.id)}">Salvar</button> <button class="tl-badge" data-history="${escapeHtml(r.id)}">Histórico</button>` : `<span class="tl-badge">Visualizar</span>` },
+    ], items, "Nenhuma meta encontrada para os filtros selecionados.");
+    bindTableActions();
+  }
+
+  async function loadGestores() {
+    if (state.localMode) {
+      state.gestores = localListGestores();
+      renderGestores();
+      showLocalModeNotice();
+      return;
+    }
+    try {
+      const payload = await api(withQuery(ENDPOINTS.gestores, getFilters()));
+      state.gestores = payload?.itens || [];
+      renderGestores();
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      activateLocalMode(error);
+      await loadGestores();
+    }
+  }
+
+  function renderGestores() {
+    const items = state.gestores;
+    document.getElementById("kpiGestoresTotal").textContent = formatNumber(new Set(items.map((i) => i.usuario_id)).size);
+    document.getElementById("kpiGestoresManual").textContent = formatNumber(items.filter((i) => i.origem_meta === "MANUAL").length);
+    document.getElementById("kpiGestoresAuto").textContent = formatNumber(items.filter((i) => i.origem_meta === "AUTOMATICA").length);
+    document.getElementById("kpiGestoresOficial").textContent = formatNumber(items.reduce((sum, item) => sum + Number(item.meta_oficial ?? item.meta_valor ?? 0), 0));
+    renderTable("tabelaGestores", [
+      { label: "Gestor", render: (r) => escapeHtml(r.usuario_nome || "-") },
+      { label: "Indicador", render: (r) => escapeHtml(r.indicador_codigo || "-") },
+      { label: "Meta potencial", render: (r) => valueWithTooltip(formatNumber(r.meta_potencial ?? r.meta_automatica), historyTooltip(r, "Meta potencial dos 3 últimos meses", "historico_meta_potencial_3_meses")) },
+      { label: "Manual", render: (r) => r.meta_manual === null || r.meta_manual === undefined ? "-" : valueWithTooltip(formatNumber(r.meta_manual), historyTooltip(r, "Meta manual dos 3 últimos meses")) },
+      { label: "Oficial", render: (r) => valueWithTooltip(formatNumber(r.meta_oficial ?? r.meta_valor), historyTooltip(r, "Meta oficial dos 3 últimos meses")) },
+      { label: "Mês/Ano", render: (r) => formatMesAno(r) },
+      { label: "Origem", render: (r) => `<span class="tl-badge ${r.origem_meta === "MANUAL" ? "tl-badge--ok" : ""}">${r.origem_meta === "MANUAL" ? "Manual" : "Automática"}</span>` },
+      { label: "Status", render: () => `<span class="tl-badge tl-badge--ok">Ativa</span>` },
+      { label: "Ações", render: (r) => canManage() ? `<button class="tl-badge" data-open-form="gestor" data-user="${escapeHtml(r.usuario_id)}" data-indicador="${escapeHtml(r.indicador_id)}" data-meta-potencial="${escapeHtml(r.meta_potencial ?? r.meta_automatica ?? 0)}" data-meta-manual="${escapeHtml(r.meta_manual ?? "")}">Editar manual</button> <button class="tl-badge" data-history="${escapeHtml(r.id)}">Histórico</button>` : "-" },
+    ], items, "Nenhuma meta de gestor encontrada.");
+    bindTableActions();
+  }
+
+  async function loadGerenciais() {
+    const filters = getFilters();
+    if (state.localMode) {
+      state.gerenciais = localListGerenciais(false);
+      renderGerenciais();
+      showLocalModeNotice();
+      return;
+    }
+    try {
+      const payload = await api(withQuery(ENDPOINTS.gerenciais, { mes: filters.mes, ano: filters.ano, indicador: filters.indicador }));
+      state.gerenciais = (payload?.itens || []).filter((item) => item.tipo_meta !== "Regional");
+      renderGerenciais();
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      activateLocalMode(error);
+      await loadGerenciais();
+    }
+  }
+
+  async function loadRegionais() {
+    const filters = getFilters();
+    if (state.localMode) {
+      state.regionais = localListGerenciais(true);
+      renderRegionais();
+      showLocalModeNotice();
+      return;
+    }
+    try {
+      const payload = await api(withQuery(ENDPOINTS.regionais, {
+        mes: filters.mes,
+        ano: filters.ano,
+        indicador: filters.indicador,
+      }));
+      state.regionais = payload?.itens || [];
+      renderRegionais();
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      activateLocalMode(error);
+      await loadRegionais();
+    }
+  }
+
+  function renderRegionais() {
+    renderTable("tabelaRegionais", [
+      { label: "Região", render: (r) => escapeHtml(r.regiao_id || "-") },
+      { label: "Visão", render: (r) => escapeHtml(r.visao_meta || "-") },
+      { label: "Pessoa", render: (r) => escapeHtml(r.pessoa_nome || "-") },
+      { label: "Indicador", render: (r) => escapeHtml(r.indicador_codigo || "-") },
+      { label: "Regra", render: (r) => escapeHtml(r.meta_regra || "-") },
+      { label: "Meta", render: (r) => valueWithTooltip(formatNumber(r.meta_valor ?? r.fato_consolidado), historyTooltip(r, "Meta dos 3 últimos meses")) },
+      { label: "Peso", render: (r) => formatNumber(r.peso) },
+      { label: "Mês/Ano", render: (r) => formatMesAno(r) },
+      { label: "Status", render: (r) => `<span class="tl-badge ${r.ativo ? "tl-badge--ok" : "tl-badge--bad"}">${r.ativo ? "Ativa" : "Inativa"}</span>` },
+    ], state.regionais, "Nenhuma meta regional encontrada.");
+  }
+
+  function renderGerenciais() {
+    renderTable("tabelaGerenciais", [
+      { label: "Tipo", render: (r) => escapeHtml(r.tipo_meta || "-") },
+      { label: "Visão", render: (r) => escapeHtml(r.visao_meta || "-") },
+      { label: "Pessoa", render: (r) => escapeHtml(r.pessoa_nome || "-") },
+      { label: "Região", render: (r) => escapeHtml(r.regiao_id || "-") },
+      { label: "Empreendimento", render: (r) => escapeHtml(r.empreendimento_id || "-") },
+      { label: "Indicador", render: (r) => escapeHtml(r.indicador_codigo || "-") },
+      { label: "Regra", render: (r) => escapeHtml(r.meta_regra || "-") },
+      { label: "Meta", render: (r) => valueWithTooltip(formatNumber(r.meta_valor ?? r.fato_consolidado), historyTooltip(r, "Meta dos 3 últimos meses")) },
+      { label: "Peso", render: (r) => formatNumber(r.peso) },
+      { label: "Mês/Ano", render: (r) => formatMesAno(r) },
+      { label: "Status", render: (r) => `<span class="tl-badge ${r.ativo ? "tl-badge--ok" : "tl-badge--bad"}">${r.ativo ? "Ativa" : "Inativa"}</span>` },
+    ], state.gerenciais, "Nenhuma meta gerencial encontrada.");
+  }
+
+  async function loadResultados() {
+    const payload = await api(withQuery(ENDPOINTS.resultados, getFilters()));
+    state.resultados = payload?.itens || [];
+    renderResultados();
+  }
+
+  function renderResultados() {
+    renderTable("tabelaResultados", [
+      { label: "Pessoa", render: (r) => escapeHtml(r.usuario_nome || "-") },
+      { label: "Indicador", render: (r) => escapeHtml(r.indicador_codigo || "-") },
+      { label: "Mês/Ano", render: (r) => `${String(r.mes_referencia).padStart(2, "0")}/${r.ano_referencia}` },
+      { label: "Realizado", render: (r) => formatNumber(r.valor_realizado) },
+      { label: "Origem", render: (r) => `<span class="tl-badge">${escapeHtml(r.origem_resultado || "-")}</span>` },
+      { label: "Data", render: (r) => formatDate(r.data_resultado) },
+      { label: "Atualizado", render: (r) => formatDate(r.updated_at) },
+    ], state.resultados, "Nenhum resultado encontrado.");
+  }
+
+  async function loadHistorico() {
+    if (state.localMode) {
+      const filters = getHistoricoFilters();
+      state.historico = (loadLocalDb().historico || []).filter((item) => {
+        if (filters.tipo_meta && String(item.tipo_meta) !== String(filters.tipo_meta)) return false;
+        if (filters.acao && String(item.acao) !== String(filters.acao)) return false;
+        if (filters.indicador && String(item.indicador_codigo) !== String(filters.indicador)) return false;
+        return true;
+      });
+      renderHistorico();
+      showLocalModeNotice();
+      return;
+    }
+    try {
+      const payload = await api(withQuery(ENDPOINTS.historico, getHistoricoFilters()));
+      state.historico = payload?.itens || [];
+      renderHistorico();
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      activateLocalMode(error);
+      await loadHistorico();
+    }
+  }
+
+  function renderHistorico() {
+    renderTable("tabelaHistorico", [
+      { label: "Data", render: (r) => formatDate(r.created_at) },
+      { label: "Usuário", render: (r) => escapeHtml(r.usuario_responsavel_nome || r.usuario_responsavel || "-") },
+      { label: "Pessoa impactada", render: (r) => escapeHtml(r.pessoa_impactada_nome || "-") },
+      { label: "Indicador", render: (r) => escapeHtml(r.indicador_codigo || "-") },
+      { label: "Tipo", render: (r) => escapeHtml(r.tipo_meta || "-") },
+      { label: "Ação", render: (r) => `<span class="tl-badge">${escapeHtml(r.acao || "-")}</span>` },
+      { label: "Meta anterior", render: (r) => r.valor_anterior && r.valor_anterior.meta_valor !== undefined ? formatNumber(r.valor_anterior.meta_valor) : "-" },
+      { label: "Meta nova", render: (r) => r.valor_novo && r.valor_novo.meta_valor !== undefined ? formatNumber(r.valor_novo.meta_valor) : "-" },
+      { label: "Motivo", render: (r) => escapeHtml(r.motivo || "-") },
+      { label: "Versão", render: (r) => escapeHtml(r.valor_novo?.versao || "-") },
+    ], state.historico, "Nenhum histórico encontrado.");
+  }
+
+  async function loadIndicadores() {
+    if (state.localMode) {
+      state.indicadores = state.referencias.indicadores || [];
+      renderIndicadores();
+      showLocalModeNotice();
+      return;
+    }
+    const payload = await api(withQuery(ENDPOINTS.indicadores, { incluir_inativos: true }));
+    state.indicadores = payload?.itens || [];
+    renderIndicadores();
+  }
+
+  function renderIndicadores() {
+    renderTable("tabelaIndicadores", [
+      { label: "Código", render: (r) => escapeHtml(r.codigo || "-") },
+      { label: "Nome", render: (r) => escapeHtml(r.nome || "-") },
+      { label: "Descrição", render: (r) => escapeHtml(r.descricao || "-") },
+      { label: "Status", render: (r) => `<span class="tl-badge ${r.ativo === false ? "tl-badge--bad" : "tl-badge--ok"}">${r.ativo === false ? "Inativo" : "Ativo"}</span>` },
+      { label: "Ações", render: (r) => canManageIndicadores() ? `<button class="tl-badge" data-open-form="indicador" data-id="${escapeHtml(r.id)}">Editar</button>` : "-" },
+    ], state.indicadores, "Nenhum indicador cadastrado.");
+    bindTableActions();
+  }
+
+  async function loadActiveTab() {
+    setFeedback("", "");
+    try {
+      if (state.activeTab === "corretores") await loadCorretores();
+      if (state.activeTab === "gestores") await loadGestores();
+      if (state.activeTab === "regionais") await loadRegionais();
+      if (state.activeTab === "gerenciais") await loadGerenciais();
+      if (state.activeTab === "resultados") await loadResultados();
+      if (state.activeTab === "historico") await loadHistorico();
+      if (state.activeTab === "indicadores") await loadIndicadores();
+    } catch (error) {
+      setFeedback("error", error.message || "Não foi possível carregar os dados.");
+    }
+  }
+
+  function usuarioOptions(selected = "") {
+    return (state.referencias.usuarios || []).map((item) => `
+      <option value="${escapeHtml(item.identificador_usuario)}" ${item.identificador_usuario === selected ? "selected" : ""}>
+        ${escapeHtml(item.nome_completo)}
+      </option>
+    `).join("");
+  }
+
+  function indicadorOptions(selected = "") {
+    return (state.referencias.indicadores || []).map((item) => `
+      <option value="${escapeHtml(item.id)}" ${String(item.id) === String(selected) ? "selected" : ""}>
+        ${escapeHtml(item.codigo)} - ${escapeHtml(item.nome)}
+      </option>
+    `).join("");
+  }
+
+  function openModal(title, body, onSubmit) {
+    if (!el.modal) return;
+    el.modal.hidden = false;
+    el.modal.innerHTML = `
+      <section class="tl-metas-modal__panel" role="dialog" aria-modal="true">
+        <div class="tl-metas-modal__head">
+          <h2>${escapeHtml(title)}</h2>
+          <button class="tl-metas-modal__close" type="button" data-close>×</button>
+        </div>
+        ${body}
+      </section>
+    `;
+    el.modal.querySelectorAll("[data-close]").forEach((btn) => btn.addEventListener("click", closeModal));
+    const form = el.modal.querySelector("form");
+    if (form) {
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+          await onSubmit(new FormData(form));
+          closeModal();
+          setFeedback("success", "Operação realizada com sucesso.");
+          await loadActiveTab();
+        } catch (error) {
+          setFeedback("error", error.message || "Não foi possível salvar.");
+        }
+      });
+    }
+  }
+
+  function closeModal() {
+    if (!el.modal) return;
+    el.modal.hidden = true;
+    el.modal.innerHTML = "";
+  }
+
+  function formMetaColaborador(kind, defaults = {}) {
+    const mes = el.filtroMes?.value || new Date().getMonth() + 1;
+    const ano = el.filtroAno?.value || new Date().getFullYear();
+    const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
+    const fim = endOfMonthIso(ano, mes);
+    openModal(kind === "gestor" ? "Meta manual do gestor" : "Meta do corretor", `
+      <form class="tl-metas-form">
+        <label>Pessoa <select name="usuario_id" required>${usuarioOptions(defaults.usuario_id || defaults.user || "")}</select></label>
+        <label>Indicador <select name="indicador_id" required>${indicadorOptions(defaults.indicador_id || defaults.indicador || "")}</select></label>
+        <label>Mês <input name="mes_referencia" type="number" min="1" max="12" value="${escapeHtml(mes)}" required></label>
+        <label>Ano <input name="ano_referencia" type="number" min="2020" max="2100" value="${escapeHtml(ano)}" required></label>
+        <label>Meta potencial <input type="text" value="${escapeHtml(formatNumber(defaults.meta_potencial ?? defaults.metaPotencial ?? defaults.meta_automatica ?? defaults.metaAutomatica ?? defaults.meta_valor ?? 0))}" disabled></label>
+        <label>${kind === "gestor" ? "Meta manual" : "Meta"} <input name="meta_valor" type="number" min="0" step="0.01" value="${escapeHtml(defaults.meta_valor || defaults.meta_manual || defaults.metaManual || 0)}" required></label>
+        <input name="data_inicio" type="hidden" value="${escapeHtml(defaults.data_inicio || inicio)}">
+        <input name="data_fim" type="hidden" value="${escapeHtml(defaults.data_fim || fim)}">
+        <label class="is-full">Motivo <textarea name="motivo_alteracao" rows="3" placeholder="Opcional"></textarea></label>
+        <div class="tl-metas-form__actions"><button type="button" data-close>Cancelar</button><button type="submit" data-submit>Salvar nova versão</button></div>
+      </form>
+    `, async (form) => {
+      const payload = Object.fromEntries(form.entries());
+      payload.indicador_id = Number(payload.indicador_id);
+      payload.mes_referencia = Number(payload.mes_referencia);
+      payload.ano_referencia = Number(payload.ano_referencia);
+      payload.meta_valor = Number(payload.meta_valor || 0);
+      if (state.localMode) {
+        localSaveCollaborator(kind, payload);
+        return;
+      }
+      await api(kind === "gestor" ? ENDPOINTS.gestores : ENDPOINTS.corretores, { method: "POST", body: payload });
+    });
+  }
+
+  function formGerencial(defaults = {}) {
+    const mes = el.filtroMes?.value || new Date().getMonth() + 1;
+    const ano = el.filtroAno?.value || new Date().getFullYear();
+    const tipoPadrao = defaults.tipo_meta || "Regional";
+    const endpointSalvar = defaults.endpoint || ENDPOINTS.gerenciais;
+    const tipoCampo = defaults.lockTipo
+      ? `<label>Tipo <input type="text" value="Regional" disabled><input name="tipo_meta" type="hidden" value="Regional"></label>`
+      : `<label>Tipo <select name="tipo_meta"><option ${tipoPadrao === "Regional" ? "selected" : ""}>Regional</option><option ${tipoPadrao === "EMPREENDIMENTO" ? "selected" : ""}>EMPREENDIMENTO</option><option ${tipoPadrao === "GLOBAL" ? "selected" : ""}>GLOBAL</option></select></label>`;
+    openModal(defaults.titulo || "Meta gerencial", `
+      <form class="tl-metas-form">
+        ${tipoCampo}
+        <label>Visão <input name="visao_meta" value="COORDENADOR"></label>
+        <label>Região <input name="regiao_id"></label>
+        <label>Empreendimento <input name="empreendimento_id"></label>
+        <label>Pessoa <select name="pessoa_id"><option value="">Sem pessoa</option>${usuarioOptions()}</select></label>
+        <label>Indicador <select name="indicador_id" required>${indicadorOptions()}</select></label>
+        <label>Regra <select name="meta_regra"><option value=">">&gt; fato_1</option><option value="<">&lt; fato_1</option><option value="=">= fato_1</option><option value="BETWEEN">fato_1 entre fato_2</option></select></label>
+        <label>Meta <input name="meta_valor" type="number" min="0" step="0.01"></label>
+        <label>Fato 1 <input name="fato_1" type="number" min="0" step="0.01"></label>
+        <label>Fato 2 <input name="fato_2" type="number" min="0" step="0.01"></label>
+        <label>Peso <input name="peso" type="number" min="0" step="0.01"></label>
+        <label>Mês <input name="mes_referencia" type="number" min="1" max="12" value="${escapeHtml(mes)}"></label>
+        <label>Ano <input name="ano_referencia" type="number" min="2020" max="2100" value="${escapeHtml(ano)}"></label>
+        <input name="data_inicio" type="hidden" value="${escapeHtml(`${ano}-${String(mes).padStart(2, "0")}-01`)}">
+        <input name="data_fim" type="hidden" value="${escapeHtml(endOfMonthIso(ano, mes))}">
+        <label class="is-full">Observação <textarea name="observacao" rows="3"></textarea></label>
+        <div class="tl-metas-form__actions"><button type="button" data-close>Cancelar</button><button type="submit" data-submit>Salvar</button></div>
+      </form>
+    `, async (form) => {
+      const payload = Object.fromEntries(form.entries());
+      ["indicador_id", "mes_referencia", "ano_referencia"].forEach((key) => payload[key] = Number(payload[key]));
+      ["meta_valor", "fato_1", "fato_2", "peso"].forEach((key) => { if (payload[key] !== "") payload[key] = Number(payload[key]); else delete payload[key]; });
+      if (!payload.pessoa_id) delete payload.pessoa_id;
+      if (state.localMode) {
+        localSaveGerencial(payload);
+        return;
+      }
+      await api(endpointSalvar, { method: "POST", body: payload });
+    });
+  }
+
+  function formResultado() {
+    const mes = el.filtroMes?.value || new Date().getMonth() + 1;
+    const ano = el.filtroAno?.value || new Date().getFullYear();
+    openModal("Lançar resultado", `
+      <form class="tl-metas-form">
+        <label>Pessoa <select name="usuario_id" required>${usuarioOptions()}</select></label>
+        <label>Indicador <select name="indicador_id" required>${indicadorOptions()}</select></label>
+        <label>Mês <input name="mes_referencia" type="number" min="1" max="12" value="${escapeHtml(mes)}" required></label>
+        <label>Ano <input name="ano_referencia" type="number" min="2020" max="2100" value="${escapeHtml(ano)}" required></label>
+        <label>Realizado <input name="valor_realizado" type="number" min="0" step="0.01" required></label>
+        <label>Origem <select name="origem_resultado"><option value="MANUAL">Manual</option><option value="SISTema">Sistema</option><option value="IMPORTACAO">Importação</option><option value="CALCULADO">Calculado</option></select></label>
+        <label>Data <input name="data_resultado" type="date" value="${todayIso()}" required></label>
+        <div class="tl-metas-form__actions"><button type="button" data-close>Cancelar</button><button type="submit" data-submit>Salvar resultado</button></div>
+      </form>
+    `, async (form) => {
+      const payload = Object.fromEntries(form.entries());
+      ["indicador_id", "mes_referencia", "ano_referencia", "valor_realizado"].forEach((key) => payload[key] = Number(payload[key]));
+      await api(ENDPOINTS.resultados, { method: "POST", body: payload });
+    });
+  }
+
+  function formIndicador(defaults = {}) {
+    const id = defaults.id || "";
+    const atual = id ? state.indicadores.find((item) => String(item.id) === String(id)) : null;
+    if (id && !atual) {
+      setFeedback("error", "Indicador não encontrado para edição.");
+      return;
+    }
+    openModal(id ? "Editar indicador" : "Novo indicador", `
+      <form class="tl-metas-form">
+        <label>Código <input name="codigo" value="${escapeHtml(atual?.codigo || "")}" required maxlength="80"></label>
+        <label>Nome <input name="nome" value="${escapeHtml(atual?.nome || "")}" required maxlength="140"></label>
+        <label>Status <select name="ativo"><option value="true" ${atual?.ativo === false ? "" : "selected"}>Ativo</option><option value="false" ${atual?.ativo === false ? "selected" : ""}>Inativo</option></select></label>
+        <label class="is-full">Descrição <textarea name="descricao" rows="3" maxlength="500">${escapeHtml(atual?.descricao || "")}</textarea></label>
+        <div class="tl-metas-form__actions"><button type="button" data-close>Cancelar</button><button type="submit" data-submit>Salvar indicador</button></div>
+      </form>
+    `, async (form) => {
+      const payload = Object.fromEntries(form.entries());
+      payload.ativo = payload.ativo !== "false";
+      if (!payload.descricao) delete payload.descricao;
+      if (id) {
+        await api(`${ENDPOINTS.indicadores}/${encodeURIComponent(id)}`, { method: "PUT", body: payload });
+      } else {
+        await api(ENDPOINTS.indicadores, { method: "POST", body: payload });
+      }
+      await loadReferencias();
+      await loadIndicadores();
+    });
+  }
+
+  function renderHistoryRows(items) {
+    if (!items.length) {
+      return '<div class="tl-metas-empty">Nenhuma alteração registrada para esta meta.</div>';
+    }
+    return `
+      <div class="tl-metas-modal-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Ação</th>
+              <th>Anterior</th>
+              <th>Nova</th>
+              <th>Responsável</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((item) => `
+              <tr>
+                <td>${formatDate(item.created_at)}</td>
+                <td>${escapeHtml(item.acao || "-")}</td>
+                <td>${item.valor_anterior?.meta_valor !== undefined ? formatNumber(item.valor_anterior.meta_valor) : "-"}</td>
+                <td>${item.valor_novo?.meta_valor !== undefined ? formatNumber(item.valor_novo.meta_valor) : "-"}</td>
+                <td>${escapeHtml(item.usuario_responsavel_nome || item.usuario_responsavel || "-")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  async function openHistoryModal(metaId) {
+    if (!metaId) return;
+    try {
+      let items = [];
+      if (state.localMode) {
+        items = (loadLocalDb().historico || []).filter((item) => String(item.meta_id) === String(metaId));
+      } else {
+        const base = state.activeTab === "gestores" ? ENDPOINTS.gestores : ENDPOINTS.corretores;
+        const payload = await api(`${base}/${encodeURIComponent(metaId)}/historico`);
+        items = payload?.itens || [];
+      }
+      openModal("Histórico da meta", renderHistoryRows(items), async () => {});
+    } catch (error) {
+      setFeedback("error", error.message || "Não foi possível carregar o histórico.");
+    }
+  }
+
+  function bindTableActions() {
+    document.querySelectorAll("[data-save-corretor]").forEach((button) => {
+      if (button.dataset.boundAction === "true") return;
+      button.dataset.boundAction = "true";
+      button.addEventListener("click", async () => {
+        const id = button.dataset.saveCorretor;
+        const item = state.corretores.find((row) => row.id === id);
+        const input = document.querySelector(`[data-new-meta="${CSS.escape(id)}"]`);
+        if (!item || !input) return;
+        if (!confirm("Ao salvar, a meta anterior será encerrada e uma nova versão será criada.")) return;
+        try {
+          if (state.localMode) {
+            localSaveCollaborator("corretor", {
+              usuario_id: item.usuario_id,
+              indicador_id: item.indicador_id,
+              mes_referencia: item.mes_referencia,
+              ano_referencia: item.ano_referencia,
+              meta_valor: Number(input.value || 0),
+              data_inicio: todayIso(),
+              data_fim: item.data_fim || endOfMonthIso(item.ano_referencia, item.mes_referencia),
+              motivo_alteracao: "Alteração pela tela de Abertura e Objetivos",
+            }, id);
+            setFeedback("success", "Meta alterada no modo local. Uma nova versão foi criada.");
+            await loadCorretores();
+            return;
+          }
+          await api(`${ENDPOINTS.corretores}/${encodeURIComponent(id)}`, {
+            method: "PUT",
+            body: {
+              usuario_id: item.usuario_id,
+              indicador_id: item.indicador_id,
+              mes_referencia: item.mes_referencia,
+              ano_referencia: item.ano_referencia,
+              meta_valor: Number(input.value || 0),
+              data_inicio: todayIso(),
+              data_fim: item.data_fim || endOfMonthIso(item.ano_referencia, item.mes_referencia),
+        motivo_alteracao: "Alteração pela tela de Abertura e Objetivos",
+            },
+          });
+          setFeedback("success", "Meta alterada com sucesso. Uma nova versão foi criada.");
+          await loadCorretores();
+        } catch (error) {
+          setFeedback("error", error.message);
+        }
+      });
+    });
+    document.querySelectorAll("[data-history]").forEach((button) => {
+      if (button.dataset.boundAction === "true") return;
+      button.dataset.boundAction = "true";
+      button.addEventListener("click", () => openHistoryModal(button.dataset.history));
+    });
+    document.querySelectorAll("[data-open-form]").forEach((button) => {
+      if (button.dataset.boundOpenForm === "true") return;
+      button.dataset.boundOpenForm = "true";
+      button.addEventListener("click", () => openFormByType(button.dataset.openForm, button.dataset));
+    });
+  }
+
+  function openFormByType(type, defaults = {}) {
+    if ((type === "corretor" || type === "gestor") && !canManage()) {
+      return setFeedback("error", "Você não tem permissão para alterar metas.");
+    }
+    if ((type === "gerencial" || type === "regional") && !canManageGerenciais()) {
+      return setFeedback("error", "Você não tem permissão para alterar metas gerenciais.");
+    }
+    if (type === "resultado" && !canManageResultados()) {
+      return setFeedback("error", "Você não tem permissão para lançar resultados.");
+    }
+    if (type === "indicador" && !canManageIndicadores()) {
+      return setFeedback("error", "Você não tem permissão para cadastrar indicadores.");
+    }
+    if (type === "corretor") return formMetaColaborador("corretor", defaults);
+    if (type === "gestor") return formMetaColaborador("gestor", defaults);
+    if (type === "gerencial") return formGerencial();
+    if (type === "regional") return formGerencial({ tipo_meta: "Regional", lockTipo: true, endpoint: ENDPOINTS.regionais, titulo: "Meta regional" });
+    if (type === "resultado") return formResultado();
+    if (type === "indicador") return formIndicador(defaults);
+  }
+
+  async function handleImport(file) {
+    if (!file) return;
+    if (state.localMode) {
+      state.importacaoValida = [];
+      if (el.previewImportacao) {
+        el.previewImportacao.innerHTML = "Importação de planilhas depende da API. No modo local, use cadastro manual ou edição direta na tabela para validar o fluxo.";
+      }
+      setFeedback("warning", "Modo local ativo: a importação real será habilitada quando a API estiver conectada.");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("arquivo", file);
+    try {
+      const preview = await api(ENDPOINTS.importPreview, { method: "POST", body: formData });
+      state.importacaoValida = (preview.linhas || []).filter((item) => item.valida);
+      el.previewImportacao.innerHTML = `
+        Preview: ${formatNumber(preview.validas)} válidas, ${formatNumber(preview.invalidas)} inválidas.
+        ${state.importacaoValida.length ? '<button class="tl-badge" id="btnConfirmarImportacao" type="button">Confirmar importação</button>' : ""}
+      `;
+      document.getElementById("btnConfirmarImportacao")?.addEventListener("click", confirmarImportacao);
+      if (preview.invalidas) setFeedback("error", "Existem linhas inválidas. Elas não serão gravadas na confirmação.");
+    } catch (error) {
+      setFeedback("error", error.message);
+    }
+  }
+
+  async function confirmarImportacao() {
+    try {
+      const payload = { modelo: "MISTO", confirmar: true, linhas: state.importacaoValida };
+      const result = await api(ENDPOINTS.importConfirmar, { method: "POST", body: payload });
+      setFeedback("success", `${result.gravadas || 0} linha(s) importada(s).`);
+      await loadHistorico();
+    } catch (error) {
+      setFeedback("error", error.message);
+    }
+  }
+
+  function bindEvents() {
+    document.querySelectorAll(".tl-metas-tabs a[data-tab]").forEach((link) => {
+      link.addEventListener("click", async (event) => {
+        event.preventDefault();
+        window.history.pushState({}, "", link.getAttribute("href"));
+        activateTab(link.dataset.tab);
+        await loadActiveTab();
+      });
+    });
+    document.querySelectorAll("[data-open-form]").forEach((button) => {
+      if (button.dataset.boundOpenForm === "true") return;
+      button.dataset.boundOpenForm = "true";
+      button.addEventListener("click", () => openFormByType(button.dataset.openForm));
+    });
+    el.btnAplicarFiltros?.addEventListener("click", loadActiveTab);
+    el.inputImportacao?.addEventListener("change", () => handleImport(el.inputImportacao.files?.[0]));
+    el.btnTema?.addEventListener("click", () => {
+      const root = document.documentElement;
+      const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      portalState?.persistTheme?.(next);
+    });
+    window.addEventListener("popstate", async () => {
+      activateTab(getActiveTabFromPath());
+      await loadActiveTab();
+    });
+  }
+
+  async function init() {
+    collectElements();
+    if (el.btnTema) el.btnTema.textContent = "";
+    populateFilters();
+    activateTab(getActiveTabFromPath());
+    bindEvents();
+    try {
+      await loadUser();
+      await loadReferencias();
+      await loadActiveTab();
+    } catch (error) {
+      setFeedback("error", error.message || "Não foi possível iniciar o módulo.");
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", init, { once: true });
+})();

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Connect Financeiro</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/inicio.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/operacoes.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/financeiro_monitor.css?v=20260406-finmonitor5" />
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260407-theme-persist1"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260401-textfix2" defer></script>
+</head>
+<body class="tl-home tl-ops-page tl-ops-redesign">
+  <div class="tl-atmos-layer">
+    <div class="tl-blob tl-blob--teal"></div>
+    <div class="tl-blob tl-blob--purple"></div>
+    <div id="tl-particles-container"></div>
+    <div class="tl-glass-overlay"></div>
+  </div>
+
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main tl-fin-monitor-shell">
+      <section class="tl-fin-monitor-workspace glass-panel hyper-glass anim-stagger-1">
+        <div class="tl-fin-monitor-frame-wrap">
+          <div class="tl-fin-monitor-frame-toolbar">
+            <div class="tl-fin-monitor-tabs" role="tablist" aria-label="Navegacao do monitor financeiro">
+              <button class="tl-fin-monitor-tab is-active" type="button" data-page="dashboard">Monitor de pagamento</button>
+              <button class="tl-fin-monitor-tab" type="button" data-page="titulos">Titulos lancados</button>
+              <button class="tl-fin-monitor-tab" type="button" data-page="extrato">Extrato detalhado</button>
+            </div>
+
+            <div class="tl-fin-monitor-frame-toolbar__actions">
+              <a class="tl-fin-monitor-action tl-fin-monitor-action--ghost" href="/inicio">Voltar ao portal</a>
+              <a class="tl-fin-monitor-action" id="btnAbrirMonitorStandalone" href="/01_paginas/Financeiro/monitor_vencimentos_app/dashboard.html" target="_blank" rel="noopener">Abrir fora do card</a>
+            </div>
+          </div>
+
+          <iframe
+            id="financeiroMonitorFrame"
+            title="Monitor financeiro integrado"
+            src="/01_paginas/Financeiro/monitor_vencimentos_app/dashboard.html?embed=1"
+            loading="eager"
+            referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/02_recursos/02_scripts/operacoes_shared.js?v=20260407-theme-persist1"></script>
+  <script src="/02_recursos/02_scripts/financeiro_monitor.js?v=20260406-finmonitor5"></script>
+</body>
+</html>

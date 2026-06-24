@@ -1,0 +1,160 @@
+# Commercial Dashboard — Operações e Deploy
+
+Este documento unifica a operação, deploy e manutenção da aplicação Commercial Dashboard (frontend + backend) com foco no ambiente que está em produção / VM. Ele complementa os documentos existentes: README.md e backend/backend_postgres_refactoring_plan.md.
+
+Sumário
+- Visão geral
+- Serviços systemd (o que foi criado)
+- Variáveis de ambiente e secrets
+- Como atualizar código (frontend/backend)
+- Como verificar e depurar produção
+- Scheduler e atualização de dados
+- Scripts úteis
+- Perguntas frequentes / troubleshooting
+
+1. Visão geral
+- Backend: apps/commercial-dashboard/backend/server.js — Express que consome o Postgres (data-mart) e serve a API em /api/v1/dashboard/*
+- Frontend: build Vite em apps/commercial-dashboard/dist (servido por Nginx na infra)
+- Scheduler: apps/commercial-dashboard/backend/scripts/scheduler.js — agenda execuções do pipeline de ingestão/aggregate
+
+2. Serviços systemd instalados
+- commercial-dashboard.service
+  - Executa: node backend/server.js
+  - Local: /etc/systemd/system/commercial-dashboard.service
+  - Usuário: o serviço foi configurado para rodar com o mesmo usuário que provisoriamente gerou o /etc/commercial-dashboard/env (ver /etc/systemd/system/*)
+
+- commercial-dashboard-scheduler.service
+  - Executa: node backend/scripts/scheduler.js
+  - Local: /etc/systemd/system/commercial-dashboard-scheduler.service
+  - Rodando de forma separada para garantir que os jobs continuem mesmo se o servidor HTTP reiniciar
+
+Comandos systemd úteis
+- status: `sudo systemctl status commercial-dashboard`
+- logs (follow): `sudo journalctl -u commercial-dashboard -f`
+- restart: `sudo systemctl restart commercial-dashboard`
+- habilitar no boot: `sudo systemctl enable commercial-dashboard`
+
+3. Variáveis de ambiente / Secrets
+- Local do arquivo usado pelo systemd: `/etc/commercial-dashboard/env`
+- Formato: arquivo texto com chaves no formato `KEY=VALUE` (sem export)
+- Variáveis importantes que o app usa:
+  - DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME
+  - DATABRICKS_TOKEN, DATABRICKS_HOST, DATABRICKS_HTTP_PATH, DATABRICKS_CATALOG, DATABRICKS_SCHEMA
+  - NODE_ENV, PORT
+
+- Permissões: o arquivo está com permissões restritas (600) e dono root. Se a infra tiver outro mecanismo de secrets, prefira usar ele.
+
+4. Como atualizar o codigo (workflow recomendado)
+- Frontend (hot-reload / Vite):
+  - Desenvolvimento: `npm run dev` localmente
+  - Produção: `npm run build` gera `dist/`.
+  - Após atualizar `dist/`, redeploy no servidor estático (Nginx). Exemplo:
+    sudo cp -r dist/* /var/www/commercial-dashboard/
+    sudo systemctl reload nginx
+
+- Backend (deploy padrao em producao):
+  1. Na VM de aplicacao, entre no diretorio `/root/data-engineering/apps/commercial-dashboard`
+  2. Puxe alteracoes: `git pull origin main` (ou branch apropriada)
+  3. Instale dependencias: `npm ci --production`
+  4. Execute fluxo unico recomendado: `bash deploy/run-all.sh --mode prod --with-pull`
+
+5. Verificações e healthcheck
+- Teste de conexão ao DB: `node backend/check-connection.js` (retorna sucesso/erro)
+- Teste de endpoints:
+  - Filters: `curl 'http://127.0.0.1:3001/api/v1/dashboard/filters'`
+  - Summary: `curl 'http://127.0.0.1:3001/api/v1/dashboard/summary?startDate=2024-01-01&endDate=2024-01-31'`
+
+6. Scheduler e atualização automática
+- O scheduler foi movido para um serviço systemd separado e roda os jobs agendados nos horários:
+  - 09:30 (cron: '30 9 * * *')
+  - 13:00 (cron: '0 13 * * *')
+  - 19:00 (cron: '0 19 * * *')
+
+- Comportamento:
+  - Ao iniciar o serviço, o scheduler executa um run inicial da pipeline para garantir dados atualizados.
+  - Em cada agendamento o scheduler chama `deploy/run-all.sh --mode update`.
+  - Cron configurável por env: `SCHEDULER_CRON_LIST` (ex.: `30 9 * * *;0 13 * * *;0 19 * * *`).
+  - Se `SCHEDULER_CRON_LIST` não existir, usa `SCHEDULER_CRON`; se não existir, usa o padrão acima.
+
+7. Scripts uteis no repo
+- `node backend/check-connection.js` — testa conexão Postgres
+- `node backend/db/init-db.js` — aplica schema.sql no banco (use apenas se necessário)
+- `node backend/scripts/run-data-update.js` — pipeline canonica (sync + preflight + swap + aggregate)
+- `node backend/scripts/scheduler.js` — agendador (rodando como serviço)
+- `deploy/run-all.sh` — script unico para update/local/prod
+
+7.1 Estrutura de deploy recomendada
+
+- **Aplicacao**
+  - `commercial-dashboard.service` (backend HTTP)
+  - `commercial-dashboard-scheduler.service` (jobs agendados)
+- **Dados**
+  - Fonte oficial: Databricks (`gold_cvcrm`)
+  - Base da aplicacao: Postgres (tabelas `comercial_*`)
+  - Pipeline oficial: `backend/scripts/run-data-update.js`
+- **Frontend**
+  - Build em `dist/`
+  - Entrega via Nginx (copy + reload)
+
+7.2 Ordem oficial de deploy (checklist rapido)
+
+Na VM, executar nesta ordem:
+
+```bash
+cd /root/data-engineering/apps/commercial-dashboard
+chmod +x deploy/run-all.sh
+bash deploy/run-all.sh --mode prod --with-pull
+```
+
+Observacao:
+- O script principal usa migracao incremental (`backend/scripts/migrate-incremental.js`) e nao executa migracao destrutiva.
+
+Para validacao P2P apos carga (se quiser executar isolado):
+
+```bash
+bash deploy/run-all.sh --mode update
+```
+
+7.3 Atualizacao forcada do banco (limpar e recarregar)
+
+Quando os filtros ficarem inconsistentes, execute o fluxo abaixo na VM em `/root/data-engineering/apps/commercial-dashboard`:
+
+```bash
+chmod +x deploy/run-all.sh
+bash deploy/run-all.sh --mode update
+sudo systemctl restart commercial-dashboard
+```
+
+Se o frontend estiver em `:5174`, depois do restart faca hard refresh no navegador (`Ctrl+Shift+R`).
+
+O script valida no final os 3 grupos críticos de filtro:
+- `corretor_ativo` (hierarquia ativa + vigência)
+- `gerencia_hierarquia` (gestor da hierarquia)
+- `sdr_leads` (gestor vindo de leads)
+
+8. Troubleshooting rápido
+- Service não sobe (status mostra erro CHDIR): verifique WorkingDirectory na unit e se o usuário tem permissão para acessar o diretório
+- Erro de conexão Postgres: verifique variáveis DB_* em /etc/commercial-dashboard/env, firewall entre VMs e se o usuário/DB existem
+- Falhas no Databricks sync: verifique DATABRICKS_TOKEN/HTTP_PATH/HOST no env e conectividade de rede
+- Jobs agendados não executam: ver `sudo journalctl -u commercial-dashboard-scheduler -f` e cheque se o processo node está ativo
+
+9. Logs e retenção
+- Atualmente o scheduler e backend escrevem logs via stdout (capturados pelo systemd/journal). Para retenção/rotação, recomendo:
+  - Adicionar logging para arquivos em /var/log/commercial-dashboard/ (separar backend e scheduler)
+  - Configurar logrotate para rotação semanal e manter 4 cópias
+
+10. Perguntas frequentes
+- Q: O scheduler corre duas vezes (uma no server.js e outra no serviço)?
+  - A: Removi a importação do scheduler de server.js e deixei rodando apenas no serviço separado (commercial-dashboard-scheduler). Há também um serviço separado instalado; atualmente o scheduler roda apenas no serviço separado.
+
+11. Contatos e responsabilidades
+- Infra: responsável por Nginx, firewall, DNS e certificados TLS
+- Dados: responsável pelo DB no DigitalOcean e pela conectividade Databricks
+- App: equipe responsável por mudanças no repo; após mudanças seguir seção 4 para deploy
+
+Anexos: Referências no repo
+- README.md — guia rápido
+- backend/backend_postgres_refactoring_plan.md — plano de refatoração do data mart
+
+---
+Documento gerado pelo time de engenharia. Atualize conforme mudanças operacionais.

@@ -1,0 +1,693 @@
+﻿"""
+Autor: Willian Elias Franca
+Projeto: 7LM Connect - Plataforma Integrada
+ObservaÃƒÂ§ÃƒÂ£o: arquivos em portuguÃƒÂªs, com nomes descritivos.
+"""
+
+import json
+import secrets
+from datetime import timedelta
+
+from fastapi import APIRouter, Request, HTTPException, Depends
+
+from configuracoes import (
+    ESQUEMA_BANCO, HORAS_CREDENCIAL_RENOVACAO,
+    MAXIMO_FALHAS_CONSECUTIVAS, MINUTOS_BLOQUEIO,
+    ENTRA_BRIDGE_SECRET
+)
+
+from modelos.esquemas import (
+    RequisicaoEntrada,
+    RequisicaoEntradaEntraId,
+    RequisicaoAtualizarCredencial,
+    RequisicaoSaida,
+)
+from repositorios.usuarios import obter_usuario_para_autenticacao_por_email
+
+from utilitarios.identificacao_do_cliente import (
+    obter_endereco_ip, obter_agente_do_usuario, obter_idioma, obter_cabecalhos
+)
+
+from utilitarios.seguranca import (
+    agora_utc, validar_senha, gerar_token_de_acesso, gerar_token_de_renovacao, gerar_hash_token
+)
+
+from utilitarios.auditoria import registrar_evento, registrar_tentativa_de_entrada
+from dependencias import obter_usuario_autenticado
+from validacoes.usuarios import normalizar_email
+
+rotas_de_entrada = APIRouter()
+
+
+# =========================
+# Config MFA (TTL do desafio)
+# =========================
+MINUTOS_DESAFIO_SETUP = 15
+MINUTOS_DESAFIO_LOGIN = 7
+
+
+# =========================
+# Helpers
+# =========================
+async def encerrar_sessoes_ativas(conexao, identificador_usuario: str, motivo: str) -> None:
+    await conexao.execute(
+        f"""
+        UPDATE {ESQUEMA_BANCO}.sessao
+           SET situacao_sessao = 'ENCERRADA',
+               data_hora_encerramento = NOW(),
+               motivo_encerramento = $2
+         WHERE identificador_usuario = $1
+           AND situacao_sessao = 'ATIVA'
+        """,
+        identificador_usuario, motivo
+    )
+    await conexao.execute(
+        f"""
+        UPDATE {ESQUEMA_BANCO}.credencial_de_renovacao
+           SET data_hora_revogacao = NOW()
+         WHERE identificador_sessao IN (
+            SELECT identificador_sessao
+              FROM {ESQUEMA_BANCO}.sessao
+             WHERE identificador_usuario = $1
+               AND situacao_sessao <> 'ATIVA'
+         )
+           AND data_hora_revogacao IS NULL
+        """,
+        identificador_usuario
+    )
+
+
+async def obter_perfis_permissoes_operacoes(conexao, identificador_usuario: str) -> dict:
+    perfis = await conexao.fetch(
+        f"""
+        SELECT p.nome_perfil
+          FROM {ESQUEMA_BANCO}.usuario_perfil up
+          JOIN {ESQUEMA_BANCO}.perfil p ON p.identificador_perfil = up.identificador_perfil
+         WHERE up.identificador_usuario = $1
+        """,
+        identificador_usuario
+    )
+
+    permissoes = await conexao.fetch(
+        f"""
+        SELECT DISTINCT pe.nome_permissao
+          FROM {ESQUEMA_BANCO}.usuario_perfil up
+          JOIN {ESQUEMA_BANCO}.perfil_permissao pp ON pp.identificador_perfil = up.identificador_perfil
+          JOIN {ESQUEMA_BANCO}.permissao pe ON pe.identificador_permissao = pp.identificador_permissao
+         WHERE up.identificador_usuario = $1
+        """,
+        identificador_usuario
+    )
+
+    # ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ FIX AQUI: o.identicador_operacao -> o.identificador_operacao
+    operacoes = await conexao.fetch(
+        f"""
+        SELECT o.identificador_operacao, o.nome_operacao
+          FROM {ESQUEMA_BANCO}.usuario_operacao uo
+          JOIN {ESQUEMA_BANCO}.operacao o
+            ON o.identificador_operacao = uo.identificador_operacao
+         WHERE uo.identificador_usuario = $1
+           AND o.indicador_ativa = TRUE
+         ORDER BY o.nome_operacao
+        """,
+        identificador_usuario
+    )
+
+    return {
+        "perfis": [r["nome_perfil"] for r in perfis],
+        "permissoes": [r["nome_permissao"] for r in permissoes],
+        "operacoes_liberadas": [
+            {
+                "identificador_operacao": str(r["identificador_operacao"]),
+                "nome_operacao": r["nome_operacao"]
+            }
+            for r in operacoes
+        ],
+    }
+
+
+async def criar_desafio_mfa(
+    conexao,
+    identificador_usuario: str,
+    tipo_desafio: str,  # "SETUP" | "LOGIN"
+    endereco_ip: str,
+    agente_do_usuario: str,
+    idioma: str,
+    fuso_horario_informado: str | None,
+    cabecalhos_http: dict
+) -> str:
+    ttl_min = MINUTOS_DESAFIO_SETUP if tipo_desafio == "SETUP" else MINUTOS_DESAFIO_LOGIN
+    expira_em = agora_utc() + timedelta(minutes=ttl_min)
+
+    desafio = await conexao.fetchval(
+        f"""
+        INSERT INTO {ESQUEMA_BANCO}.mfa_desafio
+        (identificador_usuario, tipo_desafio, situacao, tentativas,
+         data_hora_expiracao, endereco_ip, agente_do_usuario, idioma,
+         fuso_horario_informado, cabecalhos_http)
+        VALUES
+        ($1, $2, 'ABERTO', 0,
+         $3, $4, $5, $6, $7, $8::jsonb)
+        RETURNING identificador_desafio
+        """,
+        identificador_usuario,
+        tipo_desafio,
+        expira_em,
+        endereco_ip,
+        agente_do_usuario,
+        idioma,
+        fuso_horario_informado,
+        json.dumps(cabecalhos_http or {})
+    )
+
+    return str(desafio)
+
+
+# ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ funÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œcentralÃƒÂ¢Ã¢â€šÂ¬Ã‚Â que o /mfa/* vai chamar para criar sessÃƒÆ’Ã‚Â£o e emitir tokens reais
+async def concluir_login_e_emitir_tokens(
+    conexao,
+    identificador_usuario: str,
+    endereco_ip: str,
+    agente_do_usuario: str,
+    idioma: str,
+    fuso_horario_informado: str | None,
+    cabecalhos_http: dict
+) -> dict:
+    # revalida usuÃƒÂ¡rio
+    usuario = await conexao.fetchrow(
+        f"""
+        SELECT identificador_usuario::text AS identificador_usuario,
+               matricula, nome_completo, correio_eletronico,
+               indicador_ativo
+          FROM {ESQUEMA_BANCO}.usuario
+         WHERE identificador_usuario = $1
+        """,
+        identificador_usuario
+    )
+    if not usuario:
+        raise HTTPException(status_code=401, detail="UsuÃƒÂ¡rio nÃƒÂ£o encontrado.")
+    if not usuario["indicador_ativo"]:
+        raise HTTPException(status_code=403, detail="UsuÃƒÂ¡rio inativo. Acesso negado.")
+
+    # single session por usuÃƒÂ¡rio (sÃƒÂ³ agora, apÃƒÂ³s MFA)
+    await encerrar_sessoes_ativas(conexao, identificador_usuario, motivo="NOVA_ENTRADA_REALIZADA")
+
+    expira_sessao = agora_utc() + timedelta(hours=HORAS_CREDENCIAL_RENOVACAO)
+
+    identificador_sessao = await conexao.fetchval(
+        f"""
+        INSERT INTO {ESQUEMA_BANCO}.sessao
+        (identificador_usuario, situacao_sessao, data_hora_expiracao,
+         endereco_ip, agente_do_usuario, idioma, fuso_horario_informado, cabecalhos_http)
+        VALUES
+        ($1, 'ATIVA', $2, $3, $4, $5, $6, $7::jsonb)
+        RETURNING identificador_sessao
+        """,
+        identificador_usuario,
+        expira_sessao,
+        endereco_ip,
+        agente_do_usuario,
+        idioma,
+        fuso_horario_informado,
+        json.dumps(cabecalhos_http or {})
+    )
+    identificador_sessao = str(identificador_sessao)
+
+    token_acesso = gerar_token_de_acesso(identificador_usuario, identificador_sessao)
+
+    token_renovacao_plano = gerar_token_de_renovacao()
+    token_renovacao_hash = gerar_hash_token(token_renovacao_plano)
+    expira_renovacao = agora_utc() + timedelta(hours=HORAS_CREDENCIAL_RENOVACAO)
+
+    await conexao.execute(
+        f"""
+        INSERT INTO {ESQUEMA_BANCO}.credencial_de_renovacao
+        (identificador_sessao, hash_token, data_hora_expiracao, endereco_ip, agente_do_usuario, cabecalhos_http)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+        """,
+        identificador_sessao,
+        token_renovacao_hash,
+        expira_renovacao,
+        endereco_ip,
+        agente_do_usuario,
+        json.dumps(cabecalhos_http or {})
+    )
+
+    # marca ÃƒÂºltimo login agora (apÃƒÂ³s MFA)
+    await conexao.execute(
+        f"""
+        UPDATE {ESQUEMA_BANCO}.usuario
+           SET quantidade_falhas_consecutivas = 0,
+               data_hora_bloqueado_ate = NULL,
+               data_hora_ultimo_login = NOW()
+         WHERE identificador_usuario = $1
+        """,
+        identificador_usuario
+    )
+
+    await registrar_evento(
+        conexao,
+        "ENTRADA_SUCESSO",
+        identificador_usuario,
+        identificador_sessao,
+        "Entrada realizada com sucesso (MFA).",
+        {"expira_sessao": str(expira_sessao)},
+        endereco_ip,
+        agente_do_usuario
+    )
+
+    dados_acesso = await obter_perfis_permissoes_operacoes(conexao, identificador_usuario)
+
+    return {
+        "token_de_acesso": token_acesso["token"],
+        "token_de_renovacao": token_renovacao_plano,
+        "expira_em_segundos": token_acesso["expira_em_segundos"],
+        "usuario": {
+            "identificador_usuario": str(usuario["identificador_usuario"]),
+            "matricula": usuario["matricula"],
+            "nome_completo": usuario["nome_completo"],
+            "correio_eletronico": usuario["correio_eletronico"],
+            **dados_acesso,
+        }
+    }
+
+
+def _validar_canal_federado(request: Request) -> None:
+    chave_recebida = (
+        request.headers.get("x-sevenlm-entra-bridge-secret", "")
+        or request.headers.get("x-sevenlm-connect-entra-bridge-secret", "")
+    )
+    if not ENTRA_BRIDGE_SECRET:
+        raise HTTPException(status_code=503, detail="Canal federado nÃƒÂ£o configurado na API.")
+
+    if not chave_recebida or not secrets.compare_digest(chave_recebida, ENTRA_BRIDGE_SECRET):
+        raise HTTPException(status_code=401, detail="Canal federado nÃƒÂ£o autorizado.")
+
+
+def _normalizar_identificadores_federados(dados: RequisicaoEntradaEntraId) -> list[str]:
+    candidatos = []
+
+    for bruto in [*(dados.identificadores or []), dados.email, dados.preferred_username]:
+        valor = str(bruto or "").strip().lower()
+        if not valor:
+            continue
+
+        candidatos.append(valor)
+        if "@" in valor:
+            candidatos.append(valor.split("@", 1)[0])
+
+    vistos = set()
+    unicos = []
+    for item in candidatos:
+        if item in vistos:
+            continue
+        vistos.add(item)
+        unicos.append(item)
+
+    return unicos
+
+
+# =========================
+# LOGIN (senha ok -> SEMPRE retorna desafio MFA)
+# =========================
+@rotas_de_entrada.post("/entrada")
+async def entrada(dados: RequisicaoEntrada, request: Request):
+    endereco_ip = obter_endereco_ip(request)
+    agente_do_usuario = obter_agente_do_usuario(request)
+    cabecalhos = obter_cabecalhos(request)
+    idioma = obter_idioma(request)
+
+    pool = request.app.state.pool
+    if not pool:
+        raise HTTPException(status_code=503, detail="Pool indisponÃƒÂ­vel.")
+
+    async with pool.acquire() as conexao:
+        correio_eletronico = normalizar_email(dados.correio_eletronico, obrigatorio=True)
+        usuario = await obter_usuario_para_autenticacao_por_email(
+            conexao,
+            ESQUEMA_BANCO,
+            correio_eletronico,
+        )
+
+        if not usuario:
+            await registrar_tentativa_de_entrada(conexao, None, correio_eletronico, False, "USUARIO_INEXISTENTE", endereco_ip, agente_do_usuario, cabecalhos)
+            await registrar_evento(conexao, "ENTRADA_FALHA", None, None, "Usuario inexistente.", {"correio_eletronico": correio_eletronico}, endereco_ip, agente_do_usuario)
+            raise HTTPException(status_code=401, detail="E-mail ou senha invalido.")
+
+        identificador_usuario = str(usuario["identificador_usuario"])
+
+        if not usuario["indicador_ativo"]:
+            await registrar_tentativa_de_entrada(conexao, identificador_usuario, correio_eletronico, False, "USUARIO_INATIVO", endereco_ip, agente_do_usuario, cabecalhos)
+            await registrar_evento(conexao, "ENTRADA_FALHA", identificador_usuario, None, "Usuario inativo.", {}, endereco_ip, agente_do_usuario)
+            raise HTTPException(status_code=403, detail="Usuario inativo. Acesso negado.")
+
+        bloqueado_ate = usuario["data_hora_bloqueado_ate"]
+        if bloqueado_ate and bloqueado_ate > agora_utc():
+            await registrar_tentativa_de_entrada(conexao, identificador_usuario, correio_eletronico, False, "USUARIO_BLOQUEADO", endereco_ip, agente_do_usuario, cabecalhos)
+            await registrar_evento(conexao, "ENTRADA_FALHA", identificador_usuario, None, "Usuario bloqueado.", {"bloqueado_ate": str(bloqueado_ate)}, endereco_ip, agente_do_usuario)
+            raise HTTPException(status_code=403, detail="Usuario bloqueado temporariamente.")
+
+        if not validar_senha(dados.senha, usuario["senha_hash"]):
+            falhas = int(usuario["quantidade_falhas_consecutivas"]) + 1
+            bloqueio = None
+            if falhas >= MAXIMO_FALHAS_CONSECUTIVAS:
+                bloqueio = agora_utc() + timedelta(minutes=MINUTOS_BLOQUEIO)
+
+            await conexao.execute(
+                f"""
+                UPDATE {ESQUEMA_BANCO}.usuario
+                   SET quantidade_falhas_consecutivas = $2,
+                       data_hora_bloqueado_ate = $3
+                 WHERE identificador_usuario = $1
+                """,
+                identificador_usuario, falhas, bloqueio
+            )
+
+            await registrar_tentativa_de_entrada(conexao, identificador_usuario, correio_eletronico, False, "SENHA_INVALIDA", endereco_ip, agente_do_usuario, cabecalhos)
+            await registrar_evento(conexao, "ENTRADA_FALHA", identificador_usuario, None, "Senha invalida.", {"falhas": falhas}, endereco_ip, agente_do_usuario)
+            raise HTTPException(status_code=401, detail="E-mail ou senha invalido.")
+
+        # âœ… senha OK -> zera contador (mas NÃƒO cria sessÃ£o ainda!)
+        await conexao.execute(
+            f"""
+            UPDATE {ESQUEMA_BANCO}.usuario
+               SET quantidade_falhas_consecutivas = 0,
+                   data_hora_bloqueado_ate = NULL
+             WHERE identificador_usuario = $1
+            """,
+            identificador_usuario
+        )
+
+        mfa_configurado = (
+            bool(usuario["indicador_mfa_habilitado"])
+            and bool(usuario["mfa_totp_segredo_enc"])
+            and bool(usuario["mfa_totp_confirmado_em"])
+        )
+
+        if mfa_configurado:
+            desafio = await criar_desafio_mfa(
+                conexao,
+                identificador_usuario,
+                "LOGIN",
+                endereco_ip, agente_do_usuario, idioma,
+                dados.fuso_horario_informado,
+                cabecalhos
+            )
+
+            await registrar_evento(
+                conexao,
+                "MFA_LOGIN_REQUERIDO",
+                identificador_usuario,
+                None,
+                "MFA requerido para login.",
+                {"mfa_desafio": desafio},
+                endereco_ip,
+                agente_do_usuario
+            )
+
+            return {
+                "mfa_required": True,
+                "mfa_desafio": desafio,
+                "mensagem": "Digite o cÃƒÂ³digo do Microsoft Authenticator para concluir."
+            }
+
+        # nÃƒÂ£o configurado -> setup
+        desafio = await criar_desafio_mfa(
+            conexao,
+            identificador_usuario,
+            "SETUP",
+            endereco_ip, agente_do_usuario, idioma,
+            dados.fuso_horario_informado,
+            cabecalhos
+        )
+
+        await registrar_evento(
+            conexao,
+            "MFA_SETUP_REQUERIDO",
+            identificador_usuario,
+            None,
+            "MFA setup requerido (usuÃƒÂ¡rio sem 2FA).",
+            {"mfa_desafio": desafio},
+            endereco_ip,
+            agente_do_usuario
+        )
+
+        return {
+            "mfa_setup_required": True,
+            "mfa_desafio": desafio,
+            "mensagem": "Este portal exige 2FA. Vamos configurar agora pelo Microsoft Authenticator."
+        }
+
+
+@rotas_de_entrada.post("/entrada/entra-id/concluir")
+async def entrada_entra_id_concluir(dados: RequisicaoEntradaEntraId, request: Request):
+    _validar_canal_federado(request)
+
+    endereco_ip = obter_endereco_ip(request)
+    agente_do_usuario = obter_agente_do_usuario(request)
+    cabecalhos = obter_cabecalhos(request)
+    idioma = obter_idioma(request)
+    identificadores = _normalizar_identificadores_federados(dados)
+
+    if not identificadores:
+        raise HTTPException(
+            status_code=400,
+            detail="A identidade Microsoft nÃƒÂ£o trouxe email, UPN ou identificador utilizÃƒÂ¡vel para localizar o usuÃƒÂ¡rio interno."
+        )
+
+    pool = request.app.state.pool
+    if not pool:
+        raise HTTPException(status_code=503, detail="Pool indisponivel.")
+
+    async with pool.acquire() as conexao:
+        usuario = await conexao.fetchrow(
+            f"""
+            SELECT identificador_usuario::text AS identificador_usuario,
+                   matricula, nome_completo, correio_eletronico,
+                   indicador_ativo
+              FROM {ESQUEMA_BANCO}.usuario
+             WHERE lower(coalesce(correio_eletronico, '')) = ANY($1::text[])
+                OR lower(matricula) = ANY($1::text[])
+                OR lower(coalesce(matricula_gip, '')) = ANY($1::text[])
+             ORDER BY
+                CASE
+                    WHEN lower(coalesce(correio_eletronico, '')) = ANY($1::text[]) THEN 1
+                    WHEN lower(coalesce(matricula_gip, '')) = ANY($1::text[]) THEN 2
+                    ELSE 3
+                END,
+                matricula
+             LIMIT 1
+            """,
+            identificadores
+        )
+
+        if not usuario:
+            await registrar_evento(
+                conexao,
+                "ENTRADA_FEDERADA_FALHA",
+                None,
+                None,
+                "Identidade Microsoft Entra ID nÃƒÂ£o vinculada a usuÃƒÂ¡rio do portal.",
+                {
+                    "oid": dados.oid,
+                    "tenant_id": dados.tenant_id,
+                    "identificadores": identificadores,
+                    "email": dados.email,
+                    "preferred_username": dados.preferred_username,
+                },
+                endereco_ip,
+                agente_do_usuario
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Sua conta Microsoft foi autenticada, mas ainda nao esta vinculada a um usuario da 7LM."
+            )
+
+        identificador_usuario = str(usuario["identificador_usuario"])
+
+        if not usuario["indicador_ativo"]:
+            await registrar_evento(
+                conexao,
+                "ENTRADA_FEDERADA_FALHA",
+                identificador_usuario,
+                None,
+                "UsuÃƒÂ¡rio federado inativo.",
+                {
+                    "oid": dados.oid,
+                    "tenant_id": dados.tenant_id,
+                    "identificadores": identificadores,
+                },
+                endereco_ip,
+                agente_do_usuario
+            )
+            raise HTTPException(status_code=403, detail="UsuÃƒÂ¡rio inativo. Acesso negado.")
+
+        resposta = await concluir_login_e_emitir_tokens(
+            conexao,
+            identificador_usuario,
+            endereco_ip,
+            agente_do_usuario,
+            idioma,
+            None,
+            cabecalhos
+        )
+
+        await registrar_evento(
+            conexao,
+            "ENTRADA_FEDERADA_SUCESSO",
+            identificador_usuario,
+            None,
+            "Entrada federada realizada via Microsoft Entra ID.",
+            {
+                "oid": dados.oid,
+                "tenant_id": dados.tenant_id,
+                "identificadores": identificadores,
+                "roles": dados.roles,
+            },
+            endereco_ip,
+            agente_do_usuario
+        )
+
+        return resposta
+
+
+# =========================
+# RenovaÃƒÂ§ÃƒÂ£o / SaÃƒÂ­da (mantÃƒÂ©m)
+# =========================
+@rotas_de_entrada.post("/atualizar-credencial")
+async def atualizar_credencial(dados: RequisicaoAtualizarCredencial, request: Request):
+    endereco_ip = obter_endereco_ip(request)
+    agente_do_usuario = obter_agente_do_usuario(request)
+    cabecalhos = obter_cabecalhos(request)
+
+    token_hash = gerar_hash_token(dados.token_de_renovacao)
+
+    pool = request.app.state.pool
+    if not pool:
+        raise HTTPException(status_code=503, detail="Pool indisponÃƒÂ­vel.")
+
+    async with pool.acquire() as conexao:
+        cred = await conexao.fetchrow(
+            f"""
+            SELECT cr.identificador_credencial, cr.identificador_sessao, cr.data_hora_expiracao, cr.data_hora_revogacao,
+                   s.identificador_usuario, s.situacao_sessao
+              FROM {ESQUEMA_BANCO}.credencial_de_renovacao cr
+              JOIN {ESQUEMA_BANCO}.sessao s ON s.identificador_sessao = cr.identificador_sessao
+             WHERE cr.hash_token = $1
+            """,
+            token_hash
+        )
+        if not cred:
+            await registrar_evento(conexao, "RENOVACAO_FALHA", None, None, "Credencial invÃƒÂ¡lida.", {}, endereco_ip, agente_do_usuario)
+            raise HTTPException(status_code=401, detail="Token de renovaÃƒÂ§ÃƒÂ£o invÃƒÂ¡lido.")
+
+        if cred["data_hora_revogacao"] is not None:
+            await registrar_evento(conexao, "RENOVACAO_FALHA", str(cred["identificador_usuario"]), str(cred["identificador_sessao"]), "Credencial revogada.", {}, endereco_ip, agente_do_usuario)
+            raise HTTPException(status_code=401, detail="Token de renovaÃƒÂ§ÃƒÂ£o revogado.")
+
+        if cred["data_hora_expiracao"] <= agora_utc():
+            await registrar_evento(conexao, "RENOVACAO_FALHA", str(cred["identificador_usuario"]), str(cred["identificador_sessao"]), "Credencial expirada.", {}, endereco_ip, agente_do_usuario)
+            raise HTTPException(status_code=401, detail="Token de renovaÃƒÂ§ÃƒÂ£o expirado.")
+
+        if cred["situacao_sessao"] != "ATIVA":
+            await registrar_evento(conexao, "RENOVACAO_FALHA", str(cred["identificador_usuario"]), str(cred["identificador_sessao"]), "SessÃƒÂ£o nÃƒÂ£o ativa.", {}, endereco_ip, agente_do_usuario)
+            raise HTTPException(status_code=401, detail="SessÃƒÂ£o encerrada.")
+
+        novo_token = gerar_token_de_renovacao()
+        novo_hash = gerar_hash_token(novo_token)
+        expira = agora_utc() + timedelta(hours=HORAS_CREDENCIAL_RENOVACAO)
+
+        novo_id = await conexao.fetchval(
+            f"""
+            INSERT INTO {ESQUEMA_BANCO}.credencial_de_renovacao
+            (identificador_sessao, hash_token, data_hora_expiracao, endereco_ip, agente_do_usuario, cabecalhos_http)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+            RETURNING identificador_credencial
+            """,
+            str(cred["identificador_sessao"]),
+            novo_hash,
+            expira,
+            endereco_ip,
+            agente_do_usuario,
+            json.dumps(cabecalhos)
+        )
+
+        await conexao.execute(
+            f"""
+            UPDATE {ESQUEMA_BANCO}.credencial_de_renovacao
+               SET data_hora_revogacao = NOW(),
+                   identificador_substituida_por = $2
+             WHERE identificador_credencial = $1
+            """,
+            str(cred["identificador_credencial"]),
+            str(novo_id)
+        )
+
+        token_acesso = gerar_token_de_acesso(str(cred["identificador_usuario"]), str(cred["identificador_sessao"]))
+
+        await registrar_evento(
+            conexao,
+            "RENOVACAO_SUCESSO",
+            str(cred["identificador_usuario"]),
+            str(cred["identificador_sessao"]),
+            "Credencial renovada com sucesso.",
+            {"expira_renovacao": str(expira)},
+            endereco_ip,
+            agente_do_usuario
+        )
+
+    return {
+        "token_de_acesso": token_acesso["token"],
+        "token_de_renovacao": novo_token,
+        "expira_em_segundos": token_acesso["expira_em_segundos"]
+    }
+
+
+@rotas_de_entrada.post("/saida")
+async def saida(dados: RequisicaoSaida, request: Request, usuario=Depends(obter_usuario_autenticado)):
+    endereco_ip = obter_endereco_ip(request)
+    agente_do_usuario = obter_agente_do_usuario(request)
+
+    identificador_usuario = usuario["identificador_usuario"]
+    identificador_sessao = usuario["identificador_sessao"]
+
+    pool = request.app.state.pool
+    if not pool:
+        raise HTTPException(status_code=503, detail="Pool indisponÃƒÂ­vel.")
+
+    async with pool.acquire() as conexao:
+        await conexao.execute(
+            f"""
+            UPDATE {ESQUEMA_BANCO}.sessao
+               SET situacao_sessao = 'ENCERRADA',
+                   data_hora_encerramento = NOW(),
+                   motivo_encerramento = 'SAIDA_SOLICITADA'
+             WHERE identificador_sessao = $1
+            """,
+            identificador_sessao
+        )
+
+        await conexao.execute(
+            f"""
+            UPDATE {ESQUEMA_BANCO}.credencial_de_renovacao
+               SET data_hora_revogacao = NOW()
+             WHERE identificador_sessao = $1
+               AND data_hora_revogacao IS NULL
+            """,
+            identificador_sessao
+        )
+
+        await registrar_evento(
+            conexao,
+            "SAIDA",
+            identificador_usuario,
+            identificador_sessao,
+            "SaÃƒÂ­da realizada.",
+            {},
+            endereco_ip,
+            agente_do_usuario
+        )
+
+    return {"mensagem": "SaÃƒÂ­da realizada com sucesso."}
+
+

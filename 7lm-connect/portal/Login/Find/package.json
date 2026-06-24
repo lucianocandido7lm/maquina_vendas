@@ -1,0 +1,7 @@
+{
+  "name": "find-homepage-local",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

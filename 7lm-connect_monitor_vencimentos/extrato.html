@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor Financeiro - Extrato</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header class="navbar" style="position:relative;">
+        <div class="nav-left">
+            <i class="fa-solid fa-chart-line logo-icon"></i>
+            <h1>MONITOR FINANCEIRO - Extrato Bancário</h1>
+        </div>
+        <div class="nav-center">
+            <a href="dashboard.html" class="nav-tab">Monitor de Pagamento</a>
+            <a href="index.html" class="nav-tab">Títulos lançados</a>
+            <a href="extrato.html" class="nav-tab active">Extrato detalhado</a>
+        </div>
+        <div class="nav-right">
+            <div class="date-info">
+                <i class="fa-regular fa-calendar"></i> 24 Abril 2026
+            </div>
+            <button class="icon-btn"><i class="fa-solid fa-download"></i> Exportar</button>
+            <button class="icon-btn"><i class="fa-regular fa-bell"></i></button>
+            <img src="https://via.placeholder.com/30" class="user-avatar" alt="7LM">
+        </div>
+    </header>
+
+    <main>
+        <!-- Resumo do Extrato -->
+        <div class="tela3-header-summary">
+            <div class="summary-chip" style="flex: 1.5">
+                <div style="display:flex; justify-content:space-between; width:100%">
+                    <span>Saldo Final <span style="font-weight:normal; text-transform:none">Banco ABC - 6502</span></span>
+                    <i class="fa-solid fa-up-right-from-square" style="color:var(--text-secondary); cursor:pointer"></i>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-end">
+                    <strong>R$ 2.890.450</strong>
+                    <span class="badge-status badge-conciliado" style="margin-top:4px"><i class="fa-solid fa-check"></i> Conciliado</span>
+                </div>
+            </div>
+            <div class="summary-chip">
+                <span><i class="fa-solid fa-arrow-up text-green"></i> Entradas 30 dias</span>
+                <strong class="text-green">R$ 1.982.600</strong>
+            </div>
+            <div class="summary-chip">
+                <span><i class="fa-solid fa-arrow-down text-red"></i> Saídas 30 dias</span>
+                <strong class="text-red">R$ 1.772.400</strong>
+            </div>
+            <div class="summary-chip green">
+                <div style="display:flex; justify-content:space-between; width:100%">
+                    <span><i class="fa-solid fa-check-double"></i> Conciliações</span>
+                    <span style="font-size:10px; opacity:0.7">117 (66%)</span>
+                </div>
+                <strong>117</strong>
+            </div>
+            <div class="summary-chip red">
+                <div style="display:flex; justify-content:space-between; width:100%">
+                    <span><i class="fa-solid fa-triangle-exclamation"></i> Divergências</span>
+                    <span style="font-size:10px; opacity:0.7">34%</span>
+                </div>
+                <strong>-R$ 20.200</strong>
+            </div>
+        </div>
+
+        <div class="extrato-table-container">
+            <div class="extrato-table">
+                <!-- Filtros -->
+                <div class="toolbar" style="padding: 0 0 16px 0; border-bottom: none">
+                    <div class="filters">
+                        <div class="search-wrapper">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" class="search-input" placeholder="Buscar lançamento...">
+                        </div>
+                        <button class="btn btn-outline"><i class="fa-solid fa-filter"></i> Filtro Avançado</button>
+                        <select class="filter-select">
+                            <option>Todos</option>
+                            <option>Conciliados</option>
+                            <option>Atrasados</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Tabela -->
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Data <i class="fa-solid fa-sort"></i></th>
+                                <th>Status</th>
+                                <th>Descrição</th>
+                                <th>Valor</th>
+                                <th>Saldo Sistema</th>
+                                <th>Saldo Extrato</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>24/04/2026</td>
+                                <td><span class="badge-status badge-conciliado"><i class="fa-solid fa-lock"></i> Conciliado</span></td>
+                                <td>Alcântara Materiais</td>
+                                <td><span class="text-red">- R$ 263.800</span></td>
+                                <td>R$ 2.890.450</td>
+                                <td>R$ 2.890.450</td>
+                            </tr>
+                            <tr>
+                                <td>24/04/2026</td>
+                                <td><span class="badge-status badge-conciliado"><i class="fa-solid fa-lock"></i> Conciliado</span></td>
+                                <td>Conroio Bailargo</td>
+                                <td><span class="text-red">- R$ 85.500</span></td>
+                                <td>R$ 2.975.950</td>
+                                <td>R$ 2.975.950</td>
+                            </tr>
+                            <tr>
+                                <td>24/04/2026</td>
+                                <td><span class="badge-status badge-conciliado"><i class="fa-solid fa-lock"></i> Conciliado</span></td>
+                                <td>Residencial Vale Azul <span class="tag" style="display:inline-flex; width:auto; border-color:transparent; background-color:rgba(255,255,255,0.05)">#3</span></td>
+                                <td><span class="text-green">+ R$ 288.800</span></td>
+                                <td>R$ 2.687.150</td>
+                                <td>R$ 2.687.150</td>
+                            </tr>
+                            <tr>
+                                <td>24/04/2026</td>
+                                <td><span class="badge-status badge-conciliado"><i class="fa-solid fa-lock"></i> Conciliado</span></td>
+                                <td>Residencial Vista Verde <span class="tag" style="display:inline-flex; width:auto; border-color:transparent; background-color:rgba(255,255,255,0.05)">#3</span></td>
+                                <td><span class="text-green">+ R$ 139.350</span></td>
+                                <td>R$ 2.547.800</td>
+                                <td>R$ 2.547.800</td>
+                            </tr>
+                            <tr>
+                                <td>24/04/2026</td>
+                                <td><span class="badge-status badge-conciliado"><i class="fa-solid fa-lock"></i> Conciliado</span></td>
+                                <td>Mão de Obras Xavier</td>
+                                <td><span class="text-red">- R$ 109.800</span></td>
+                                <td>R$ 2.438.000</td>
+                                <td>R$ 2.438.000</td>
+                            </tr>
+                            <tr>
+                                <td>24/04/2026</td>
+                                <td><span class="badge-status badge-conciliado"><i class="fa-solid fa-lock"></i> Conciliado</span></td>
+                                <td>Banco do Brasil SA</td>
+                                <td><span class="text-red">- R$ 884.300</span></td>
+                                <td>R$ 3.322.300</td>
+                                <td>R$ 3.322.300</td>
+                            </tr>
+                            <tr>
+                                <td>20/04/2026</td>
+                                <td><span class="badge-status badge-conciliado"><i class="fa-solid fa-lock"></i> Conciliado</span></td>
+                                <td>Emprego Soluções SA <span class="tag" style="display:inline-flex; width:auto; border-color:transparent; background-color:rgba(255,255,255,0.05)">#4</span></td>
+                                <td><span class="text-green">+ R$ 1.809.800</span></td>
+                                <td>R$ 1.512.500</td>
+                                <td>R$ 1.512.500</td>
+                            </tr>
+                            <tr>
+                                <td>20/04/2026</td>
+                                <td><span class="badge-status badge-alerta" style="color:var(--color-atrasados)"><i class="fa-solid fa-circle-exclamation"></i> Pendente</span></td>
+                                <td>Pagamento Funcionários</td>
+                                <td><span class="text-red">- R$ 256.980</span></td>
+                                <td>R$ 2.649.010</td>
+                                <td>R$ 2.392.030</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer / Pagination -->
+                <div class="pagination">
+                    <div style="display:flex; gap:16px; align-items:center; font-size:11px; color:var(--text-secondary)">
+                        <span style="display:flex; align-items:center; gap:6px"><div class="dot" style="background:var(--color-pago)"></div> Extrato</span>
+                        <span style="display:flex; align-items:center; gap:6px"><div class="dot" style="background:var(--color-conciliado)"></div> Sistema</span>
+                        <span style="display:flex; align-items:center; gap:6px"><div class="dot" style="background:var(--color-atrasados)"></div> Divergências</span>
+                    </div>
+                    <div class="page-numbers">
+                        <button class="page-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                        <button class="page-btn active">1</button>
+                        <button class="page-btn">2</button>
+                        <button class="page-btn">3</button>
+                        <span style="color:var(--text-secondary); margin:0 4px;">...</span>
+                        <button class="page-btn">Próximo <i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

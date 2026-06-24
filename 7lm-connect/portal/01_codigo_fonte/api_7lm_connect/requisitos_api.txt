@@ -1,0 +1,15 @@
+# Autor: Willian Elias Franca
+fastapi
+uvicorn
+asyncpg
+passlib[argon2]
+python-jose[cryptography]
+orjson
+python-dotenv
+pyotp
+qrcode[pil]
+python-multipart
+openpyxl
+reportlab
+psycopg[binary]
+pypdf

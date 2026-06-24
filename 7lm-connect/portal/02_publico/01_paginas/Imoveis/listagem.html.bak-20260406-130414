@@ -1,0 +1,345 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Connect Comercial - Imoveis</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/inicio.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/operacoes.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/imoveis.css?v=20260406-imoveis-showroom15" />
+
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <meta name="sevenlm-connect-required-permission" content="imoveis.view" />
+  <meta name="sevenlm-connect-access-fallback" content="/inicio" />
+  <meta name="sevenlm-connect-endpoint-imoveis-listar" content="/api/imoveis" />
+  <meta name="sevenlm-connect-endpoint-imoveis-importar" content="/api/imoveis/importacao" />
+  <meta name="sevenlm-connect-endpoint-imoveis-remover" content="/api/imoveis/{id}" />
+  <meta name="sevenlm-connect-endpoint-imoveis-detalhe" content="/api/imoveis/{id}" />
+  <meta name="sevenlm-connect-endpoint-imoveis-atualizar" content="/api/imoveis/{id}" />
+  <meta name="sevenlm-connect-endpoint-imoveis-geocodificar" content="/api/imoveis/geocodificar" />
+  <meta name="sevenlm-connect-path-imoveis-cadastro" content="/comercial/imoveis/cadastro" />
+  <meta name="sevenlm-connect-path-comercial-simulador" content="/comercial/simulador" />
+
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260406-litefx1"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260401-imoveis" defer></script>
+</head>
+<body class="tl-home tl-ops-page tl-imoveis-page">
+  <div class="tl-atmos-layer">
+    <div class="tl-blob tl-blob--teal"></div>
+    <div class="tl-blob tl-blob--purple"></div>
+    <div id="tl-particles-container"></div>
+    <div class="tl-glass-overlay"></div>
+  </div>
+
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <section class="tl-imoveis-hero-shell anim-stagger-1">
+        <div class="tl-imoveis-hero-compact" aria-label="Cabecalho compacto do modulo">
+          <div class="tl-imoveis-hero-compact__rail">
+            <a class="tl-imoveis-hero-compact__tab is-active" href="/comercial/imoveis">Imoveis</a>
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/clientes">Clientes</a>
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/simulador">Simulador</a>
+          </div>
+          <div class="tl-imoveis-hero-compact__actions">
+            <div class="tl-imoveis-hero-compact__user glass-panel hyper-glass">
+              <span class="tl-imoveis-hero-compact__user-name" id="nomeUsuario">Carregando...</span>
+            </div>
+            <button id="btnTema" class="tl-btn-icon glass-panel hyper-glass" aria-label="Alternar tema">
+              <div class="icon-wrap">
+                <svg class="icon-sun" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="5"></circle>
+                  <line x1="12" y1="1" x2="12" y2="3"></line>
+                  <line x1="12" y1="21" x2="12" y2="23"></line>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                  <line x1="1" y1="12" x2="3" y2="12"></line>
+                  <line x1="21" y1="12" x2="23" y2="12"></line>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <svg class="icon-moon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+              </div>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="imoveisFeedback" class="tl-imoveis-feedback anim-stagger-2" aria-live="polite"></section>
+
+      <div id="imoveisImportacaoSection" class="tl-imoveis-modal" hidden aria-hidden="true">
+        <div class="tl-imoveis-modal__backdrop" data-modal-close="importacao"></div>
+        <section class="tl-imoveis-modal__dialog tl-imoveis-import-shell glass-panel hyper-glass" role="dialog" aria-modal="true" aria-labelledby="imoveisImportacaoTitulo">
+          <div class="tl-imoveis-modal__header">
+            <div class="tl-imoveis-shell__head">
+              <div>
+                <span class="tl-imoveis-eyebrow mono-font">UPLOAD EM LOTE</span>
+                <h2 id="imoveisImportacaoTitulo">Suba uma planilha Excel com varios imoveis de uma vez</h2>
+                <p>
+                  Envie um arquivo `.xlsx` ou `.xlsm`, informe os dados-base do lote e o sistema vai ler a planilha completa,
+                  processar as linhas e cadastrar os imoveis automaticamente.
+                </p>
+              </div>
+            </div>
+
+            <button id="btnFecharImportacaoImoveis" class="tl-imoveis-modal__close" type="button" aria-label="Fechar upload em lote">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <path d="M6 6l12 12"></path>
+                <path d="M18 6 6 18"></path>
+              </svg>
+            </button>
+          </div>
+
+          <form id="formImportacaoImoveis" class="tl-imoveis-import-grid" novalidate>
+            <div class="tl-imoveis-field tl-imoveis-field--full">
+              <label for="imoveisImportacaoArquivo">Planilha Excel</label>
+              <input id="imoveisImportacaoArquivo" type="file" accept=".xlsx,.xlsm" />
+              <p class="tl-imoveis-upload-hint">
+                O modelo anexado funciona neste fluxo. Para planilhas como a do IMB, informe abaixo a cidade e o bairro
+                padrao do lote.
+              </p>
+            </div>
+
+            <div class="tl-imoveis-field">
+              <label for="imoveisImportacaoCidade">Cidade padrao</label>
+              <input id="imoveisImportacaoCidade" type="text" maxlength="120" placeholder="Cidade do lote" required />
+            </div>
+
+            <div class="tl-imoveis-field">
+              <label for="imoveisImportacaoBairro">Bairro padrao</label>
+              <input id="imoveisImportacaoBairro" type="text" maxlength="120" placeholder="Bairro do lote" required />
+            </div>
+
+            <div class="tl-imoveis-field">
+              <label for="imoveisImportacaoEstado">Estado</label>
+              <input id="imoveisImportacaoEstado" type="text" maxlength="40" placeholder="UF ou estado" />
+            </div>
+
+            <div class="tl-imoveis-field">
+              <label for="imoveisImportacaoCep">CEP</label>
+              <input id="imoveisImportacaoCep" type="text" maxlength="20" placeholder="00000-000" />
+            </div>
+
+            <div class="tl-imoveis-field tl-imoveis-field--full">
+              <label for="imoveisImportacaoEnderecoBase">Endereco base do empreendimento</label>
+              <input id="imoveisImportacaoEnderecoBase" type="text" maxlength="255" placeholder="Rua, numero, complemento ou nome do empreendimento" />
+            </div>
+
+            <div class="tl-imoveis-field">
+              <label for="imoveisImportacaoTipo">Tipo padrao</label>
+              <select id="imoveisImportacaoTipo">
+                <option value="Apartamento">Apartamento</option>
+                <option value="Casa">Casa</option>
+                <option value="Lote">Lote</option>
+                <option value="Comercial">Comercial</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+
+            <div class="tl-imoveis-field">
+              <label for="imoveisImportacaoStatus">Status padrao</label>
+              <select id="imoveisImportacaoStatus">
+                <option value="Disponivel">Disponivel</option>
+                <option value="Reservado">Reservado</option>
+                <option value="Vendido">Vendido</option>
+                <option value="Inativo">Inativo</option>
+              </select>
+            </div>
+
+            <div class="tl-imoveis-form__actions tl-imoveis-form__actions--full">
+              <span class="tl-imoveis-upload-hint">
+                O cadastro individual continua disponivel. Esta area so adiciona a opcao de importar em lote.
+              </span>
+              <button id="btnImportarImoveis" class="tl-imoveis-btn" type="submit">Processar planilha</button>
+            </div>
+          </form>
+
+          <div id="imoveisImportacaoResumo" class="tl-imoveis-import-summary" hidden></div>
+        </section>
+      </div>
+
+      <div id="imoveisShowroomSection" class="tl-imoveis-modal tl-imoveis-modal--showroom" hidden aria-hidden="true">
+        <div class="tl-imoveis-modal__backdrop" data-modal-close="showroom"></div>
+        <section class="tl-imoveis-modal__dialog tl-imoveis-showroom glass-panel hyper-glass" role="dialog" aria-modal="true" aria-labelledby="imoveisShowroomTitulo">
+          <div class="tl-imoveis-modal__header">
+            <div class="tl-imoveis-shell__head">
+              <div>
+                <span class="tl-imoveis-eyebrow mono-font">SHOWROOM COMERCIAL</span>
+                <h2 id="imoveisShowroomTitulo">Visualizacao premium do imovel</h2>
+                <p id="imoveisShowroomSubtitulo">Carregando dados da unidade...</p>
+              </div>
+            </div>
+            <button id="btnFecharShowroom" class="tl-imoveis-modal__close" type="button" aria-label="Fechar showroom">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <path d="M6 6l12 12"></path>
+                <path d="M18 6 6 18"></path>
+              </svg>
+            </button>
+          </div>
+          <div id="imoveisShowroomContent" class="tl-imoveis-showroom__content">
+            <article class="tl-imoveis-empty">
+              <strong>Carregando showroom...</strong>
+              <p>Estamos organizando as informacoes comerciais desta unidade.</p>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <div id="imoveisMapaSection" class="tl-imoveis-modal tl-imoveis-modal--mapa" hidden aria-hidden="true">
+        <div class="tl-imoveis-modal__backdrop" data-modal-close="mapa"></div>
+        <section class="tl-imoveis-modal__dialog tl-imoveis-map-modal glass-panel hyper-glass" role="dialog" aria-modal="true" aria-labelledby="imoveisMapaTitulo">
+          <div class="tl-imoveis-modal__header">
+            <div class="tl-imoveis-shell__head">
+              <div>
+                <span class="tl-imoveis-eyebrow mono-font">LOCALIZACAO</span>
+                <h2 id="imoveisMapaTitulo">Ver no mapa</h2>
+                <p>Localizacao da unidade para apoiar a apresentacao comercial.</p>
+              </div>
+            </div>
+            <button id="btnFecharMapa" class="tl-imoveis-modal__close" type="button" aria-label="Fechar mapa">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <path d="M6 6l12 12"></path>
+                <path d="M18 6 6 18"></path>
+              </svg>
+            </button>
+          </div>
+          <div class="tl-imoveis-map-modal__body">
+            <div class="tl-imoveis-map-modal__canvas">
+              <iframe id="imoveisMapaFrame" title="Mapa do imovel" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+            </div>
+            <aside class="tl-imoveis-map-modal__info">
+              <div class="tl-imoveis-map-modal__address">
+                <strong id="imoveisMapaEndereco">Endereco nao informado.</strong>
+                <p id="imoveisMapaCidade">Cidade e bairro nao informados.</p>
+              </div>
+              <div class="tl-imoveis-map-modal__actions">
+                <button id="btnMapaCopiarEndereco" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Copiar endereco</button>
+                <a id="btnMapaAbrirGoogle" class="tl-imoveis-btn" href="#" target="_blank" rel="noopener noreferrer">Abrir no Google Maps</a>
+                <a id="btnMapaAbrirRota" class="tl-imoveis-btn tl-imoveis-btn--ghost" href="#" target="_blank" rel="noopener noreferrer">Ver rota</a>
+                <button id="btnMapaFechar" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Fechar</button>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </div>
+
+      <div id="imoveisComparacaoSection" class="tl-imoveis-modal tl-imoveis-modal--comparacao" hidden aria-hidden="true">
+        <div class="tl-imoveis-modal__backdrop" data-modal-close="comparacao"></div>
+        <section class="tl-imoveis-modal__dialog tl-imoveis-comparacao glass-panel hyper-glass" role="dialog" aria-modal="true" aria-labelledby="imoveisComparacaoTitulo">
+          <div class="tl-imoveis-modal__header">
+            <div class="tl-imoveis-shell__head">
+              <div>
+                <span class="tl-imoveis-eyebrow mono-font">COMPARACAO LEVE</span>
+                <h2 id="imoveisComparacaoTitulo">Comparar unidades selecionadas</h2>
+                <p>Analise rapidamente diferencas comerciais entre os imoveis escolhidos.</p>
+              </div>
+            </div>
+            <button id="btnFecharComparacao" class="tl-imoveis-modal__close" type="button" aria-label="Fechar comparacao">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <path d="M6 6l12 12"></path>
+                <path d="M18 6 6 18"></path>
+              </svg>
+            </button>
+          </div>
+          <div id="imoveisComparacaoConteudo" class="tl-imoveis-comparacao__content">
+            <article class="tl-imoveis-empty">
+              <strong>Selecione imoveis para comparar</strong>
+              <p>Escolha ate 3 unidades e abra este painel para comparar.</p>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <section class="tl-imoveis-shell anim-stagger-3">
+        <div class="tl-imoveis-shell__head tl-imoveis-shell__head--merged">
+          <div>
+            <span class="tl-imoveis-eyebrow mono-font">FILTROS E LISTAGEM</span>
+            <h2>Base de imoveis cadastrados</h2>
+            <p id="imoveisResumo">Carregando listagem de imoveis...</p>
+          </div>
+          <div class="tl-imoveis-actions">
+            <a id="btnNovoImovel" class="tl-imoveis-btn" href="/comercial/imoveis/cadastro" data-permission="imoveis.create">
+              Novo imovel
+            </a>
+            <button id="btnAbrirImportacaoImoveis" class="tl-imoveis-btn tl-imoveis-btn--ghost" type="button" hidden>
+              Importar planilha
+            </button>
+          </div>
+        </div>
+
+        <div class="tl-imoveis-view-switch" role="tablist" aria-label="Modo de visualizacao de imoveis">
+          <button id="btnViewComercial" class="tl-imoveis-view-switch__btn is-active" type="button" role="tab" aria-selected="true">
+            Visao comercial
+          </button>
+          <button id="btnViewTecnica" class="tl-imoveis-view-switch__btn" type="button" role="tab" aria-selected="false">
+            Visao tecnica
+          </button>
+        </div>
+
+        <div class="tl-imoveis-toolbar__filters tl-imoveis-toolbar__filters--merged">
+          <div class="tl-imoveis-field">
+            <label for="imoveisBusca">Buscar por titulo</label>
+            <input id="imoveisBusca" type="search" placeholder="Ex.: Casa 03 quartos no centro" autocomplete="off" />
+          </div>
+
+          <div class="tl-imoveis-field">
+            <label for="imoveisCidade">Cidade</label>
+            <input id="imoveisCidade" type="text" placeholder="Filtrar cidade" autocomplete="off" />
+          </div>
+
+          <div class="tl-imoveis-field">
+            <label for="imoveisBairro">Bairro</label>
+            <input id="imoveisBairro" type="text" placeholder="Filtrar bairro" autocomplete="off" />
+          </div>
+
+          <div class="tl-imoveis-field">
+            <label for="imoveisStatus">Status</label>
+            <select id="imoveisStatus">
+              <option value="">Todos</option>
+              <option value="Disponivel">Disponivel</option>
+              <option value="Reservado">Reservado</option>
+              <option value="Vendido">Vendido</option>
+              <option value="Inativo">Inativo</option>
+            </select>
+          </div>
+
+          <button id="btnBuscarImoveis" class="tl-imoveis-btn" type="button">Buscar</button>
+          <button id="btnLimparFiltros" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Limpar</button>
+        </div>
+
+        <div id="imoveisLista" class="tl-imoveis-listing">
+          <article class="tl-imoveis-empty">
+            <strong>Carregando imoveis...</strong>
+            <p>Aguarde enquanto consultamos a base.</p>
+          </article>
+        </div>
+
+        <div id="imoveisPaginacao" class="tl-imoveis-pagination">
+          <span id="imoveisPaginacaoInfo">Pagina 1 de 1</span>
+          <div class="tl-imoveis-actions">
+            <button id="btnPaginaAnterior" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Pagina anterior</button>
+            <button id="btnPaginaProxima" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Proxima pagina</button>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <div id="tl-imoveis-lightbox" aria-hidden="true"></div>
+
+  <script src="/02_recursos/02_scripts/operacoes_shared.js?v=20260401-imoveis"></script>
+  <script src="/02_recursos/02_scripts/imoveis_shared.js?v=20260405-userbox-fix1"></script>
+  <script src="/02_recursos/02_scripts/imoveis_listagem.js?v=20260406-imoveis-showroom15"></script>
+</body>
+</html>
+
+

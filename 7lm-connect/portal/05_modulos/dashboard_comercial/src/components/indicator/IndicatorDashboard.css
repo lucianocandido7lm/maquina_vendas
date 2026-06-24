@@ -1,0 +1,115 @@
+.indicator-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.indicator-dashboard-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.indicator-dash-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem;
+  background: var(--surface-low);
+  border-radius: 16px;
+  border: 1px solid var(--outline-variant);
+  min-height: 170px;
+}
+
+.indicator-dash-block-wide {
+  grid-column: 1 / -1;
+}
+
+.indicator-dash-block-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.24rem;
+}
+
+.indicator-dash-block-eyebrow {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--on-surface-variant);
+}
+
+.indicator-dash-block-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.indicator-dash-block-subtitle {
+  font-size: 0.66rem;
+  line-height: 1.35;
+  color: var(--on-surface-variant);
+}
+
+.indicator-dash-block-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.indicator-metric-strips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.indicator-mini-card {
+  padding: 0.82rem;
+  background: var(--surface-lowest);
+  border-radius: 14px;
+  border: 1px solid var(--outline-variant);
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.indicator-mini-label {
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--on-surface-variant);
+}
+
+.indicator-mini-value {
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--on-surface);
+}
+
+.indicator-dash-list-item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0.3rem 0.62rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-lowest) 86%, var(--primary) 14%);
+  color: var(--on-surface);
+  font-size: 0.62rem;
+  font-weight: 600;
+}
+
+@media (max-width: 1024px) {
+  .indicator-metric-strips,
+  .indicator-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .indicator-dash-block-wide {
+    grid-column: auto;
+  }
+}

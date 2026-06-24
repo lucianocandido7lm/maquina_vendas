@@ -1,0 +1,6 @@
+node_modules
+npm-debug.log
+03_registros
+04_testes
+.env
+.git

@@ -1,0 +1,990 @@
+"""
+Servicos do modulo de imoveis.
+"""
+
+from __future__ import annotations
+
+from decimal import Decimal
+from io import BytesIO
+from pathlib import Path
+import re
+from typing import Any, Iterable
+from urllib.parse import quote_plus
+from uuid import uuid4
+
+from fastapi import HTTPException, UploadFile
+
+try:
+    from openpyxl import load_workbook
+except Exception:
+    load_workbook = None
+
+from repositorios.imoveis import (
+    atualizar_imovel as atualizar_imovel_repositorio,
+    buscar_imovel_por_chave_importacao,
+    criar_imovel as criar_imovel_repositorio,
+    inserir_midia_imovel,
+)
+from servicos.simulador import serializar_reserva
+from validacoes.imoveis import (
+    EXTENSOES_PLANILHA_IMPORTACAO,
+    classificar_arquivo_de_midia,
+    linha_planilha_vazia,
+    mapear_colunas_importacao,
+    normalizar_nome_para_arquivo,
+    normalizar_payload_imovel,
+    normalizar_decimal,
+    normalizar_inteiro,
+    obter_valor_coluna_planilha,
+    valor_planilha_como_texto,
+)
+
+
+def _decimal_para_float(valor: Decimal | None) -> float | None:
+    if valor is None:
+        return None
+    return float(valor)
+
+
+PADRAO_BLOCO = re.compile(r"\bbloco\s+([a-z0-9-]+)", re.IGNORECASE)
+PADRAO_UNIDADE_TITULO = re.compile(r"\b([a-z0-9-]+)\s*-\s*bloco\b", re.IGNORECASE)
+PADRAO_UNIDADE_ENDERECO = re.compile(r"\bunidade\s+([a-z0-9-]+)", re.IGNORECASE)
+PADRAO_PAVIMENTO_ENDERECO = re.compile(r"\bpavimento\s+([^,\n\r.]+)", re.IGNORECASE)
+
+
+def _texto_limpo(valor: Any) -> str:
+    return str(valor or "").strip()
+
+
+def _extrair_campo_rotulado(texto: Any, rotulo: str) -> str:
+    conteudo = _texto_limpo(texto)
+    if not conteudo:
+        return ""
+
+    correspondencia = re.search(
+        rf"{re.escape(rotulo)}\s*:\s*([^.\n\r]+)",
+        conteudo,
+        flags=re.IGNORECASE,
+    )
+    return correspondencia.group(1).strip() if correspondencia else ""
+
+
+def _extrair_primeira_ocorrencia(fontes: Iterable[Any], padrao: re.Pattern[str]) -> str:
+    for fonte in fontes:
+        conteudo = _texto_limpo(fonte)
+        if not conteudo:
+            continue
+        correspondencia = padrao.search(conteudo)
+        if correspondencia:
+            return correspondencia.group(1).strip()
+    return ""
+
+
+def _inferir_pavimento_por_unidade(unidade: str) -> str:
+    digitos = re.sub(r"\D", "", _texto_limpo(unidade))
+    if len(digitos) < 3:
+        return ""
+
+    andar = digitos[:-2].lstrip("0") or "0"
+    return f"{andar}o PAVIMENTO"
+
+
+def _montar_dados_agrupamento_imovel(registro: dict[str, Any]) -> dict[str, Any]:
+    titulo = _texto_limpo(registro.get("titulo"))
+    descricao = _texto_limpo(registro.get("descricao"))
+    endereco = _texto_limpo(registro.get("endereco"))
+    bairro = _texto_limpo(registro.get("bairro"))
+    cidade = _texto_limpo(registro.get("cidade"))
+
+    localidade = (
+        _extrair_campo_rotulado(descricao, "Localidade")
+        or bairro
+        or cidade
+        or "Sem localidade"
+    )
+    bloco = (
+        _extrair_campo_rotulado(descricao, "Bloco")
+        or _extrair_primeira_ocorrencia((titulo, endereco), PADRAO_BLOCO)
+        or "Sem bloco"
+    )
+    unidade = (
+        _extrair_campo_rotulado(descricao, "Unidade")
+        or _extrair_primeira_ocorrencia((titulo,), PADRAO_UNIDADE_TITULO)
+        or _extrair_primeira_ocorrencia((endereco,), PADRAO_UNIDADE_ENDERECO)
+        or titulo
+    )
+    pavimento = (
+        _extrair_campo_rotulado(descricao, "Pavimento")
+        or _extrair_primeira_ocorrencia((endereco,), PADRAO_PAVIMENTO_ENDERECO)
+        or _inferir_pavimento_por_unidade(unidade)
+        or "Andar nao informado"
+    )
+
+    return {
+        "localidade": localidade,
+        "bloco": bloco,
+        "andar": pavimento,
+        "pavimento": pavimento,
+        "unidade": unidade,
+    }
+
+
+PADRAO_COORDENADAS_PARES = re.compile(r"(-?\d{1,2}(?:[.,]\d+)?)\s*[,;]\s*(-?\d{1,3}(?:[.,]\d+)?)")
+PADRAO_LATITUDE = re.compile(r"\b(?:lat|latitude)\s*[:=]\s*(-?\d{1,2}(?:[.,]\d+)?)", re.IGNORECASE)
+PADRAO_LONGITUDE = re.compile(r"\b(?:lng|lon|long|longitude)\s*[:=]\s*(-?\d{1,3}(?:[.,]\d+)?)", re.IGNORECASE)
+LATITUDE_BRASIL_MIN = -34.0
+LATITUDE_BRASIL_MAX = 6.0
+LONGITUDE_BRASIL_MIN = -74.0
+LONGITUDE_BRASIL_MAX = -28.0
+
+
+def _normalizar_caminho_publico(caminho: Any) -> str:
+    valor = _texto_limpo(caminho)
+    if not valor:
+        return ""
+    return f"/{valor.lstrip('/')}"
+
+
+def _float_seguro(valor: Any) -> float | None:
+    if valor is None:
+        return None
+    if isinstance(valor, (int, float)):
+        numero = float(valor)
+        return numero if numero == numero else None
+
+    texto = _texto_limpo(valor)
+    if not texto:
+        return None
+    texto = texto.replace(",", ".")
+    try:
+        return float(texto)
+    except Exception:
+        return None
+
+
+def _coordenadas_no_brasil(latitude: float | None, longitude: float | None) -> bool:
+    if latitude is None or longitude is None:
+        return False
+    return (
+        LATITUDE_BRASIL_MIN <= latitude <= LATITUDE_BRASIL_MAX
+        and LONGITUDE_BRASIL_MIN <= longitude <= LONGITUDE_BRASIL_MAX
+    )
+
+
+def _normalizar_coordenadas_brasil(latitude: float | None, longitude: float | None) -> tuple[float | None, float | None]:
+    if _coordenadas_no_brasil(latitude, longitude):
+        return latitude, longitude
+
+    if _coordenadas_no_brasil(longitude, latitude):
+        return longitude, latitude
+
+    return None, None
+
+
+def _montar_endereco_formatado(registro: dict[str, Any]) -> str:
+    partes = [
+        _texto_limpo(registro.get("endereco")),
+        _texto_limpo(registro.get("bairro")),
+        _texto_limpo(registro.get("cidade")),
+        _texto_limpo(registro.get("estado")),
+        _texto_limpo(registro.get("cep")),
+    ]
+    return ", ".join(parte for parte in partes if parte)
+
+
+def _extrair_coordenadas(registro: dict[str, Any], descricao: str) -> tuple[float | None, float | None]:
+    latitude, longitude = _normalizar_coordenadas_brasil(
+        _float_seguro(registro.get("latitude")),
+        _float_seguro(registro.get("longitude")),
+    )
+
+    if latitude is not None and longitude is not None:
+        return latitude, longitude
+
+    if descricao:
+        lat_match = PADRAO_LATITUDE.search(descricao)
+        lng_match = PADRAO_LONGITUDE.search(descricao)
+        if lat_match and lng_match:
+            latitude, longitude = _normalizar_coordenadas_brasil(
+                _float_seguro(lat_match.group(1)),
+                _float_seguro(lng_match.group(1)),
+            )
+            if latitude is not None and longitude is not None:
+                return latitude, longitude
+
+        par = PADRAO_COORDENADAS_PARES.search(descricao)
+        if par:
+            latitude, longitude = _normalizar_coordenadas_brasil(
+                _float_seguro(par.group(1)),
+                _float_seguro(par.group(2)),
+            )
+            if latitude is not None and longitude is not None:
+                return latitude, longitude
+
+    return latitude, longitude
+
+
+def _montar_localizacao(registro: dict[str, Any]) -> dict[str, Any]:
+    descricao = _texto_limpo(registro.get("descricao"))
+    endereco_formatado = _montar_endereco_formatado(registro)
+    latitude, longitude = _extrair_coordenadas(registro, descricao)
+
+    consulta = f"{latitude},{longitude}" if latitude is not None and longitude is not None else endereco_formatado
+    consulta = consulta.strip()
+    consulta_encoded = quote_plus(consulta) if consulta else ""
+
+    return {
+        "endereco_formatado": endereco_formatado,
+        "bairro": _texto_limpo(registro.get("bairro")),
+        "cidade": _texto_limpo(registro.get("cidade")),
+        "estado": _texto_limpo(registro.get("estado")),
+        "cep": _texto_limpo(registro.get("cep")),
+        "latitude": latitude,
+        "longitude": longitude,
+        "consulta": consulta,
+        "google_maps_url": (
+            f"https://www.google.com/maps/search/?api=1&query={consulta_encoded}" if consulta_encoded else ""
+        ),
+        "google_maps_embed_url": (
+            f"https://www.google.com/maps?q={consulta_encoded}&output=embed" if consulta_encoded else ""
+        ),
+        "google_maps_rota_url": (
+            f"https://www.google.com/maps/dir/?api=1&destination={consulta_encoded}" if consulta_encoded else ""
+        ),
+    }
+
+
+def _montar_detalhes_comerciais(registro: dict[str, Any], agrupamento: dict[str, Any]) -> dict[str, Any]:
+    descricao = _texto_limpo(registro.get("descricao"))
+    area_privativa = _extrair_campo_rotulado(descricao, "Area privativa")
+    area_total = (
+        _extrair_campo_rotulado(descricao, "Area total construida")
+        or _extrair_campo_rotulado(descricao, "Area total")
+    )
+
+    return {
+        "empreendimento": (
+            _extrair_campo_rotulado(descricao, "Empreendimento")
+            or _extrair_campo_rotulado(descricao, "Localidade")
+            or _texto_limpo(agrupamento.get("localidade"))
+            or _texto_limpo(registro.get("bairro"))
+        ),
+        "bloco": _extrair_campo_rotulado(descricao, "Bloco") or _texto_limpo(agrupamento.get("bloco")),
+        "unidade": _extrair_campo_rotulado(descricao, "Unidade") or _texto_limpo(agrupamento.get("unidade")),
+        "pavimento": _extrair_campo_rotulado(descricao, "Pavimento") or _texto_limpo(agrupamento.get("pavimento")),
+        "andar": _extrair_campo_rotulado(descricao, "Andar") or _texto_limpo(agrupamento.get("andar")),
+        "orientacao": _extrair_campo_rotulado(descricao, "Orientacao"),
+        "posicao": _extrair_campo_rotulado(descricao, "Posicao"),
+        "vista": _extrair_campo_rotulado(descricao, "Vista"),
+        "condicao_especial": (
+            _extrair_campo_rotulado(descricao, "Condicao especial")
+            or _extrair_campo_rotulado(descricao, "Condicao")
+        ),
+        "area_privativa": area_privativa,
+        "area_total": area_total,
+    }
+
+
+def _montar_diferenciais_comerciais(registro: dict[str, Any], detalhes: dict[str, Any]) -> list[str]:
+    titulo = _texto_limpo(registro.get("titulo")).lower()
+    descricao = _texto_limpo(registro.get("descricao")).lower()
+    tipo_imovel = _texto_limpo(registro.get("tipo_imovel")).lower()
+    texto = " ".join([titulo, descricao, tipo_imovel]).strip()
+
+    mapa_termos = [
+        ("varanda", "Varanda"),
+        ("garden", "Garden"),
+        ("cobertura", "Cobertura"),
+        ("sol da manha", "Sol da manha"),
+        ("vista", "Vista valorizada"),
+        ("oportunidade", "Oportunidade"),
+        ("suite", "Suite"),
+        ("mobiliado", "Mobiliado"),
+        ("reformado", "Reformado"),
+        ("familia", "Ideal para familia"),
+        ("localizacao", "Boa localizacao"),
+    ]
+
+    diferenciais: list[str] = []
+    for termo, rotulo in mapa_termos:
+        if termo in texto and rotulo not in diferenciais:
+            diferenciais.append(rotulo)
+
+    if detalhes.get("orientacao"):
+        diferenciais.append(f"Orientacao: {detalhes['orientacao']}")
+    if detalhes.get("posicao"):
+        diferenciais.append(f"Posicao: {detalhes['posicao']}")
+    if detalhes.get("vista"):
+        diferenciais.append(f"Vista: {detalhes['vista']}")
+    if detalhes.get("condicao_especial"):
+        diferenciais.append(f"Condicao especial: {detalhes['condicao_especial']}")
+
+    # Preserva ordem e remove duplicados.
+    vistos: set[str] = set()
+    resultado: list[str] = []
+    for item in diferenciais:
+        chave = item.strip().lower()
+        if not chave or chave in vistos:
+            continue
+        vistos.add(chave)
+        resultado.append(item.strip())
+
+    return resultado[:10]
+
+
+def _montar_midias_comerciais(
+    midias_serializadas: list[dict[str, Any]],
+    foto_principal_registro: Any,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], str]:
+    lista_base = [dict(midia) for midia in (midias_serializadas or [])]
+    foto_principal = _normalizar_caminho_publico(foto_principal_registro)
+
+    # Primeiro fotos e depois videos, preservando a ordenacao da consulta.
+    lista = [item for item in lista_base if _texto_limpo(item.get("tipo_arquivo")).lower() == "foto"]
+    lista.extend(item for item in lista_base if _texto_limpo(item.get("tipo_arquivo")).lower() == "video")
+
+    indice_principal = -1
+    if foto_principal:
+        for idx, item in enumerate(lista):
+            if _normalizar_caminho_publico(item.get("caminho_arquivo")) == foto_principal:
+                indice_principal = idx
+                break
+
+    if indice_principal < 0:
+        for idx, item in enumerate(lista):
+            if _texto_limpo(item.get("tipo_arquivo")).lower() == "foto":
+                indice_principal = idx
+                break
+
+    if indice_principal < 0 and lista:
+        indice_principal = 0
+
+    for idx, item in enumerate(lista):
+        item["caminho_arquivo"] = _normalizar_caminho_publico(item.get("caminho_arquivo"))
+        item["ordem"] = idx + 1
+        item["eh_principal"] = idx == indice_principal
+        if item["eh_principal"] and not foto_principal:
+            foto_principal = item["caminho_arquivo"]
+
+    fotos = [item for item in lista if _texto_limpo(item.get("tipo_arquivo")).lower() == "foto"]
+    videos = [item for item in lista if _texto_limpo(item.get("tipo_arquivo")).lower() == "video"]
+    return lista, fotos, videos, foto_principal
+
+
+def serializar_midia(linha: dict[str, Any] | Any) -> dict[str, Any]:
+    registro = dict(linha)
+    return {
+        "id": str(registro["identificador_midia"]),
+        "imovel_id": str(registro["identificador_imovel"]),
+        "tipo_arquivo": registro["tipo_arquivo"],
+        "nome_arquivo": registro["nome_arquivo"],
+        "caminho_arquivo": _normalizar_caminho_publico(registro["caminho_arquivo"]),
+        "mime_type": registro["mime_type"],
+        "tamanho_bytes": int(registro["tamanho_bytes"] or 0),
+        "data_hora_criacao": registro["data_hora_criacao"],
+    }
+
+
+def serializar_imovel(linha: dict[str, Any] | Any, *, midias: Iterable[dict[str, Any]] | None = None) -> dict[str, Any]:
+    registro = dict(linha)
+    quantidade_midias = int(registro.get("quantidade_midias") or 0)
+    midias_serializadas = [serializar_midia(midia) for midia in (midias or [])]
+    agrupamento = _montar_dados_agrupamento_imovel(registro)
+    detalhes_comerciais = _montar_detalhes_comerciais(registro, agrupamento)
+    localizacao = _montar_localizacao(registro)
+
+    midias_comerciais, fotos, videos, foto_principal = _montar_midias_comerciais(
+        midias_serializadas,
+        registro.get("foto_principal"),
+    )
+    diferenciais_comerciais = _montar_diferenciais_comerciais(registro, detalhes_comerciais)
+
+    if midias_comerciais:
+        quantidade_midias = len(midias_comerciais)
+    foto_principal_nome = _texto_limpo(registro.get("foto_principal_nome"))
+    if not foto_principal_nome and fotos:
+        foto_principal_nome = _texto_limpo(fotos[0].get("nome_arquivo"))
+
+    return {
+        "id": str(registro["identificador_imovel"]),
+        "titulo": registro["titulo"],
+        "descricao": registro.get("descricao"),
+        "tipo_imovel": registro.get("tipo_imovel"),
+        "endereco": registro.get("endereco"),
+        "cidade": registro["cidade"],
+        "bairro": registro["bairro"],
+        "estado": registro.get("estado"),
+        "cep": registro.get("cep"),
+        "valor": _decimal_para_float(registro.get("valor")),
+        "quartos": registro.get("quartos"),
+        "banheiros": registro.get("banheiros"),
+        "vagas_garagem": registro.get("vagas_garagem"),
+        "area_m2": _decimal_para_float(registro.get("area_m2")),
+        "meses_pre_entrega": int(registro.get("meses_pre_entrega") or 36),
+        "meses_pos_entrega": int(24 if registro.get("meses_pos_entrega") in (None, "") else registro.get("meses_pos_entrega")),
+        "percentual_conclusao_obra": _decimal_para_float(registro.get("percentual_conclusao_obra") or 0),
+        "status": registro["status"],
+        "agrupamento": agrupamento,
+        "detalhes_comerciais": detalhes_comerciais,
+        "diferenciais_comerciais": diferenciais_comerciais,
+        "localizacao": localizacao,
+        "endereco_formatado": localizacao.get("endereco_formatado"),
+        "foto_principal": foto_principal,
+        "foto_principal_nome": foto_principal_nome or None,
+        "quantidade_midias": quantidade_midias,
+        "quantidade_fotos": len(fotos) if midias_comerciais else 0,
+        "quantidade_videos": len(videos) if midias_comerciais else 0,
+        "data_hora_criacao": registro.get("data_hora_criacao"),
+        "data_hora_atualizado_em": registro.get("data_hora_atualizado_em"),
+        "midias": midias_comerciais,
+        "midias_fotos": fotos,
+        "midias_videos": videos,
+        "reserva_ativa": serializar_reserva(registro, prefixo="reserva_")
+        if registro.get("reserva_identificador_reserva")
+        else None,
+    }
+
+
+async def criar_imovel(conexao, esquema: str, payload: dict[str, Any]):
+    dados_normalizados = normalizar_payload_imovel(payload)
+    return await criar_imovel_repositorio(conexao, esquema, dados_normalizados)
+
+
+async def atualizar_imovel(conexao, esquema: str, identificador_imovel: str, payload: dict[str, Any]):
+    dados_normalizados = normalizar_payload_imovel(payload)
+    return await atualizar_imovel_repositorio(conexao, esquema, identificador_imovel, dados_normalizados)
+
+
+def _primeiro_texto_preenchido(*valores: Any) -> str:
+    for valor in valores:
+        texto = valor_planilha_como_texto(valor)
+        if texto:
+            return texto
+    return ""
+
+
+def _primeiro_valor_preenchido(*valores: Any) -> Any:
+    for valor in valores:
+        if valor is None:
+            continue
+        if isinstance(valor, str) and not valor.strip():
+            continue
+        return valor
+    return None
+
+
+def _formatar_medida(valor: Any) -> str:
+    texto = valor_planilha_como_texto(valor)
+    if not texto:
+        return ""
+    return texto.replace(".", ",")
+
+
+def _gerar_titulo_importacao(
+    *,
+    tipo_imovel: str,
+    unidade: str,
+    bloco: str,
+    posicao: str,
+    linha_planilha: int,
+) -> str:
+    base = valor_planilha_como_texto(tipo_imovel) or "Imovel"
+
+    if unidade and bloco:
+        return f"{base} {unidade} - Bloco {bloco}"
+    if unidade:
+        return f"{base} {unidade}"
+    if posicao:
+        return f"{base} {posicao}"
+    return f"{base} importado {linha_planilha}"
+
+
+def _gerar_endereco_importacao(*, endereco_base: str, bloco: str, pavimento: str, unidade: str) -> str | None:
+    partes = []
+    if endereco_base:
+        partes.append(endereco_base)
+    if bloco:
+        partes.append(f"Bloco {bloco}")
+    if pavimento:
+        partes.append(f"Pavimento {pavimento}")
+    if unidade:
+        partes.append(f"Unidade {unidade}")
+
+    texto = ", ".join(parte for parte in partes if parte)
+    return texto or None
+
+
+def _gerar_descricao_importacao(
+    *,
+    descricao_manual: str,
+    localidade: str,
+    unidade: str,
+    pavimento: str,
+    bloco: str,
+    orientacao: str,
+    posicao: str,
+    suites: Any,
+    vaga_vinculada: str,
+    area_real: Any,
+    area_equivalente: Any,
+    area_total: Any,
+) -> str | None:
+    detalhes = ["Importado em lote via planilha Excel."]
+    pares = [
+        ("Localidade", localidade),
+        ("Unidade", unidade),
+        ("Pavimento", pavimento),
+        ("Bloco", bloco),
+        ("Orientacao", orientacao),
+        ("Posicao", posicao),
+        ("Suites", valor_planilha_como_texto(suites)),
+        ("Vaga vinculada", vaga_vinculada),
+        ("Area real", f"{_formatar_medida(area_real)} m2" if valor_planilha_como_texto(area_real) else ""),
+        (
+            "Area equivalente",
+            f"{_formatar_medida(area_equivalente)} m2" if valor_planilha_como_texto(area_equivalente) else "",
+        ),
+        ("Area total construida", f"{_formatar_medida(area_total)} m2" if valor_planilha_como_texto(area_total) else ""),
+    ]
+
+    for rotulo, valor in pares:
+        texto = valor_planilha_como_texto(valor)
+        if texto:
+            detalhes.append(f"{rotulo}: {texto}.")
+
+    bloco_descritivo = " ".join(detalhes).strip()
+    if descricao_manual and bloco_descritivo:
+        return f"{descricao_manual}\n\n{bloco_descritivo}"
+    return descricao_manual or bloco_descritivo or None
+
+
+def _normalizar_chave_importacao(*valores: Any) -> str:
+    partes = [normalizar_nome_para_arquivo(valor_planilha_como_texto(valor)) for valor in valores if valor_planilha_como_texto(valor)]
+    return "::".join(partes)
+
+
+def _montar_payload_importacao_linha(
+    linha: list[Any] | tuple[Any, ...],
+    colunas: dict[str, int],
+    contexto: dict[str, Any],
+    linha_planilha: int,
+) -> dict[str, Any]:
+    titulo_manual = _primeiro_texto_preenchido(obter_valor_coluna_planilha(linha, colunas, "titulo"))
+    descricao_manual = _primeiro_texto_preenchido(obter_valor_coluna_planilha(linha, colunas, "descricao"))
+    tipo_imovel = _primeiro_texto_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "tipo_imovel"),
+        contexto.get("tipo_imovel_padrao"),
+        "Apartamento",
+    )
+    unidade = _primeiro_texto_preenchido(obter_valor_coluna_planilha(linha, colunas, "unidade_autonoma"))
+    bloco = _primeiro_texto_preenchido(obter_valor_coluna_planilha(linha, colunas, "bloco"))
+    posicao = _primeiro_texto_preenchido(obter_valor_coluna_planilha(linha, colunas, "posicao"))
+    pavimento = _primeiro_texto_preenchido(obter_valor_coluna_planilha(linha, colunas, "pavimento"))
+    localidade = _primeiro_texto_preenchido(obter_valor_coluna_planilha(linha, colunas, "localidade"))
+    orientacao = _primeiro_texto_preenchido(obter_valor_coluna_planilha(linha, colunas, "orientacao"))
+    vaga_vinculada = _primeiro_texto_preenchido(obter_valor_coluna_planilha(linha, colunas, "vaga_vinculada"))
+
+    titulo = titulo_manual or _gerar_titulo_importacao(
+        tipo_imovel=tipo_imovel,
+        unidade=unidade,
+        bloco=bloco,
+        posicao=posicao,
+        linha_planilha=linha_planilha,
+    )
+    endereco = _primeiro_texto_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "endereco"),
+        _gerar_endereco_importacao(
+            endereco_base=valor_planilha_como_texto(contexto.get("endereco_base")),
+            bloco=bloco,
+            pavimento=pavimento,
+            unidade=unidade,
+        ),
+    )
+
+    cidade = _primeiro_texto_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "cidade"),
+        contexto.get("cidade_padrao"),
+    )
+    bairro = _primeiro_texto_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "bairro"),
+        contexto.get("bairro_padrao"),
+    )
+    estado = _primeiro_texto_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "estado"),
+        contexto.get("estado_padrao"),
+    )
+    cep = _primeiro_texto_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "cep"),
+        contexto.get("cep_padrao"),
+    )
+    status = _primeiro_texto_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "status"),
+        contexto.get("status_padrao"),
+        "Disponivel",
+    )
+
+    valor = _primeiro_valor_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "valor"),
+        obter_valor_coluna_planilha(linha, colunas, "vgv"),
+    )
+    quartos = _primeiro_valor_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "quartos"),
+        obter_valor_coluna_planilha(linha, colunas, "dormitorios"),
+    )
+    banheiros = _primeiro_valor_preenchido(obter_valor_coluna_planilha(linha, colunas, "banheiros"))
+    vagas = _primeiro_valor_preenchido(obter_valor_coluna_planilha(linha, colunas, "vagas_garagem"))
+    if vagas is None and vaga_vinculada:
+        vagas = 1
+
+    area_real = _primeiro_valor_preenchido(obter_valor_coluna_planilha(linha, colunas, "ap_real"))
+    area_total = _primeiro_valor_preenchido(obter_valor_coluna_planilha(linha, colunas, "area_total_construida"))
+    area_equivalente = _primeiro_valor_preenchido(obter_valor_coluna_planilha(linha, colunas, "ap_equivalente"))
+    area_m2 = _primeiro_valor_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "area_m2"),
+        area_real,
+        area_total,
+        area_equivalente,
+    )
+    meses_pre_entrega = _primeiro_valor_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "meses_pre_entrega"),
+        contexto.get("meses_pre_entrega_padrao"),
+    )
+    meses_pos_entrega = _primeiro_valor_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "meses_pos_entrega"),
+        contexto.get("meses_pos_entrega_padrao"),
+    )
+    percentual_conclusao_obra = _primeiro_valor_preenchido(
+        obter_valor_coluna_planilha(linha, colunas, "percentual_conclusao_obra"),
+        contexto.get("percentual_conclusao_obra_padrao"),
+    )
+
+    payload = normalizar_payload_imovel(
+        {
+            "titulo": titulo,
+            "descricao": _gerar_descricao_importacao(
+                descricao_manual=descricao_manual,
+                localidade=localidade,
+                unidade=unidade,
+                pavimento=pavimento,
+                bloco=bloco,
+                orientacao=orientacao,
+                posicao=posicao,
+                suites=obter_valor_coluna_planilha(linha, colunas, "suite"),
+                vaga_vinculada=vaga_vinculada,
+                area_real=area_real,
+                area_equivalente=area_equivalente,
+                area_total=area_total,
+            ),
+            "tipo_imovel": tipo_imovel,
+            "endereco": endereco,
+            "cidade": cidade,
+            "bairro": bairro,
+            "estado": estado,
+            "cep": cep,
+            "valor": normalizar_decimal(valor, "valor"),
+            "quartos": normalizar_inteiro(quartos, "quartos"),
+            "banheiros": normalizar_inteiro(banheiros, "banheiros"),
+            "vagas_garagem": normalizar_inteiro(vagas, "vagas de garagem"),
+            "area_m2": normalizar_decimal(area_m2, "area em m2"),
+            "meses_pre_entrega": meses_pre_entrega,
+            "meses_pos_entrega": meses_pos_entrega,
+            "percentual_conclusao_obra": percentual_conclusao_obra,
+            "status": status,
+        }
+    )
+
+    return {
+        "linha": linha_planilha,
+        "referencia": titulo,
+        "payload": payload,
+        "chave": _normalizar_chave_importacao(
+            payload["titulo"],
+            payload.get("cidade"),
+            payload.get("bairro"),
+            payload.get("endereco"),
+        ),
+    }
+
+
+def carregar_planilha_imoveis(
+    *,
+    conteudo_arquivo: bytes,
+    nome_arquivo: str,
+    contexto: dict[str, Any],
+) -> dict[str, Any]:
+    if load_workbook is None:
+        raise HTTPException(
+            status_code=500,
+            detail="A dependencia openpyxl nao esta disponivel para processar planilhas Excel.",
+        )
+
+    nome_normalizado = Path(nome_arquivo or "").name
+    extensao = Path(nome_normalizado).suffix.lower()
+    if extensao not in EXTENSOES_PLANILHA_IMPORTACAO:
+        raise HTTPException(status_code=400, detail="Envie uma planilha Excel valida nos formatos .xlsx ou .xlsm.")
+
+    if not conteudo_arquivo:
+        raise HTTPException(status_code=400, detail="A planilha enviada esta vazia.")
+
+    try:
+        workbook = load_workbook(BytesIO(conteudo_arquivo), data_only=True, read_only=True)
+    except Exception as erro:
+        raise HTTPException(status_code=400, detail="Nao foi possivel ler a planilha Excel enviada.") from erro
+
+    try:
+        if not workbook.sheetnames:
+            raise HTTPException(status_code=400, detail="A planilha enviada nao possui abas disponiveis.")
+
+        worksheet = workbook[workbook.sheetnames[0]]
+        iterador = worksheet.iter_rows(values_only=True)
+        cabecalhos = next(iterador, None)
+        if not cabecalhos or linha_planilha_vazia(cabecalhos):
+            raise HTTPException(status_code=400, detail="A planilha enviada nao possui cabecalho valido.")
+
+        colunas = mapear_colunas_importacao(cabecalhos)
+        itens = []
+        total_linhas = 0
+
+        for linha_planilha, linha in enumerate(iterador, start=2):
+            if not linha or linha_planilha_vazia(linha):
+                continue
+            total_linhas += 1
+            itens.append(_montar_payload_importacao_linha(linha, colunas, contexto, linha_planilha))
+
+        if total_linhas <= 0:
+            raise HTTPException(status_code=400, detail="A planilha enviada nao possui linhas de dados para importacao.")
+
+        return {
+            "arquivo": nome_normalizado or "planilha.xlsx",
+            "aba": worksheet.title,
+            "total_linhas": total_linhas,
+            "itens": itens,
+        }
+    finally:
+        try:
+            workbook.close()
+        except Exception:
+            pass
+
+
+async def importar_imoveis_em_lote(
+    conexao,
+    esquema: str,
+    *,
+    conteudo_arquivo: bytes,
+    nome_arquivo: str,
+    contexto: dict[str, Any],
+) -> dict[str, Any]:
+    planilha = carregar_planilha_imoveis(
+        conteudo_arquivo=conteudo_arquivo,
+        nome_arquivo=nome_arquivo,
+        contexto=contexto,
+    )
+
+    importados: list[dict[str, Any]] = []
+    ignorados: list[dict[str, Any]] = []
+    erros: list[dict[str, Any]] = []
+    chaves_processadas: set[str] = set()
+
+    for item in planilha["itens"]:
+        linha_planilha = item["linha"]
+        referencia = item["referencia"]
+        payload = item["payload"]
+        chave = item["chave"]
+
+        if chave and chave in chaves_processadas:
+            ignorados.append(
+                {
+                    "linha": linha_planilha,
+                    "referencia": referencia,
+                    "motivo": "Duplicado dentro da propria planilha.",
+                }
+            )
+            continue
+
+        try:
+            async with conexao.transaction():
+                existente = await buscar_imovel_por_chave_importacao(
+                    conexao,
+                    esquema,
+                    titulo=payload["titulo"],
+                    endereco=payload.get("endereco"),
+                    cidade=payload["cidade"],
+                    bairro=payload["bairro"],
+                )
+                if existente:
+                    ignorados.append(
+                        {
+                            "linha": linha_planilha,
+                            "referencia": referencia,
+                            "motivo": "Ja existe um imovel com o mesmo titulo e localizacao cadastrados.",
+                        }
+                    )
+                    if chave:
+                        chaves_processadas.add(chave)
+                    continue
+
+                registro = await criar_imovel_repositorio(conexao, esquema, payload)
+            importados.append(serializar_imovel(registro))
+            if chave:
+                chaves_processadas.add(chave)
+        except HTTPException as erro:
+            erros.append(
+                {
+                    "linha": linha_planilha,
+                    "referencia": referencia,
+                    "motivo": str(erro.detail),
+                }
+            )
+        except Exception as erro:
+            erros.append(
+                {
+                    "linha": linha_planilha,
+                    "referencia": referencia,
+                    "motivo": f"Falha inesperada ao importar a linha: {erro}",
+                }
+            )
+
+    return {
+        "arquivo": planilha["arquivo"],
+        "aba": planilha["aba"],
+        "total_linhas": planilha["total_linhas"],
+        "total_importados": len(importados),
+        "total_ignorados": len(ignorados),
+        "total_erros": len(erros),
+        "amostra_importados": [
+            {"id": item["id"], "titulo": item["titulo"], "cidade": item["cidade"], "bairro": item["bairro"]}
+            for item in importados[:12]
+        ],
+        "linhas_ignoradas": ignorados,
+        "linhas_com_erro": erros,
+    }
+
+
+async def _gravar_upload_em_disco(
+    arquivo: UploadFile,
+    destino: Path,
+    limite_bytes: int,
+) -> int:
+    total = 0
+    destino.parent.mkdir(parents=True, exist_ok=True)
+
+    with destino.open("wb") as ponteiro:
+        while True:
+            bloco = await arquivo.read(1024 * 1024)
+            if not bloco:
+                break
+            total += len(bloco)
+            if total > limite_bytes:
+                ponteiro.close()
+                destino.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"O arquivo {arquivo.filename or 'informado'} excede o limite permitido.",
+                )
+            ponteiro.write(bloco)
+
+    if total <= 0:
+        destino.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Nao e possivel enviar arquivos vazios.")
+
+    return total
+
+
+def _resolver_caminho_publico(base_publica: Path, caminho_publico: str) -> Path | None:
+    relativo = str(caminho_publico or "").replace("\\", "/").lstrip("/")
+    if not relativo:
+        return None
+
+    base_resolvida = base_publica.resolve()
+    destino = (base_resolvida / relativo).resolve()
+
+    if destino != base_resolvida and base_resolvida not in destino.parents:
+        return None
+
+    return destino
+
+
+def remover_arquivo_publico(base_publica: Path, caminho_publico: str) -> None:
+    destino = _resolver_caminho_publico(base_publica, caminho_publico)
+    if not destino:
+        return
+
+    try:
+        destino.unlink(missing_ok=True)
+    except Exception:
+        return
+
+    diretorio = destino.parent
+    while diretorio != base_publica.resolve():
+        try:
+            diretorio.rmdir()
+        except OSError:
+            break
+        diretorio = diretorio.parent
+
+
+def remover_arquivos_publicos(base_publica: Path, caminhos_publicos: Iterable[str]) -> None:
+    for caminho_publico in caminhos_publicos:
+        remover_arquivo_publico(base_publica, caminho_publico)
+
+
+async def salvar_midias_do_imovel(
+    conexao,
+    esquema: str,
+    *,
+    identificador_imovel: str,
+    arquivos: list[UploadFile],
+    diretorio_uploads: Path,
+    diretorio_publico: Path,
+    url_base_uploads: str,
+    limite_imagem_bytes: int,
+    limite_video_bytes: int,
+) -> list[dict[str, Any]]:
+    if not arquivos:
+        raise HTTPException(status_code=400, detail="Nenhuma midia foi enviada.")
+
+    diretorio_imovel = Path(diretorio_uploads) / identificador_imovel
+    url_base = str(url_base_uploads or "/uploads/imoveis").rstrip("/")
+
+    caminhos_salvos: list[Path] = []
+    registros: list[dict[str, Any]] = []
+
+    try:
+        for arquivo in arquivos:
+            metadados = classificar_arquivo_de_midia(arquivo.filename, arquivo.content_type)
+            limite_bytes = limite_imagem_bytes if metadados["tipo_arquivo"] == "foto" else limite_video_bytes
+            nome_base = normalizar_nome_para_arquivo(Path(arquivo.filename or metadados["tipo_arquivo"]).stem)
+            nome_final = f"{nome_base}-{uuid4().hex[:12]}{metadados['extensao']}"
+            destino = diretorio_imovel / nome_final
+
+            tamanho_bytes = await _gravar_upload_em_disco(arquivo, destino, limite_bytes)
+            caminhos_salvos.append(destino)
+
+            caminho_publico = f"{url_base}/{identificador_imovel}/{nome_final}"
+            registro = await inserir_midia_imovel(
+                conexao,
+                esquema,
+                identificador_imovel=identificador_imovel,
+                tipo_arquivo=metadados["tipo_arquivo"],
+                nome_arquivo=Path(arquivo.filename or nome_final).name,
+                caminho_arquivo=caminho_publico,
+                mime_type=metadados["mime_type"],
+                tamanho_bytes=tamanho_bytes,
+            )
+            registros.append(serializar_midia(registro))
+    except Exception:
+        for caminho in caminhos_salvos:
+            try:
+                caminho.unlink(missing_ok=True)
+            except Exception:
+                continue
+        raise
+    finally:
+        for arquivo in arquivos:
+            try:
+                await arquivo.close()
+            except Exception:
+                continue
+
+    return registros

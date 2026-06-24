@@ -1,0 +1,221 @@
+@import '../components/dashboard/ExecutiveDashboard.css';
+
+.dashboard {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  overflow-x: hidden; /* Prevent horizontal scroll on some mobile browsers */
+  overscroll-behavior-x: none; /* Only disable horizontal swipe-to-back gestures */
+}
+
+.dashboard-header {
+  margin-bottom: 0;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.dashboard-profile-selector {
+  width: auto;
+  min-width: 180px;
+  flex-shrink: 0;
+  background: var(--surface-container-low);
+  padding: 0.4rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid var(--outline-variant);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.dashboard-profile-selector:hover {
+  background: var(--surface-container-high);
+  border-color: var(--outline);
+}
+
+.dashboard-corretor-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.15rem;
+  padding: 0.42rem 0.65rem;
+  border-radius: 6px;
+  background: var(--surface-high);
+  color: var(--on-surface-variant);
+  text-decoration: none;
+  border: 1px solid var(--outline-variant);
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.dashboard-corretor-link:hover {
+  background: var(--surface-highest);
+  color: var(--on-surface);
+  border-color: color-mix(in srgb, var(--primary) 18%, var(--outline-variant));
+}
+
+.dashboard-profile-selector .select-filter-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+  margin: 0;
+  font-weight: 600;
+}
+
+.dashboard-profile-selector .select-filter-input {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-weight: 500;
+  color: var(--on-surface);
+  cursor: pointer;
+  outline: none;
+}
+
+.dashboard-alert {
+  padding: 0.65rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--outline-variant);
+  font-size: 0.78rem;
+  font-weight: 500;
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.dashboard-alert strong {
+  font-weight: 700;
+}
+
+.dashboard-alert-info {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--primary);
+}
+
+.dashboard-alert-error {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+}
+
+
+/* ---- KPI Grid ---- */
+.executive-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+  align-items: start;
+  position: relative;
+  transition: opacity 0.3s ease;
+  touch-action: pan-y; /* Prevent horizontal swipe-to-back gestures while interacting with cards */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---- Card Slot Transitions ---- */
+.executive-kpi-slot {
+  min-width: 0;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+/* Dimmed state: aggressive fade for focus effect */
+.executive-kpi-grid.has-focus .executive-kpi-slot.is-dimmed {
+  opacity: 0.3;
+  transform: scale(0.99);
+  pointer-events: none;
+}
+
+/* Active card in grid gets subtle highlight */
+.executive-kpi-slot.is-active {
+  z-index: 2;
+}
+
+.executive-kpi-slot.is-active .executive-kpi-card {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--on-primary-container) 30%, transparent),
+    var(--shadow-soft);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 1440px) {
+  .executive-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
+  .executive-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .dashboard {
+    gap: 0.6rem;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dashboard-profile-selector {
+    width: 100%;
+    max-width: none;
+  }
+
+  .executive-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .dashboard {
+    gap: 0.5rem;
+    padding-top: 0.75rem; /* Reduced top padding */
+  }
+
+  .executive-kpi-grid {
+    grid-template-columns: 1fr; /* Back to 1 column for main cards */
+    gap: 0.65rem;
+  }
+}
+
+/* Loading Overlay */
+.dashboard-loading-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 0.8rem;
+  background: color-mix(in srgb, var(--surface-container-low) 40%, transparent);
+  border-radius: 12px;
+  border: 1px solid var(--outline-variant);
+  margin-top: 0.5rem;
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.3s ease;
+}
+
+.dashboard-loader {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--primary);
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  animation: dashboard-spin 0.8s linear infinite;
+}
+
+@keyframes dashboard-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -1,0 +1,214 @@
+{
+  "timestamp": "2026-06-16T19:06:41.416127+00:00",
+  "modo": "apply",
+  "ciclo_id": "2026-05",
+  "planilha": "/root/data-engineering/apps/commercial-dashboard/Regras Gestores e Coordenadores.xlsx",
+  "fonte_oficial": "Regras Gestores e Coordenadores.xlsx",
+  "total_antes": {
+    "resultados": 21,
+    "valor_bruto": 109150.0,
+    "valor_liquido": 109150.0
+  },
+  "total_depois": {
+    "resultados": 21,
+    "valor_bruto": 109150.0,
+    "valor_liquido": 109150.0
+  },
+  "ajustados": [
+    {
+      "resultado_id": "seed-3",
+      "nome": "Josué Gomes De Souza",
+      "aba": "Josué - Gerente AGL",
+      "objetivo_oficial": 8.0,
+      "realizado_preservado": 1.0,
+      "percentual_recalculado": 12.5,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_regra_01_oficial": 1000.0,
+      "ips_oficiais": 3,
+      "ips_sem_inferencia": 3,
+      "divergencias": []
+    },
+    {
+      "resultado_id": "seed-4",
+      "nome": "Ana Cleia Nonato",
+      "aba": "Ana Cleia - Gerente AGL ",
+      "objetivo_oficial": 8.0,
+      "realizado_preservado": 1.0,
+      "percentual_recalculado": 12.5,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_regra_01_oficial": 1000.0,
+      "ips_oficiais": 3,
+      "ips_sem_inferencia": 3,
+      "divergencias": []
+    },
+    {
+      "resultado_id": "seed-2",
+      "nome": "Francisco Lucielio De Queiroz",
+      "aba": "Francisco- Gerente AGL",
+      "objetivo_oficial": 21.0,
+      "realizado_preservado": 1.0,
+      "percentual_recalculado": 4.76,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_regra_01_oficial": 1000.0,
+      "ips_oficiais": 3,
+      "ips_sem_inferencia": 3,
+      "divergencias": []
+    },
+    {
+      "resultado_id": "seed-8",
+      "nome": "Alana Rabelo Da Costa",
+      "aba": "Alana - Gerente FSA",
+      "objetivo_oficial": 10.0,
+      "realizado_preservado": 1.0,
+      "percentual_recalculado": 10.0,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_regra_01_oficial": 1400.0,
+      "ips_oficiais": 3,
+      "ips_sem_inferencia": 3,
+      "divergencias": []
+    },
+    {
+      "resultado_id": "seed-9",
+      "nome": "Daiana Soares Da Rocha",
+      "aba": "Daiana - Gerente FSA",
+      "objetivo_oficial": 8.0,
+      "realizado_preservado": 1.0,
+      "percentual_recalculado": 12.5,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_regra_01_oficial": 1000.0,
+      "ips_oficiais": 3,
+      "ips_sem_inferencia": 3,
+      "divergencias": []
+    },
+    {
+      "resultado_id": "seed-7",
+      "nome": "Rafael De Lucena Martins",
+      "aba": "Rafael - Gerente FSA",
+      "objetivo_oficial": 10.0,
+      "realizado_preservado": 1.0,
+      "percentual_recalculado": 10.0,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_regra_01_oficial": 1000.0,
+      "ips_oficiais": 3,
+      "ips_sem_inferencia": 3,
+      "divergencias": []
+    },
+    {
+      "resultado_id": "seed-5",
+      "nome": "Thomaz Moreira Aquino",
+      "aba": "Thomaz - Gerente Loja FSA",
+      "objetivo_oficial": 45.0,
+      "realizado_preservado": 1.0,
+      "percentual_recalculado": 2.22,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_regra_01_oficial": 4000.0,
+      "ips_oficiais": 2,
+      "ips_sem_inferencia": 2,
+      "divergencias": [
+        "Titulo interno da aba aponta Marco Taveira; mapeamento usa Thomaz pelo nome da aba."
+      ]
+    },
+    {
+      "resultado_id": "seed-10",
+      "nome": "Marco Taveira",
+      "aba": "Marco Taveira - Gerente Geral",
+      "objetivo_oficial": 80.0,
+      "realizado_preservado": 1.0,
+      "percentual_recalculado": 1.25,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_regra_01_oficial": 4000.0,
+      "ips_oficiais": 3,
+      "ips_sem_inferencia": 3,
+      "divergencias": []
+    }
+  ],
+  "preservados": [
+    {
+      "resultado_id": "maio-2026-gestor-35859e0b9aeff792",
+      "nome": "Alba Vieira Da Silva Lopes",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "seed-12",
+      "nome": "Bruno Macario",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "seed-11",
+      "nome": "Geisiane Gomes Dos Santos",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "seed-6",
+      "nome": "Jordan Vasconcelos",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "maio-2026-gestor-280b2b9f06d58468",
+      "nome": "Leonardo De Azevedo Mariano Silva",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "maio-2026-gestor-bdbcf03324b56790",
+      "nome": "Lucas Paulo Marques Pinto",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "seed-13",
+      "nome": "Luiz Aquino",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "maio-2026-gestor-d7e22a451fd53d8e",
+      "nome": "Marcelo Paiva",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "maio-2026-gestor-96aa524ab68bfa47",
+      "nome": "Micael Dos Santos Pires",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "maio-2026-gestor-5845a633a1ae6c11",
+      "nome": "Pamela Aline Ferreira Barcelos",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "maio-2026-gestor-3e5aed9cc2432b79",
+      "nome": "Renata Bento",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "maio-2026-coordenador-620552ed889c8efe",
+      "nome": "Vanessa Rodrigues Valadares",
+      "motivo": "sem_regra_oficial_xlsx"
+    },
+    {
+      "resultado_id": "maio-2026-gestor-fe18fcce0e63d104",
+      "nome": "Vivian dos Santos Pereira",
+      "motivo": "sem_regra_oficial_xlsx"
+    }
+  ],
+  "orfas_para_inativar": [
+    {
+      "regra_publicada_id": "232e5054-5e08-4162-bf44-a0b43bfbe7bd",
+      "comissionado_id": "maio-2026-gestor-8a0986cae3b95c32",
+      "comissionado_nome": "Marco Narciso",
+      "regra_tipo": "regra_01"
+    },
+    {
+      "regra_publicada_id": "a4a0f385-d72e-47f7-8589-ae26baf3a93a",
+      "comissionado_id": "maio-2026-gestor-8a0986cae3b95c32",
+      "comissionado_nome": "Marco Narciso",
+      "regra_tipo": "regra_02"
+    }
+  ],
+  "resumo": {
+    "resultados": 21,
+    "regras_oficiais_mapeadas": 8,
+    "preservados": 13,
+    "orfas": 2,
+    "valor_bruto_preservado": 109150.0,
+    "valor_liquido_preservado": 109150.0
+  }
+}

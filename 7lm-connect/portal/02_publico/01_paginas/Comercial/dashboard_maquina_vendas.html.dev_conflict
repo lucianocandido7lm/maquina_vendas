@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-preload-root-classes="tl-dashboard-maquina-vendas-gated">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Dashboard Máquina de Vendas</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/02_recursos/01_estilos/inicio.css?v=20260430-dashboard-comercial-4" />
+  <link rel="stylesheet" href="/02_recursos/01_estilos/operacoes.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="/02_recursos/01_estilos/imoveis.css?v=20260420-imoveis-evolucao-multi1" />
+  <link rel="stylesheet" href="/02_recursos/01_estilos/dashboard_maquina_vendas.css?v=20260601-mv-dashboard-2" />
+
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <meta name="sevenlm-connect-required-permission" content="maquina.vendas.dashboard.view" />
+  <meta name="sevenlm-connect-access-fallback" content="/inicio" />
+
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260601-mv-dashboard-access-1"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260513-dashboard-dash-1" defer></script>
+  <script src="/02_recursos/02_scripts/dashboard_maquina_vendas.js?v=20260601-mv-dashboard-2" defer></script>
+</head>
+<body class="tl-home tl-ops-page tl-dashboard-maquina-vendas-page">
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <section class="tl-imoveis-hero-shell anim-stagger-1">
+        <div class="tl-imoveis-hero-compact" aria-label="Cabeçalho compacto do módulo">
+          <div class="tl-imoveis-hero-compact__rail">
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/clientes">Clientes</a>
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/simulador">Simulador</a>
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/imoveis">Imóveis</a>
+            <a class="tl-imoveis-hero-compact__tab is-active" href="/comercial/maquina-vendas/dashboard" data-permission="maquina.vendas.dashboard.view">Dashboard</a>
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/comissionamento">Comissionamento</a>
+          </div>
+          <div class="tl-imoveis-hero-compact__actions">
+            <div class="tl-imoveis-hero-compact__user glass-panel hyper-glass">
+              <span class="tl-imoveis-hero-compact__user-name" id="nomeUsuario">Carregando...</span>
+            </div>
+            <button id="btnTema" class="tl-btn-icon glass-panel hyper-glass" aria-label="Alternar tema">
+              <div class="icon-wrap">
+                <svg class="icon-sun" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="5"></circle>
+                  <line x1="12" y1="1" x2="12" y2="3"></line>
+                  <line x1="12" y1="21" x2="12" y2="23"></line>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                  <line x1="1" y1="12" x2="3" y2="12"></line>
+                  <line x1="21" y1="12" x2="23" y2="12"></line>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <svg class="icon-moon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+              </div>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="tl-mv-dashboard" data-dashboard-root>
+      <section class="tl-mv-hero" aria-labelledby="tituloDashboardMv">
+        <div>
+          <span class="tl-mv-kicker">Máquina de Vendas</span>
+          <h1 id="tituloDashboardMv">Dashboard Máquina de Vendas</h1>
+          <p data-dashboard-scope>Carregando escopo de visualização...</p>
+        </div>
+
+        <form class="tl-mv-filters" data-dashboard-filters>
+          <label>
+            Período
+            <select data-filter-periodo>
+              <option value="mes">Mês atual</option>
+              <option value="hoje">Hoje</option>
+              <option value="7dias">Últimos 7 dias</option>
+              <option value="30dias">Últimos 30 dias</option>
+              <option value="ano">Ano atual</option>
+              <option value="manual">Personalizado</option>
+            </select>
+          </label>
+          <label>
+            Início
+            <input type="date" data-filter-inicio />
+          </label>
+          <label>
+            Fim
+            <input type="date" data-filter-fim />
+          </label>
+          <label class="tl-mv-corretor-filter" data-corretor-filter hidden>
+            Corretor
+            <select data-filter-corretor>
+              <option value="">Todos</option>
+            </select>
+          </label>
+          <button class="tl-mv-primary" type="submit">Atualizar</button>
+        </form>
+      </section>
+
+      <section class="tl-mv-state" data-dashboard-state hidden></section>
+
+      <section class="tl-mv-kpis" aria-label="Indicadores principais">
+        <article class="tl-mv-kpi">
+          <span>Reservas ativas</span>
+          <strong data-kpi="reservas_ativas">--</strong>
+          <small data-kpi-sub="pendentes_aprovacao">-- pendentes</small>
+        </article>
+        <article class="tl-mv-kpi">
+          <span>Vendas</span>
+          <strong data-kpi="vendas">--</strong>
+          <small data-kpi-sub="taxa_conversao">-- de conversão</small>
+        </article>
+        <article class="tl-mv-kpi">
+          <span>Ticket médio</span>
+          <strong data-kpi="ticket_medio">--</strong>
+          <small data-kpi-sub="valor_negociado_total">-- negociado</small>
+        </article>
+        <article class="tl-mv-kpi">
+          <span>Incentivo médio</span>
+          <strong data-kpi="incentivo_medio">--</strong>
+          <small data-kpi-sub="incentivo_total">-- total</small>
+        </article>
+        <article class="tl-mv-kpi">
+          <span>Imóveis movimentados</span>
+          <strong data-kpi="imoveis_movimentados">--</strong>
+          <small data-kpi-sub="corretores_ativos">-- corretores</small>
+        </article>
+        <article class="tl-mv-kpi">
+          <span>Simulações</span>
+          <strong data-kpi="simulacoes_total_simulacoes">--</strong>
+          <small data-kpi-sub="simulacoes_simulacoes_ideais">-- ideais</small>
+        </article>
+      </section>
+
+      <section class="tl-mv-grid tl-mv-grid--main">
+        <article class="tl-mv-panel tl-mv-panel--wide">
+          <div class="tl-mv-panel-head">
+            <div>
+              <span>Evolução</span>
+              <h2>Reservas e vendas no período</h2>
+            </div>
+            <strong data-total-operacoes>-- operações</strong>
+          </div>
+          <div class="tl-mv-chart" data-chart-series></div>
+        </article>
+
+        <article class="tl-mv-panel">
+          <div class="tl-mv-panel-head">
+            <div>
+              <span>Status</span>
+              <h2>Carteira do período</h2>
+            </div>
+          </div>
+          <div class="tl-mv-status-list" data-status-list></div>
+        </article>
+      </section>
+
+      <section class="tl-mv-grid tl-mv-grid--secondary">
+        <article class="tl-mv-panel">
+          <div class="tl-mv-panel-head">
+            <div>
+              <span>Equipe</span>
+              <h2>Resultado por corretor</h2>
+            </div>
+          </div>
+          <div class="tl-mv-table-wrap">
+            <table class="tl-mv-table">
+              <thead>
+                <tr>
+                  <th>Corretor</th>
+                  <th>Reservas</th>
+                  <th>Vendas</th>
+                  <th>Ticket</th>
+                </tr>
+              </thead>
+              <tbody data-ranking-list></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="tl-mv-panel">
+          <div class="tl-mv-panel-head">
+            <div>
+              <span>Empreendimentos</span>
+              <h2>Unidades mais movimentadas</h2>
+            </div>
+          </div>
+          <div class="tl-mv-list" data-empreendimentos-list></div>
+        </article>
+      </section>
+
+      <section class="tl-mv-panel">
+        <div class="tl-mv-panel-head">
+          <div>
+            <span>Operações</span>
+            <h2>Movimentações recentes</h2>
+          </div>
+        </div>
+        <div class="tl-mv-recent-list" data-recentes-list></div>
+      </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="/02_recursos/02_scripts/operacoes_shared.js?v=20260407-theme-persist1"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.SevenLMConnectOperacoes && window.SevenLMConnectOperacoes.initChrome) {
+        window.SevenLMConnectOperacoes.initChrome();
+      }
+    });
+  </script>
+</body>
+</html>

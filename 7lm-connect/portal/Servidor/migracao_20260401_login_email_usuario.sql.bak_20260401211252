@@ -1,0 +1,34 @@
+BEGIN;
+
+ALTER TABLE sevenlm_connect.usuario
+  ALTER COLUMN matricula DROP NOT NULL;
+
+UPDATE sevenlm_connect.usuario
+   SET correio_eletronico = NULLIF(btrim(correio_eletronico::text), '')::citext
+ WHERE correio_eletronico IS NOT NULL
+   AND btrim(correio_eletronico::text) = '';
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM pg_constraint
+     WHERE conrelid = 'sevenlm_connect.usuario'::regclass
+       AND conname = 'usuario_matricula_key'
+  ) THEN
+    ALTER TABLE sevenlm_connect.usuario
+      DROP CONSTRAINT usuario_matricula_key;
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_matricula_unica
+  ON sevenlm_connect.usuario (matricula)
+  WHERE matricula IS NOT NULL
+    AND btrim(matricula) <> '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_correio_eletronico_unico
+  ON sevenlm_connect.usuario (correio_eletronico)
+  WHERE correio_eletronico IS NOT NULL
+    AND btrim(correio_eletronico::text) <> '';
+
+COMMIT;

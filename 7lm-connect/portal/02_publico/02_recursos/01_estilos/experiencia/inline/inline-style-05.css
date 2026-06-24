@@ -1,0 +1,326 @@
+.sm-video-controls {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  right: 24px;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+
+  z-index: 9999;
+  pointer-events: auto;
+}
+
+/* -------------------------------------------------
+   BotÃƒÂ³n base
+------------------------------------------------- */
+.sm-video-controls button {
+  width: 44px;
+  height: 44px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  background:
+    rgba(255,255,255,0.15);
+   
+
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 50%;
+
+  /* Color base del SVG */
+  color: #fff;
+
+  cursor: pointer;
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  box-shadow:
+    0 8px 24px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.25);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    opacity 0.2s ease;
+}
+/* ---------------------------------------------
+   Botones con label
+--------------------------------------------- */
+.sm-video-controls button {
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Texto del botÃƒÂ³n */
+.sm-video-controls .vc-label {
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* BotÃƒÂ³n principal (play) */
+.sm-video-controls .vc-play .vc-label {
+  font-size: 11px;
+  opacity: 1;
+}
+
+/* -------------------------------------------------
+   SVG interno
+------------------------------------------------- */
+.sm-video-controls button svg {
+  width: 18px;
+  height: 18px;
+
+  display: block;
+
+  fill: transparent;
+  stroke: currentColor;
+  stroke-width: 2;
+
+  pointer-events: none;
+}
+
+
+/* -------------------------------------------------
+   Hover
+------------------------------------------------- */
+.sm-video-controls button:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow:
+    0 12px 32px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.35);
+}
+
+.vc-restart svg {
+	transition: all .3s ease-out;
+}
+.vc-restart:hover svg {
+	transform: rotate(-340deg)
+}
+/* -------------------------------------------------
+   Active (click)
+------------------------------------------------- */
+.sm-video-controls button:active {
+  transform: scale(0.96);
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.4),
+    inset 0 2px 4px rgba(0,0,0,0.4);
+}
+
+/* -------------------------------------------------
+   BotÃƒÂ³n principal (play / pause)
+------------------------------------------------- */
+.sm-video-controls .vc-play {
+  width: 52px;
+  height: 52px;
+}
+
+.sm-video-controls .vc-play svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* -------------------------------------------------
+   Accesibilidad
+------------------------------------------------- */
+.sm-video-controls button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,0.4),
+    0 8px 24px rgba(0,0,0,0.35);
+}
+
+
+.alerts-grid {
+	display:grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 20px;
+}
+
+.alert-item {
+	    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0px 4px 9px 0px rgba(0, 0, 0, 0.05);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    border-radius: 11px;
+    overflow: hidden;
+    transition: background-color 0.3s 
+ease, border-color 0.3s 
+ease; 
+	padding:80px 20px 20px;
+}
+
+.alert-item:hover {
+	   background-color: rgba(255, 255, 255, 0.2);
+}
+
+.alert-item .badge-status {
+		position: absolute;
+	left:20px;
+	top:20px;
+	    padding: 5px 10px;
+    font-size: 16px !important;
+    display: inline-block;
+    line-height: 20px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(124, 255, 239, 0.35);
+    background-color: #418e9f;
+    box-shadow: 0px 4px 9.3px 0px rgba(0, 0, 0, 0.05);
+    -webkit-backdrop-filter: blur(6.25px);
+    backdrop-filter: blur(6.25px);
+}
+
+
+.alert-item .alert-name {
+	font-family: "Avenir", Sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--e-global-color-text);
+}
+
+.alert-item .alert-date {
+	position: absolute;
+	right:20px;
+	top:20px;
+}
+
+
+.alerts-pagination {
+  text-align: center;
+  margin-top: 2rem;
+}
+.alerts-pagination ul {
+  display: inline-flex;
+  list-style: none;
+  gap: 10px;
+  padding: 0;
+}
+.alerts-pagination a,
+.alerts-pagination span {
+  padding: 6px 12px;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 4px;
+}
+.alerts-pagination .current {
+  background: #fff;
+  color: #000;
+  border-color: #fff;
+}
+
+
+
+/**************/
+
+
+.e-con:not(.e-div-block-base) {
+	transition: none !important;
+}
+
+#activarSonido {
+    position: fixed;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    display: none;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+    transition: all .3s;
+    width: 300px;
+    margin: 0 auto;
+}
+#activarSonido:hover {
+opacity:1;
+}
+
+.home-bg {
+	transition: none !important;
+}
+
+
+.custom-loop .elementor-button-link {
+    padding-right: 50px !important;
+	position: relative !important;
+}
+.market-status-pinned span.open-message:after {
+	transform: rotate(220deg);
+		top:10px;
+	transition: all .3s;
+}
+.market-status-pinned.active span.open-message:after {
+	transform: rotate(40deg) !important;
+	top:5px;
+}
+
+.custom-loop .elementor-button-text span {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    width: 19px;
+    height: 23px;
+    background: url(/experience/assets/1.png);
+    background-size: 100%;
+}
+
+
+body:not(.elementor-editor-active) .more-people {
+	display: none;
+}
+
+.elementor-button-link {
+	position: relative;
+}
+
+.closed-menu .elementor-nav-menu .market-header .sub-menu li a {
+	justify-content: center;
+}
+
+@media(min-width: 1200px) {
+	.closed-menu .elementor-nav-menu {
+	min-width: 500px;
+}
+}
+
+.coin-1 {
+	height:180px !important;
+
+}
+
+.coin-2 {
+	height:150px !important;	filter:blur(2px);
+}
+
+.coin-3 {
+	height:150px !important;	filter:blur(2px);
+}
+
+.coin-4 {
+	height:130px !important;	filter:blur(3px);
+}
+.coin-5 {
+	height:120px !important;
+}
+.coin-6 {
+	height:130px !important;
+		filter:blur(4px);
+}

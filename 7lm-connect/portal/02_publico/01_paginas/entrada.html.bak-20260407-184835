@@ -1,0 +1,3032 @@
+﻿<!doctype html>
+<html lang="pt-BR" class="lenis crjs org-inline-style-001">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    />
+    <link
+      rel="preload"
+      href="/_next/static/media/26d0ba92e140f0dc-s.p.woff2"
+      as="font"
+      crossorigin=""
+      type="font/woff2"
+    />
+    <link
+      rel="preload"
+      href="/_next/static/media/5c0c2bcbaa4149ca-s.p.woff2"
+      as="font"
+      crossorigin=""
+      type="font/woff2"
+    />
+    <link rel="stylesheet" href="/assets/a463080343a8b988.css" data-precedence="next" />
+    <link rel="stylesheet" href="/assets/e3a9613eb31c6eed.css" data-precedence="next" />
+    <link rel="stylesheet" href="/assets/5290e5f354def47d.css" data-precedence="next" />
+    <link rel="stylesheet" href="/assets/b6b0e4d6e1848150.css" data-precedence="next" />
+    <link rel="stylesheet" href="/assets/33f3cda2aa79f5e3.css" data-precedence="next" />
+    <link rel="stylesheet" href="/assets/4c0c15c47e700f3f.css" data-precedence="next" />
+    <link rel="stylesheet" href="/assets/f46e979614fc3394.css" data-precedence="next" />
+    <link rel="stylesheet" href="/assets/2c4c06531a25bdfe.css" data-precedence="next" />
+    <link rel="stylesheet" href="/assets/dd8866e20d835adf.css" data-precedence="next" />
+    <link rel="stylesheet" href="/assets/17424100e880a33c.css" data-precedence="next" />
+    <link rel="stylesheet" href="/assets/0f741c4bf23c4ad4.css" data-precedence="next" />
+    <link rel="stylesheet" href="/02_recursos/01_estilos/entrada_login_modal.css?v=20260405-login-typography-fix" />
+    <link
+      rel="preload"
+      as="script"
+      fetchpriority="low"
+      href="/assets/webpack-131f7c95e444aa24.js"
+    />
+    <style>
+      .offline-external-hidden {
+        display: none !important;
+      }
+
+      .offline-external-link {
+        color: inherit !important;
+        cursor: default !important;
+        pointer-events: none !important;
+        text-decoration: none !important;
+      }
+
+      .offline-external-link * {
+        cursor: default !important;
+      }
+
+      .offline-whyus-line {
+        display: block;
+        color: #151717 !important;
+      }
+
+      .offline-whyus-line--muted {
+        color: #b3b3b3 !important;
+      }
+
+      .portal-feedback {
+        position: fixed;
+        top: 1.5rem;
+        left: 50%;
+        z-index: 1200;
+        display: none;
+        width: min(32rem, calc(100vw - 2rem));
+        transform: translateX(-50%);
+        padding: 0.95rem 1.15rem;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        background: rgba(16, 24, 32, 0.88);
+        color: #f5f7fa;
+        box-shadow: 0 24px 50px rgba(0, 0, 0, 0.22);
+        backdrop-filter: blur(18px);
+        font-size: 0.95rem;
+        line-height: 1.4;
+      }
+
+      .portal-feedback[data-state="visible"] {
+        display: block;
+      }
+
+      .header_nav__if_jI,
+      .burger-btn_btn__IvzqD,
+      .burger-menu_wrapper__gKR7D,
+      .footer_links__vib46,
+      .footer_sublinks__Pj_ed {
+        display: none !important;
+      }
+
+      .hero_actions__RlphJ {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+
+      .latest-posts_root__W0OHF,
+      .post-entry_root__QwbHf,
+      .footer_newsletter-container__POI_T {
+        display: none !important;
+      }
+
+      .services_root__Ch_WM,
+      .features_root__CCic6,
+      .latest-posts_root__W0OHF,
+      .outro_root__stMHm,
+      .footer_newsletter-container__POI_T,
+      .footer_links__vib46,
+      .footer_logo__5ncK8 {
+        display: none !important;
+      }
+
+      .footer_content__E2ijt {
+        display: block !important;
+        padding: 4rem 0 !important;
+      }
+
+      .footer_copyright-container__yt1ht {
+        display: flex !important;
+        justify-content: flex-end !important;
+        margin-top: 0 !important;
+        color: hsla(0, 0%, 100%, 0.44) !important;
+      }
+
+      .footer_copyright-container__yt1ht > :not(:last-child) {
+        display: none !important;
+      }
+    </style>
+    <script>
+      (function () {
+        function toUrl(value) {
+          if (!value || typeof value !== "string") {
+            return null;
+          }
+
+          try {
+            return new URL(value, window.location.href);
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function isExternalUrl(value) {
+          var url = toUrl(value);
+
+          if (!url) {
+            return false;
+          }
+
+          if (url.protocol === "mailto:" || url.protocol === "tel:") {
+            return false;
+          }
+
+          if (
+            url.protocol === "data:" ||
+            url.protocol === "blob:" ||
+            url.protocol === "about:" ||
+            url.protocol === "javascript:"
+          ) {
+            return false;
+          }
+
+          if (url.protocol === "http:" || url.protocol === "https:") {
+            return url.origin !== window.location.origin;
+          }
+
+          return true;
+        }
+
+        function isAllowedExternalUrl(value) {
+          var url = toUrl(value);
+
+          if (!url) {
+            return false;
+          }
+
+          if (url.origin === "https://maps.google.com") {
+            return true;
+          }
+
+          return (
+            url.origin === "https://app.findrealestate.com" &&
+            url.pathname === "/authentication/sign-in"
+          );
+        }
+
+        function isPortalLoginUrl(value) {
+          var url = toUrl(value);
+
+          if (!url) {
+            return false;
+          }
+
+          return (
+            url.origin === "https://app.findrealestate.com" &&
+            url.pathname === "/authentication/sign-in"
+          );
+        }
+
+        function isPortalLoginPath(value) {
+          var url = toUrl(value);
+
+          if (!url) {
+            return false;
+          }
+
+          return url.origin === window.location.origin && url.pathname === "/auth/entra/entrar";
+        }
+
+        function atualizarRotuloLogin(anchor) {
+          var rotulo = anchor && anchor.querySelector ? anchor.querySelector("[data-text]") : null;
+          if (!rotulo) {
+            return;
+          }
+
+          rotulo.setAttribute("data-text", "Entrar no Portal");
+          rotulo.textContent = "Entrar no Portal";
+        }
+
+        function normalizePortalLoginAnchor(anchor) {
+          if (!anchor || !anchor.getAttribute) {
+            return false;
+          }
+
+          var href = anchor.getAttribute("href") || anchor.getAttribute("data-offline-href");
+          if (!isPortalLoginUrl(href) && !isPortalLoginPath(href)) {
+            return false;
+          }
+
+          anchor.setAttribute("href", "/?abrir_login=1");
+          anchor.removeAttribute("data-offline-href");
+          anchor.removeAttribute("target");
+          anchor.removeAttribute("rel");
+          anchor.removeAttribute("aria-disabled");
+          anchor.removeAttribute("tabindex");
+          anchor.classList.remove("offline-external-link");
+          anchor.classList.remove("offline-external-hidden");
+          anchor.setAttribute("aria-label", "Entrar no Portal");
+          atualizarRotuloLogin(anchor);
+
+          return true;
+        }
+
+        function eGatilhoDeLoginPortal(elemento) {
+          if (!elemento || !elemento.matches) {
+            return false;
+          }
+
+          if (elemento.closest && elemento.closest(".portal-login-modal")) {
+            return false;
+          }
+
+          if (
+            elemento.matches(
+              'a[href="/acesso"], a[href="#portal-login"], a[aria-label="Entrar com Microsoft"], a[aria-label="Entrar no Portal"], [data-portal-login]'
+            )
+          ) {
+            return true;
+          }
+
+          var texto = (elemento.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+          if (!texto) {
+            return false;
+          }
+
+          return texto === "entrar" || texto === "entrar no portal";
+        }
+
+        function navegarParaLoginPortal(event) {
+          if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === "function") {
+              event.stopImmediatePropagation();
+            }
+          }
+          try {
+            window.__sevenlmPendingOpenLogin = true;
+          } catch (_) {}
+
+          if (typeof window.__sevenlmOpenLoginNow === "function") {
+            window.__sevenlmOpenLoginNow();
+            return;
+          }
+
+          window.location.assign("/?abrir_login=1");
+        }
+
+        function prepararGatilhosDeLoginPortal(root) {
+          if (!root || !root.querySelectorAll) {
+            return;
+          }
+
+          if (
+            (root.matches && root.matches(".portal-login-modal")) ||
+            (root.closest && root.closest(".portal-login-modal"))
+          ) {
+            return;
+          }
+
+          var candidatos = root.querySelectorAll("a, button");
+          for (var i = 0; i < candidatos.length; i += 1) {
+            var candidato = candidatos[i];
+            if (!eGatilhoDeLoginPortal(candidato)) {
+              continue;
+            }
+
+            if (candidato.tagName === "A") {
+              normalizePortalLoginAnchor(candidato);
+            }
+
+              candidato.setAttribute("data-portal-login", "true");
+              candidato.setAttribute("aria-label", "Entrar no Portal");
+            if (candidato.tagName === "A") {
+              candidato.setAttribute("href", "/?abrir_login=1");
+              atualizarRotuloLogin(candidato);
+            }
+
+            if (!candidato.__portalLoginBound) {
+              candidato.addEventListener("click", navegarParaLoginPortal);
+              candidato.__portalLoginBound = true;
+            }
+          }
+        }
+
+        function shouldHideAnchor(anchor) {
+          var className =
+            anchor && typeof anchor.className === "string"
+              ? anchor.className.toLowerCase()
+              : "";
+
+          if (
+            className.indexOf("button_") !== -1 ||
+            className.indexOf("button-") !== -1 ||
+            className.indexOf("footer_nav-link") !== -1 ||
+            className.indexOf("footer_social-link") !== -1
+          ) {
+            return true;
+          }
+
+          return Boolean(
+            anchor.closest(
+              "[class*='header_nav'], [class*='burger-menu_nav'], [class*='header_actions'], [class*='footer_nav'], [class*='footer_social'], [class*='footer_sublinks'], [class*='latest-posts_actions'], [class*='features_actions'], [class*='for-agents_controls']"
+            )
+          );
+        }
+
+        function sanitizeAnchor(anchor) {
+          if (!anchor || !anchor.hasAttribute("href")) {
+            return;
+          }
+
+          if (normalizePortalLoginAnchor(anchor)) {
+            return;
+          }
+
+          var href = anchor.getAttribute("href");
+
+          if (!isExternalUrl(href) || isAllowedExternalUrl(href)) {
+            return;
+          }
+
+          anchor.setAttribute("data-offline-href", href);
+          anchor.removeAttribute("href");
+          anchor.removeAttribute("target");
+          anchor.removeAttribute("rel");
+          anchor.setAttribute("aria-disabled", "true");
+          anchor.setAttribute("tabindex", "-1");
+
+          if (shouldHideAnchor(anchor)) {
+            anchor.classList.add("offline-external-hidden");
+            return;
+          }
+
+          anchor.classList.add("offline-external-link");
+        }
+
+        function sanitizeResourceNode(node) {
+          if (!node || node.nodeType !== 1 || !node.matches) {
+            return;
+          }
+
+          var isExternalResource =
+            (node.matches("script[src], iframe[src], img[src]") &&
+              isExternalUrl(node.getAttribute("src"))) ||
+            (node.matches("link[href]") && isExternalUrl(node.getAttribute("href")));
+
+          if (
+            isExternalResource ||
+            node.matches(
+              ".grecaptcha-badge, iframe[src*='googletagmanager'], iframe[src*='saved_resource'], script[src*='google-inline'], script[src*='recaptcha'], script[src*='gtm'], script[src*='/assets/api.js'], script[src*='/assets/f.js'], script[src*='external_forms']"
+            )
+          ) {
+            node.remove();
+          }
+        }
+
+        function removeHeroImoveisCta(root) {
+          if (!root) {
+            return;
+          }
+
+          var blocos = root.querySelectorAll ? root.querySelectorAll(".hero_actions__RlphJ") : [];
+          for (var i = 0; i < blocos.length; i += 1) {
+            blocos[i].remove();
+          }
+
+          var spans = root.querySelectorAll ? root.querySelectorAll("span[data-text]") : [];
+          for (var j = 0; j < spans.length; j += 1) {
+            var span = spans[j];
+            var texto = (span.getAttribute("data-text") || span.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+            if (texto !== "encontrar imóveis" && texto !== "encontrar imoveis") {
+              continue;
+            }
+
+            var alvo = span.closest ? span.closest(".hero_actions__RlphJ, button, a, div") : null;
+            if (alvo && alvo.classList && alvo.classList.contains("hero_actions__RlphJ")) {
+              alvo.remove();
+              continue;
+            }
+
+            var blocoHero = span.closest ? span.closest("[class*='hero_content__'], [class*='hero_bottom__'], [class*='hero_root__']") : null;
+            if (alvo && blocoHero && blocoHero.contains(alvo)) {
+              alvo.remove();
+            }
+          }
+        }
+
+        function removeBlogSection(root) {
+          if (!root || !root.querySelectorAll) {
+            return;
+          }
+
+          var seletores = [
+            "[class*='latest-posts_root']",
+            "[class*='post-entry_root']",
+            "[class*='latest-posts_items']",
+            "[class*='footer_newsletter-container']"
+          ];
+
+          for (var i = 0; i < seletores.length; i += 1) {
+            var encontrados = root.querySelectorAll(seletores[i]);
+            for (var j = 0; j < encontrados.length; j += 1) {
+              var bloco = encontrados[j];
+              var secao = bloco.closest ? bloco.closest("section, article, div") : bloco;
+              if (secao) {
+                secao.remove();
+              } else {
+                bloco.remove();
+              }
+            }
+          }
+
+          var botoesBlog = root.querySelectorAll("a, button, span, p, h2, h3");
+          for (var k = 0; k < botoesBlog.length; k += 1) {
+            var item = botoesBlog[k];
+            var texto = (item.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+            if (
+              texto.indexOf("visite nosso blog") === -1 &&
+              texto.indexOf("blog & recursos") === -1 &&
+              texto.indexOf("blog recursos") === -1
+            ) {
+              continue;
+            }
+
+            var container = item.closest ? item.closest("section, article") : null;
+            if (container) {
+              container.remove();
+            }
+          }
+        }
+
+        function syncStaticCopy(root) {
+          if (!root || !root.querySelector) {
+            return;
+          }
+
+          var heroTitle = root.querySelector(".hero_title__JpmHS");
+          var heroHeading = heroTitle ? heroTitle.querySelector("h1") : null;
+          var heroCopy = "Descubra o espa\u00e7o que inspira sua vida";
+          var whyUsText = root.querySelector(".why-us_text__rT1u9");
+          var whyUsCopy =
+            "Sua vida est\u00e1 entrando em uma nova fase. N\u00e3o se trata apenas de encontrar um im\u00f3vel, mas de descobrir o lugar certo para o seu pr\u00f3ximo cap\u00edtulo. Com a 7LM, voc\u00ea segue com seguran\u00e7a, confian\u00e7a e o suporte ideal ao seu lado.";
+          var arrowsText = root.querySelector(".arrows-section_text__Z1Oii p");
+
+          if (heroTitle) {
+            heroTitle.setAttribute("aria-label", heroCopy);
+          }
+
+          if (heroHeading) {
+            heroHeading.textContent = heroCopy;
+          }
+
+          if (whyUsText) {
+            whyUsText.setAttribute("aria-label", whyUsCopy);
+            whyUsText.innerHTML =
+              '<div aria-hidden="true" class="org-inline-style-061">Sua vida est\u00e1 entrando em uma nova fase.<div class="org-inline-style-062"></div></div>' +
+              '<div aria-hidden="true" class="org-inline-style-063">N\u00e3o se trata apenas de encontrar um im\u00f3vel,<!-- --><span class="em">mas de descobrir o lugar certo</span><div class="org-inline-style-064"></div></div>' +
+              '<div aria-hidden="true" class="org-inline-style-065"><span class="em">para o seu pr\u00f3ximo cap\u00edtulo.</span><div class="org-inline-style-066"></div></div>' +
+              '<div aria-hidden="true" class="org-inline-style-067"><span class="em">Com a 7LM, voc\u00ea segue com seguran\u00e7a, confian\u00e7a e o suporte ideal ao seu lado.</span><div class="org-inline-style-068"></div></div>';
+          }
+
+          if (arrowsText) {
+            arrowsText.innerHTML =
+              'É sobre identidade. Progresso. Sair do lugar. Você não está apenas procurando um lugar.<!-- --><span class="em">você busca pertencimento, conforto e a certeza de estar no lugar certo.</span>';
+          }
+        }
+
+        function normalizeArrowsText(root) {
+          if (!root || !root.querySelector) {
+            return;
+          }
+
+          var arrowsText = root.querySelector(".arrows-section_text__Z1Oii p");
+
+          if (!arrowsText) {
+            return;
+          }
+
+          arrowsText.innerHTML =
+            '\u00c9 sobre identidade. Progresso. Sair do lugar. Voc\u00ea n\u00e3o est\u00e1 apenas procurando um lugar.<!-- --><span class="em">voc\u00ea busca pertencimento, conforto e a certeza de estar no lugar certo.</span>';
+        }
+
+        function normalizeWhyUsText(root) {
+          if (!root || !root.querySelector) {
+            return;
+          }
+
+          var whyUsText = root.querySelector(".why-us_text__rT1u9");
+          var whyUsCopy =
+            "Sua vida est\u00e1 mudando. N\u00e3o procure apenas um novo lugar \u2014 descubra o que vem a seguir. N\u00f3s te ajudamos a avan\u00e7ar com clareza e confian\u00e7a, e o agente certo ao seu lado.";
+
+          if (!whyUsText) {
+            return;
+          }
+
+          whyUsText.setAttribute("aria-label", whyUsCopy);
+          whyUsText.innerHTML =
+            '<span class="offline-whyus-line">Sua vida est\u00e1 mudando. N\u00e3o procure</span>' +
+            '<span class="offline-whyus-line">apenas um novo lugar \u2014 descubra o que vem a seguir.</span>' +
+            '<span class="offline-whyus-line offline-whyus-line--muted">N\u00f3s te ajudamos</span>' +
+            '<span class="offline-whyus-line offline-whyus-line--muted">a avan\u00e7ar com clareza e confian\u00e7a,</span>' +
+            '<span class="offline-whyus-line offline-whyus-line--muted">e o agente certo ao seu lado.</span>';
+        }
+
+        function selectRootOrDescendant(root, selector) {
+          if (!root) {
+            return null;
+          }
+
+          if (root.matches && root.matches(selector)) {
+            return root;
+          }
+
+          return root.querySelector ? root.querySelector(selector) : null;
+        }
+
+        function syncStaticCopy(root) {
+          if (!root || !root.querySelector) {
+            return;
+          }
+
+          var heroTitle = selectRootOrDescendant(root, ".hero_title__JpmHS");
+          var heroHeading = heroTitle ? heroTitle.querySelector("h1") : null;
+          var heroCopy = "Descubra o espa\u00e7o que inspira sua vida";
+
+          if (heroTitle) {
+            heroTitle.setAttribute("aria-label", heroCopy);
+          }
+
+          if (heroHeading && heroHeading.textContent !== heroCopy) {
+            heroHeading.textContent = heroCopy;
+          }
+        }
+
+        function normalizeArrowsText(root) {
+          if (!root || !root.querySelector) {
+            return;
+          }
+
+          var arrowsText = selectRootOrDescendant(root, ".arrows-section_text__Z1Oii p");
+          var arrowsCopy =
+            '\u00c9 sobre identidade. Progresso. Sair do lugar. Voc\u00ea n\u00e3o est\u00e1 apenas procurando um lugar.<!-- --><span class="em">voc\u00ea busca pertencimento, conforto e a certeza de estar no lugar certo.</span>';
+
+          if (!arrowsText) {
+            return;
+          }
+
+          if (arrowsText.innerHTML !== arrowsCopy) {
+            arrowsText.innerHTML = arrowsCopy;
+          }
+        }
+
+        function normalizeWhyUsText(root) {
+          if (!root || !root.querySelector) {
+            return;
+          }
+
+          var whyUsText = selectRootOrDescendant(root, ".why-us_text__rT1u9");
+          var whyUsCopy =
+            "Sua vida est\u00e1 mudando. N\u00e3o procure apenas um novo lugar \u2014 descubra o que vem a seguir. N\u00f3s te ajudamos a avan\u00e7ar com clareza e confian\u00e7a, e o agente certo ao seu lado.";
+          var whyUsHtml =
+            '<span class="offline-whyus-line">Sua vida est\u00e1 mudando. N\u00e3o procure</span>' +
+            '<span class="offline-whyus-line">apenas um novo lugar \u2014 descubra o que vem a seguir.</span>' +
+            '<span class="offline-whyus-line offline-whyus-line--muted">N\u00f3s te ajudamos</span>' +
+            '<span class="offline-whyus-line offline-whyus-line--muted">a avan\u00e7ar com clareza e confian\u00e7a,</span>' +
+            '<span class="offline-whyus-line offline-whyus-line--muted">e o agente certo ao seu lado.</span>';
+
+          if (!whyUsText) {
+            return;
+          }
+
+          whyUsText.setAttribute("aria-label", whyUsCopy);
+
+          if (whyUsText.innerHTML !== whyUsHtml) {
+            whyUsText.innerHTML = whyUsHtml;
+          }
+        }
+
+        function sanitizeRoot(root) {
+          removeHeroImoveisCta(root);
+          removeBlogSection(root);
+
+          var anchors = root.querySelectorAll ? root.querySelectorAll("a[href]") : [];
+          var resources = root.querySelectorAll
+            ? root.querySelectorAll("script[src], iframe[src], img[src], link[href]")
+            : [];
+
+          prepararGatilhosDeLoginPortal(root);
+          bindPortalLoginButtons();
+          syncStaticCopy(root);
+          normalizeWhyUsText(root);
+          normalizeArrowsText(root);
+
+          for (var i = 0; i < anchors.length; i += 1) {
+            sanitizeAnchor(anchors[i]);
+          }
+
+          for (var j = 0; j < resources.length; j += 1) {
+            sanitizeResourceNode(resources[j]);
+          }
+        }
+
+        function preventExternalClicks(event) {
+          var anchor =
+            event.target && event.target.closest
+              ? event.target.closest("a[data-offline-href], a[href]")
+              : null;
+
+          if (!anchor) {
+            return;
+          }
+
+          var href = anchor.getAttribute("href") || anchor.getAttribute("data-offline-href");
+
+          if (!isExternalUrl(href) || isAllowedExternalUrl(href)) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        function preventExternalSubmit(event) {
+          var action = event.target && event.target.getAttribute
+            ? event.target.getAttribute("action")
+            : null;
+
+          if (!isExternalUrl(action) || isAllowedExternalUrl(action)) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        function patchNavigation() {
+          if (typeof window.open === "function") {
+            var originalOpen = window.open;
+
+            window.open = function (url) {
+              if (isExternalUrl(url)) {
+                return null;
+              }
+
+              return originalOpen.apply(this, arguments);
+            };
+          }
+
+          try {
+            var locationProto = Object.getPrototypeOf(window.location);
+
+            ["assign", "replace"].forEach(function (methodName) {
+              var originalMethod = locationProto && locationProto[methodName];
+
+              if (typeof originalMethod !== "function") {
+                return;
+              }
+
+              locationProto[methodName] = function (url) {
+                if (isExternalUrl(url)) {
+                  return;
+                }
+
+                return originalMethod.call(this, url);
+              };
+            });
+          } catch (error) {
+            return;
+          }
+        }
+
+        patchNavigation();
+        document.addEventListener("click", preventExternalClicks, true);
+        document.addEventListener("submit", preventExternalSubmit, true);
+
+        if (document.readyState !== "loading") {
+          sanitizeRoot(document);
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+          sanitizeRoot(document);
+        });
+
+        window.addEventListener("load", function () {
+          sanitizeRoot(document);
+        });
+
+        new MutationObserver(function (records) {
+          for (var i = 0; i < records.length; i += 1) {
+            var record = records[i];
+
+            if (record.type === "attributes" && record.target) {
+              if (record.attributeName === "href") {
+                sanitizeAnchor(record.target);
+              } else {
+                sanitizeResourceNode(record.target);
+              }
+
+              continue;
+            }
+
+            for (var j = 0; j < record.addedNodes.length; j += 1) {
+              var node = record.addedNodes[j];
+
+              if (!node || node.nodeType !== 1) {
+                continue;
+              }
+
+              sanitizeResourceNode(node);
+              sanitizeRoot(node);
+            }
+          }
+
+        }).observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ["href", "src"],
+        });
+      })();
+    </script>
+    <script src="/assets/4bd1b696-100b9d70ed4e49c1.js" async=""></script>
+    <script src="/assets/1255-f99dac7deef54661.js" async=""></script>
+    <script src="/assets/main-app-b7ac91ae224968d9.js" async=""></script>
+    <script src="/assets/c15bf2b0-1894ff94ed039d0f.js" async=""></script>
+    <script src="/assets/7605-e8c59d9d93203c75.js" async=""></script>
+    <script src="/assets/5580-a4808b0cf38336a6.js" async=""></script>
+    <script src="/assets/8493-6e256508e0c981dc.js" async=""></script>
+    <script src="/assets/3467-0a1129a8e91961ea.js" async=""></script>
+    <script src="/assets/9933-cee89b6b9ee91d4e.js" async=""></script>
+    <script src="/assets/layout-51254e6e4e9e2e4b.js" async=""></script>
+    <script src="/assets/5259-15ad81add0dad07a.js" async=""></script>
+    <script src="/assets/5697-0a3cbad00af0547a.js" async=""></script>
+    <script src="/assets/5564-c4c75197f7dac3be.js" async=""></script>
+    <script src="/assets/4634-dc6390082a22d3dc.js" async=""></script>
+    <script src="/assets/2619-b8db57ac19da49ac.js" async=""></script>
+    <script src="/assets/1912-abfb749a7d02dd70.js" async=""></script>
+    <script src="/assets/6348-da34bed15522b681.js" async=""></script>
+    <script src="/assets/136-9436d7da81d7857f.js" async=""></script>
+    <script src="/assets/8766-00c027ca1bf55e89.js" async=""></script>
+    <script src="/assets/3889-0adb12e8426a3a3a.js" async=""></script>
+    <script src="/assets/error-4b68e9bc14870e76.js" async=""></script>
+    <script src="/assets/layout-429e735b60ba86fb.js" async=""></script>
+    <script src="/assets/not-found-a4309a3ea62e4845.js" async=""></script>
+    <script src="/assets/8527-d105eb1148a1a3c8.js" async=""></script>
+    <script src="/assets/8276-6483413b5a32d4ba.js" async=""></script>
+    <script src="/assets/7887-5ae8d1ef5143f522.js" async=""></script>
+    <script src="/assets/7300-de0e9bdc43841de6.js" async=""></script>
+    <script src="/assets/3677-311d860b167e68ff.js" async=""></script>
+    <script src="/assets/3070-f1c72743eb81cbb5.js" async=""></script>
+    <script src="/assets/2573-e9c38cc6ac2bb000.js" async=""></script>
+    <script src="/assets/7459-8828645f9eb6d130.js" async=""></script>
+    <script src="/assets/page-ef14b28d6342aa96.js" async=""></script>
+    <link rel="preload" href="/assets/swap.js" as="script" />
+    <meta name="next-size-adjust" content="" />
+<title>7LM Connect</title>
+    <meta name="description" content="Conheca a historia da 7LM e acesse a plataforma com o login Microsoft do portal." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+<meta property="og:title" content="7LM Connect" />
+    <meta property="og:description" content="Conheca a historia da 7LM e acesse a plataforma com o login Microsoft do portal." />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image" content="/assets/7lm_logo.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="7LM Connect" />
+    <meta name="twitter:description" content="Conheca a historia da 7LM e acesse a plataforma com o login Microsoft do portal." />
+    <meta name="twitter:image:type" content="image/png" />
+    <meta name="twitter:image:width" content="1200" />
+    <meta name="twitter:image:height" content="630" />
+    <meta name="twitter:image" content="/assets/7lm_logo.png" />
+    <link rel="icon" href="/icon.svg?v=20260402-tabbrand1" type="image/svg+xml" sizes="any" />
+    <link rel="shortcut icon" href="/icon.svg?v=20260402-tabbrand1" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-icon.png" type="image/png" sizes="180x180" />
+    <script>
+      (function () {
+        var TAB_TITLE = "7LM Connect";
+
+        function syncTabBrand() {
+          document.title = TAB_TITLE;
+
+          var ogTitle = document.querySelector('meta[property="og:title"]');
+          if (ogTitle) {
+            ogTitle.setAttribute("content", TAB_TITLE);
+          }
+
+          var twitterTitle = document.querySelector('meta[name="twitter:title"]');
+          if (twitterTitle) {
+            twitterTitle.setAttribute("content", TAB_TITLE);
+          }
+        }
+
+        syncTabBrand();
+        document.addEventListener("DOMContentLoaded", syncTabBrand);
+        window.addEventListener("load", syncTabBrand);
+        window.setTimeout(syncTabBrand, 1200);
+        window.setTimeout(syncTabBrand, 2600);
+      })();
+    </script>
+    <script src="_organized/index/script-01.js"></script>
+    <script src="/assets/polyfills-42372ed130431b0a.js" nomodule=""></script>
+    <link
+      rel="stylesheet"
+      href="_organized/index/style-01.css"
+      data-source-style-attrs='id="_goober"'
+    />
+    <link
+      rel="stylesheet"
+      href="_organized/index/style-02.css"
+      data-source-style-attrs='type="text/css"'
+    />
+    <link rel="stylesheet" href="_organized/index/inline-attributes.css" />
+  </head>
+  <body class="__variable_3d9088 __variable_c1a059">
+    <div hidden="">
+      <!--$-->
+      <!--/$-->
+    </div>
+    <div class="loading-line_loadingLine__br2iU"></div>
+    <div id="portalFeedback" class="portal-feedback" role="status" aria-live="polite" hidden></div>
+    <div id="portalLoginHost"></div>
+    <header class="header_wrapper__MJ5bn header_transparent__rCyyn">
+      <div class="container_container__v5gtR">
+        <div class="header_content__cVJDb">
+          <div class="header_logo__LO_Jk">
+            <a href="/">
+              <img src="/assets/7lm_logo_cropped.png" alt="7LM" width="288" height="95" />
+            </a>
+          </div>
+          <nav class="header_nav__if_jI">
+            <div class="header_nav-item__Wn05d">
+              <a href="https://findrealestate.com/search"><span data-text="Buscar">Buscar</span></a>
+            </div>
+            <div class="header_nav-item__Wn05d">
+              <a href="https://findrealestate.com/agents"><span data-text="Agentes">Agentes</span></a>
+            </div>
+            <div class="header_nav-item__Wn05d">
+              <a href="https://findrealestate.com/join"><span data-text="Faça Parte">Faça Parte</span></a>
+            </div>
+            <div>
+              <div
+                class="header_nav-item__Wn05d"
+                type="button"
+                id="radix-_R_24l5tjb_"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                data-state="closed"
+              >
+                <span data-text="Documentação">Documentação</span>
+                <div class="header_nav-arrow__c0sU_">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      fill-rule="evenodd"
+                      d="M17.566 9.431a.8.8 0 0 1 .005 1.131l-1.78 1.797c-.669.674-1.218 1.229-1.708 1.622-.51.41-1.034.712-1.665.792a3.3 3.3 0 0 1-.83 0c-.63-.08-1.154-.382-1.665-.792-.49-.393-1.04-.948-1.707-1.622l-1.781-1.797A.8.8 0 0 1 7.57 9.436L9.32 11.2c.71.716 1.195 1.205 1.606 1.535.398.32.648.424.866.452q.211.027.424 0c.219-.028.468-.133.866-.452.41-.33.897-.819 1.607-1.535l1.747-1.763a.8.8 0 0 1 1.131-.005"
+                      clip-rule="evenodd"
+                    ></path>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div
+                class="header_nav-item__Wn05d"
+                type="button"
+                id="radix-_R_2kl5tjb_"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                data-state="closed"
+              >
+                <span data-text="Recursos">Recursos</span>
+                <div class="header_nav-arrow__c0sU_">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      fill-rule="evenodd"
+                      d="M17.566 9.431a.8.8 0 0 1 .005 1.131l-1.78 1.797c-.669.674-1.218 1.229-1.708 1.622-.51.41-1.034.712-1.665.792a3.3 3.3 0 0 1-.83 0c-.63-.08-1.154-.382-1.665-.792-.49-.393-1.04-.948-1.707-1.622l-1.781-1.797A.8.8 0 0 1 7.57 9.436L9.32 11.2c.71.716 1.195 1.205 1.606 1.535.398.32.648.424.866.452q.211.027.424 0c.219-.028.468-.133.866-.452.41-.33.897-.819 1.607-1.535l1.747-1.763a.8.8 0 0 1 1.131-.005"
+                      clip-rule="evenodd"
+                    ></path>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div
+                class="header_nav-item__Wn05d"
+                type="button"
+                id="radix-_R_34l5tjb_"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                data-state="closed"
+              >
+                <span data-text="Sobre">Sobre</span>
+                <div class="header_nav-arrow__c0sU_">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      fill-rule="evenodd"
+                      d="M17.566 9.431a.8.8 0 0 1 .005 1.131l-1.78 1.797c-.669.674-1.218 1.229-1.708 1.622-.51.41-1.034.712-1.665.792a3.3 3.3 0 0 1-.83 0c-.63-.08-1.154-.382-1.665-.792-.49-.393-1.04-.948-1.707-1.622l-1.781-1.797A.8.8 0 0 1 7.57 9.436L9.32 11.2c.71.716 1.195 1.205 1.606 1.535.398.32.648.424.866.452q.211.027.424 0c.219-.028.468-.133.866-.452.41-.33.897-.819 1.607-1.535l1.747-1.763a.8.8 0 0 1 1.131-.005"
+                      clip-rule="evenodd"
+                    ></path>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </nav>
+          <div class="header_actions__Sv09J">
+            <a
+              class="button_button-round__TFjlU button_color-primary__JJ7Hh"
+              href="/acesso"
+              aria-label="Entrar no Portal"
+            >
+              <div class="button_content__6Zh3n">
+                <div class="button_button-round-text__IEwW5">
+                  <span data-text="Entrar no Portal">Entrar no Portal</span>
+                </div>
+              </div>
+            </a>
+          </div>
+          <button
+            class="burger-btn_btn__IvzqD header_burger-control__YR_x_"
+            aria-label="Controle do menu"
+            aria-expanded="false"
+          >
+            <span></span>
+            <span></span>
+          </button>
+        </div>
+      </div>
+      <div class="burger-menu_wrapper__gKR7D org-inline-style-002" data-lenis-prevent="true">
+        <div class="burger-menu_backdrop__wfXK5"></div>
+        <div class="burger-menu_content__rv4kf">
+          <nav class="burger-menu_nav__dAhwA">
+            <div class="burger-menu_nav-item__mCA9u" aria-label="Buscar">
+              <a href="https://findrealestate.com/search">
+                <div aria-hidden="true" aria-label="Buscar" class="org-inline-style-003">
+                  <div aria-hidden="true" class="org-inline-style-004">Buscar</div>
+                </div>
+              </a>
+            </div>
+            <div class="burger-menu_nav-item__mCA9u" aria-label="Agentes">
+              <a href="https://findrealestate.com/agents">
+                <div aria-hidden="true" aria-label="Agentes" class="org-inline-style-005">
+                  <div aria-hidden="true" class="org-inline-style-006">Agentes</div>
+                </div>
+              </a>
+            </div>
+            <div class="burger-menu_nav-item__mCA9u" aria-label="Faça Parte">
+              <a href="https://findrealestate.com/join">
+                <div aria-hidden="true" aria-label="Faça Parte" class="org-inline-style-007">
+                  <div aria-hidden="true" class="org-inline-style-008">Faça Parte</div>
+                </div>
+              </a>
+            </div>
+            <div data-state="closed">
+              <div
+                class="burger-menu_nav-item__mCA9u"
+                type="button"
+                aria-controls="radix-_R_1555tjb_"
+                aria-expanded="false"
+                data-state="closed"
+                aria-label="Documentação"
+              >
+                <div aria-hidden="true" aria-label="Documentação" class="org-inline-style-009">
+                  <div aria-hidden="true" class="org-inline-style-010">Documentação</div>
+                </div>
+                <div class="org-inline-style-011">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    width="2.4rem"
+                    height="2.4rem"
+                  >
+                    <path
+                      fill="currentColor"
+                      fill-rule="evenodd"
+                      d="M17.566 9.431a.8.8 0 0 1 .005 1.131l-1.78 1.797c-.669.674-1.218 1.229-1.708 1.622-.51.41-1.034.712-1.665.792a3.3 3.3 0 0 1-.83 0c-.63-.08-1.154-.382-1.665-.792-.49-.393-1.04-.948-1.707-1.622l-1.781-1.797A.8.8 0 0 1 7.57 9.436L9.32 11.2c.71.716 1.195 1.205 1.606 1.535.398.32.648.424.866.452q.211.027.424 0c.219-.028.468-.133.866-.452.41-.33.897-.819 1.607-1.535l1.747-1.763a.8.8 0 0 1 1.131-.005"
+                      clip-rule="evenodd"
+                    ></path>
+                  </svg>
+                </div>
+              </div>
+              <div
+                data-state="closed"
+                id="radix-_R_1555tjb_"
+                hidden=""
+                class="burger-menu_nav-item-content__kj0Kw org-inline-style-012"
+              ></div>
+            </div>
+            <div data-state="closed">
+              <div
+                class="burger-menu_nav-item__mCA9u"
+                type="button"
+                aria-controls="radix-_R_1d55tjb_"
+                aria-expanded="false"
+                data-state="closed"
+                aria-label="Recursos"
+              >
+                <div aria-hidden="true" aria-label="Recursos" class="org-inline-style-013">
+                  <div aria-hidden="true" class="org-inline-style-014">Recursos</div>
+                </div>
+                <div class="org-inline-style-015">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    width="2.4rem"
+                    height="2.4rem"
+                  >
+                    <path
+                      fill="currentColor"
+                      fill-rule="evenodd"
+                      d="M17.566 9.431a.8.8 0 0 1 .005 1.131l-1.78 1.797c-.669.674-1.218 1.229-1.708 1.622-.51.41-1.034.712-1.665.792a3.3 3.3 0 0 1-.83 0c-.63-.08-1.154-.382-1.665-.792-.49-.393-1.04-.948-1.707-1.622l-1.781-1.797A.8.8 0 0 1 7.57 9.436L9.32 11.2c.71.716 1.195 1.205 1.606 1.535.398.32.648.424.866.452q.211.027.424 0c.219-.028.468-.133.866-.452.41-.33.897-.819 1.607-1.535l1.747-1.763a.8.8 0 0 1 1.131-.005"
+                      clip-rule="evenodd"
+                    ></path>
+                  </svg>
+                </div>
+              </div>
+              <div
+                data-state="closed"
+                id="radix-_R_1d55tjb_"
+                hidden=""
+                class="burger-menu_nav-item-content__kj0Kw org-inline-style-016"
+              ></div>
+            </div>
+            <div data-state="closed">
+              <div
+                class="burger-menu_nav-item__mCA9u"
+                type="button"
+                aria-controls="radix-_R_1l55tjb_"
+                aria-expanded="false"
+                data-state="closed"
+                aria-label="Sobre"
+              >
+                <div aria-hidden="true" aria-label="Sobre" class="org-inline-style-017">
+                  <div aria-hidden="true" class="org-inline-style-018">Sobre</div>
+                </div>
+                <div class="org-inline-style-019">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    width="2.4rem"
+                    height="2.4rem"
+                  >
+                    <path
+                      fill="currentColor"
+                      fill-rule="evenodd"
+                      d="M17.566 9.431a.8.8 0 0 1 .005 1.131l-1.78 1.797c-.669.674-1.218 1.229-1.708 1.622-.51.41-1.034.712-1.665.792a3.3 3.3 0 0 1-.83 0c-.63-.08-1.154-.382-1.665-.792-.49-.393-1.04-.948-1.707-1.622l-1.781-1.797A.8.8 0 0 1 7.57 9.436L9.32 11.2c.71.716 1.195 1.205 1.606 1.535.398.32.648.424.866.452q.211.027.424 0c.219-.028.468-.133.866-.452.41-.33.897-.819 1.607-1.535l1.747-1.763a.8.8 0 0 1 1.131-.005"
+                      clip-rule="evenodd"
+                    ></path>
+                  </svg>
+                </div>
+              </div>
+              <div
+                data-state="closed"
+                id="radix-_R_1l55tjb_"
+                hidden=""
+                class="burger-menu_nav-item-content__kj0Kw org-inline-style-020"
+              ></div>
+            </div>
+          </nav>
+        </div>
+        <div class="burger-menu_actions__In3qE org-inline-style-021">
+          <a
+            class="button_button-round__TFjlU button_color-primary__JJ7Hh"
+            href="/acesso"
+            aria-label="Entrar no Portal"
+          >
+            <div class="button_content__6Zh3n">
+              <div class="button_button-round-text__IEwW5">
+                <span data-text="Entrar no Portal">Entrar no Portal</span>
+              </div>
+            </div>
+          </a>
+        </div>
+      </div>
+    </header>
+    <main>
+      <section class="hero_root__N0Loz org-inline-style-022">
+        <div class="hero_top__WegWw">
+          <div class="hero_bg__S_r_n">
+            <div class="hero_back__8ReFI org-inline-style-023">
+              <img
+                alt=""
+                loading="lazy"
+                width="3840"
+                height="2612"
+                decoding="async"
+                data-nimg="1"
+                src="/assets/back.jpg"
+                class="org-inline-style-024"
+              />
+            </div>
+            <div class="hero_house__aJy7p org-inline-style-025">
+              <img
+                alt=""
+                loading="eager"
+                width="3840"
+                height="3416"
+                decoding="async"
+                data-nimg="1"
+                sizes="(max-width: 640px) 400px, (max-width: 1640px) 700px, 75vw"
+                src="/assets/house.png"
+                class="org-inline-style-026"
+              />
+            </div>
+            <div class="hero_composite__3blHB">
+              <div class="hero_house__aJy7p org-inline-style-027">
+                <img
+                  alt=""
+                  loading="eager"
+                  width="3840"
+                  height="3416"
+                  decoding="async"
+                  data-nimg="1"
+                  sizes="(max-width: 640px) 400px, (max-width: 1640px) 700px, 75vw"
+                  src="/assets/house.png"
+                  class="org-inline-style-028"
+                />
+              </div>
+            </div>
+            <div class="hero_clouds__bC7V4">
+              <div class="hero_cloud__TvA3o org-inline-style-029">
+                <img
+                  alt=""
+                  loading="lazy"
+                  width="2248"
+                  height="954"
+                  decoding="async"
+                  data-nimg="1"
+                  sizes="(max-width: 640px) 75vw, (max-width: 1024px) 50vw, 33vw"
+                  src="/assets/cloud.png"
+                  class="org-inline-style-030"
+                />
+              </div>
+              <div class="hero_cloud__TvA3o org-inline-style-031">
+                <img
+                  alt=""
+                  loading="lazy"
+                  width="2248"
+                  height="954"
+                  decoding="async"
+                  data-nimg="1"
+                  sizes="(max-width: 640px) 75vw, (max-width: 1024px) 50vw, 33vw"
+                  src="/assets/cloud.png"
+                  class="org-inline-style-032"
+                />
+              </div>
+            </div>
+            <div class="hero_logo__FxgRj">
+              <svg
+                class="hero_logo-outline__U8q7f"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 977 423"
+                fill="none"
+                aria-hidden="true"
+                shape-rendering="geometricPrecision"
+              >
+                <g transform="translate(151.925171 -174.111620) scale(2.108799 2.082466)">
+                  <path
+                    class="hero_logo-path__plBFD"
+                    d="M0 0 C1.48831242 0.00667405 2.97660807 0.01863442 4.46484375 0.03515625 C5.22345703 0.03966797 5.98207031 0.04417969 6.76367188 0.04882812 C8.64326246 0.06064945 10.52281274 0.07858547 12.40234375 0.09765625 C17.87894138 14.0444901 23.16678693 28.0587135 28.40234375 42.09765625 C32.50931377 32.46561949 36.23823844 22.70989675 39.90185547 12.90405273 C40.62373257 10.97424721 41.34882386 9.04567288 42.07421875 7.1171875 C42.49799805 5.98385986 42.92177734 4.85053223 43.35839844 3.68286133 C44.40234375 1.09765625 44.40234375 1.09765625 45.40234375 0.09765625 C50.68234375 0.09765625 55.96234375 0.09765625 61.40234375 0.09765625 C61.40234375 31.44765625 61.40234375 62.79765625 61.40234375 95.09765625 C56.45234375 95.09765625 51.50234375 95.09765625 46.40234375 95.09765625 C44.68491527 93.38022777 45.19164167 91.0810315 45.12109375 88.734375 C45.06501953 87.06084961 45.06501953 87.06084961 45.0078125 85.35351562 C44.95560547 83.58717773 44.95560547 83.58717773 44.90234375 81.78515625 C44.63885181 73.1923913 44.20566222 64.65826246 43.40234375 56.09765625 C42.88849121 57.58930298 42.88849121 57.58930298 42.36425781 59.11108398 C41.09082669 62.79381814 39.7962574 66.4688195 38.49511719 70.1418457 C37.93461545 71.73356022 37.37989257 73.32732183 36.83105469 74.9230957 C36.04175846 77.21476174 35.23206622 79.49829565 34.41796875 81.78125 C34.17612854 82.49792343 33.93428833 83.21459686 33.68511963 83.95298767 C32.95800781 85.95483398 32.95800781 85.95483398 31.40234375 89.09765625 C29.21386719 90.05493164 29.21386719 90.05493164 27.40234375 90.09765625 C25.56843278 85.31077978 23.73536421 80.52358191 21.90307617 75.73608398 C21.27961001 74.10741452 20.65591359 72.47883318 20.03198242 70.8503418 C19.13529911 68.50983429 18.23944386 66.16901131 17.34375 63.828125 C17.06455215 63.09990036 16.78535431 62.37167572 16.49769592 61.62138367 C15.41632322 58.79329888 14.35995272 55.97048315 13.40234375 53.09765625 C13.3772876 54.29890137 13.35223145 55.50014648 13.32641602 56.73779297 C13.23241231 61.18452054 13.13217458 65.63108932 13.0300293 70.07763672 C12.98665374 72.00403129 12.94498061 73.93046496 12.9050293 75.85693359 C12.84739013 78.62219033 12.78367759 81.38724975 12.71875 84.15234375 C12.69368126 85.44928665 12.69368126 85.44928665 12.66810608 86.77243042 C12.51621546 92.86991284 12.51621546 92.86991284 11.40234375 95.09765625 C8.92310574 95.1245072 6.44415535 95.14442172 3.96484375 95.16015625 C3.25779297 95.16853516 2.55074219 95.17691406 1.82226562 95.18554688 C0.01540816 95.19419213 -1.79153228 95.14985636 -3.59765625 95.09765625 C-5.46220971 93.23310279 -4.7242431 90.56359277 -4.73318481 88.08244324 C-4.73116058 87.21799088 -4.72913635 86.35353851 -4.72705078 85.46289062 C-4.7288031 84.55726883 -4.73055542 83.65164703 -4.73236084 82.71858215 C-4.73678079 79.70950432 -4.73384086 76.70048473 -4.73046875 73.69140625 C-4.73114175 71.610148 -4.73211174 69.52888982 -4.73336792 67.44763184 C-4.73484509 63.07950087 -4.73268973 58.71139032 -4.72802734 54.34326172 C-4.72233005 48.73051072 -4.72560895 43.11780753 -4.73159981 37.50505829 C-4.73520491 33.20554236 -4.73406707 28.90603787 -4.73147202 24.60652161 C-4.73080261 22.53636164 -4.73163165 20.46620065 -4.73395157 18.39604187 C-4.73647727 15.50814039 -4.73263867 12.62031747 -4.72705078 9.73242188 C-4.72907501 8.86796951 -4.73109924 8.00351715 -4.73318481 7.11286926 C-4.7080116 0.12779619 -4.7080116 0.12779619 0 0 Z "
+                    transform="translate(242.59765625,111.90234375)"
+                  ></path>
+                  <path
+                    class="hero_logo-path__plBFD"
+                    d="M0 0 C5.28 0 10.56 0 16 0 C17.46390675 2.92781349 17.17005218 5.88498528 17.18945312 9.09594727 C17.19774643 9.82615082 17.20603973 10.55635437 17.21458435 11.3086853 C17.23199587 12.8959644 17.24715967 14.48326936 17.26036072 16.07058907 C17.28135425 18.57886159 17.30837823 21.08700369 17.33703613 23.59519958 C17.40693879 29.82365466 17.46634414 36.05220217 17.52606201 42.28076172 C17.57690861 47.5436805 17.63170276 52.80652866 17.69187927 58.06934929 C17.71854369 60.54723414 17.73930215 63.02512526 17.7598877 65.50306702 C17.77648318 67.01319699 17.79335436 68.52332397 17.81054688 70.03344727 C17.8168235 71.0752993 17.8168235 71.0752993 17.82322693 72.13819885 C17.59919249 75.34828945 17.59919249 75.34828945 19 78 C21.66426685 78.16003488 24.30560428 78.25942889 26.97265625 78.31640625 C27.77029892 78.33718735 28.56794159 78.35796844 29.38975525 78.37937927 C31.94724611 78.44496158 34.5048428 78.50379967 37.0625 78.5625 C38.79232882 78.60567699 40.52214679 78.64929101 42.25195312 78.69335938 C46.5011926 78.80065172 50.7505389 78.90189426 55 79 C57.31921491 84.56910312 57.96640957 89.10077128 56 95 C49.41647559 95.10161289 42.83315423 95.1715547 36.24902344 95.21972656 C34.01033979 95.23981316 31.77170842 95.2670878 29.53320312 95.30175781 C26.31106651 95.35040464 23.08962499 95.37299874 19.8671875 95.390625 C18.87008759 95.41127014 17.87298767 95.43191528 16.84567261 95.45318604 C11.09245697 95.45503414 7.39310783 95.11688166 3 91 C-0.00426108 86.19337287 -0.41775361 82.04900081 -0.34057617 76.51611328 C-0.34101425 75.68618362 -0.34145233 74.85625397 -0.34190369 74.00117493 C-0.33982343 71.27397658 -0.31652872 68.54740268 -0.29296875 65.8203125 C-0.28737008 63.92317033 -0.28310126 62.0260238 -0.28010559 60.12887573 C-0.2686782 55.14754153 -0.23922913 50.16647178 -0.20599365 45.1852417 C-0.17524735 40.09748919 -0.16159051 35.00969374 -0.14648438 29.921875 C-0.11435737 19.94778207 -0.06160662 9.97395445 0 0 Z "
+                    transform="translate(176,112)"
+                  ></path>
+                  <path
+                    class="hero_logo-path__plBFD"
+                    d="M0 0 C3.45127398 2.7158698 6.42482894 5.81214496 9.4375 9 C10.25154297 9.83273438 11.06558594 10.66546875 11.90429688 11.5234375 C19.14236821 18.98486884 19.14236821 18.98486884 19.3125 24.25 C19.36857422 25.37148437 19.36857422 25.37148437 19.42578125 26.515625 C18.18068355 33.78059876 11.14513161 39.22181375 6.1875 44.1875 C5.40568359 44.99380859 4.62386719 45.80011719 3.81835938 46.63085938 C-5.47447547 55.97027484 -5.47447547 55.97027484 -12.11865234 56.01391602 C-19.23476524 55.06002791 -23.20952348 50.67600597 -27.9375 45.625 C-28.69095703 44.85671875 -29.44441406 44.0884375 -30.22070312 43.296875 C-37.65260096 35.60549282 -37.65260096 35.60549282 -38.5 29.25 C-38.22198367 20.4025393 -28.95149461 13.63772533 -23 8 C-22.30390625 7.33355469 -21.6078125 6.66710937 -20.890625 5.98046875 C-14.51169474 0.10839147 -8.75541293 -4.04731352 0 0 Z "
+                    transform="translate(92,134)"
+                  ></path>
+                  <path
+                    class="hero_logo-path__plBFD"
+                    d="M0 0 C6.31709229 -0.09897222 12.63373197 -0.17151837 18.95141602 -0.21972656 C21.0999335 -0.23982586 23.2483964 -0.26710993 25.39672852 -0.30175781 C28.48727905 -0.35034913 31.57710555 -0.37298579 34.66796875 -0.390625 C35.62648239 -0.41127014 36.58499603 -0.43191528 37.57255554 -0.45318604 C41.80716596 -0.45460669 44.31176213 -0.40427647 48.02075195 1.77441406 C51.4858645 5.67079571 52.46545587 8.83380284 52.33441162 14.10803223 C51.56361409 20.7738341 49.50733521 27.22801134 47.6953125 33.671875 C47.25077778 35.28345798 46.80717963 36.89529956 46.36447144 38.50738525 C45.43822013 41.87130803 44.50462762 45.23306749 43.56494141 48.59326172 C42.36245929 52.89333369 41.17251728 57.19674165 39.98729134 61.50159836 C38.85238943 65.6219914 37.71173314 69.74078382 36.5703125 73.859375 C36.3541843 74.6407357 36.13805611 75.42209641 35.91537857 76.2271347 C35.30105061 78.44365247 34.68269823 80.6590052 34.06298828 82.87402344 C33.71213165 84.13261169 33.36127502 85.39119995 32.99978638 86.68792725 C32 90 32 90 30 95 C24.72 95 19.44 95 14 95 C14.57974563 87.7825703 16.51201723 80.99686136 18.46982193 74.05348969 C19.08046286 71.88584335 19.68321697 69.71613945 20.28390503 67.54571533 C21.9914914 61.38088633 23.71246668 55.21983027 25.43994141 49.06054688 C26.49969148 45.27995218 27.54996518 41.49682738 28.59453964 37.71201324 C28.99353292 36.27407278 29.39625002 34.83716015 29.80276871 33.40132904 C30.36972264 31.39847799 30.92465007 29.39264769 31.47705078 27.38574219 C31.79602325 26.24627136 32.11499573 25.10680054 32.44363403 23.93280029 C32.97704913 21.1209821 32.98318857 19.64452166 32 17 C30.65252686 16.96241577 30.65252686 16.96241577 29.27783203 16.92407227 C25.94925131 16.82901307 22.62085006 16.72977579 19.29248047 16.62768555 C17.8511238 16.58433769 16.40971582 16.54266248 14.96826172 16.50268555 C12.89795459 16.44497912 10.82790568 16.38128629 8.7578125 16.31640625 C7.5114502 16.27974854 6.26508789 16.24309082 4.98095703 16.20532227 C2 16 2 16 0 15 C0 10.05 0 5.1 0 0 Z "
+                    transform="translate(114,112)"
+                  ></path>
+                  <path
+                    class="hero_logo-path__plBFD"
+                    d="M0 0 C4.00960519 1.90570589 6.29691582 4.96082689 8 9 C8.74754925 12.82400194 8.85584346 16.49029374 6.89794922 19.9440155 C3.0776928 24.81767714 -0.99422316 29.30114536 -5.375 33.67578125 C-6.06255371 34.36762009 -6.75010742 35.05945892 -7.45849609 35.77226257 C-8.9014356 37.22090382 -10.34694673 38.66698777 -11.79492188 40.1105957 C-14.0028112 42.31530715 -16.19698527 44.53307379 -18.390625 46.75195312 C-19.80127259 48.1648724 -21.21270421 49.57700944 -22.625 50.98828125 C-23.2751709 51.6476619 -23.9253418 52.30704254 -24.59521484 52.98640442 C-29.06135681 57.40773863 -32.97180803 60.66965179 -39.4375 61.375 C-43.553907 60.941694 -46.38413553 60.0165398 -50 58 C-52.65539745 54.40960345 -53.49689548 51.63039773 -53.625 47.1875 C-53.67914063 46.21167969 -53.73328125 45.23585937 -53.7890625 44.23046875 C-51.94825217 36.69408191 -43.76740882 30.61803236 -38.38671875 25.25390625 C-37.34328056 24.20903297 -37.34328056 24.20903297 -36.27876282 23.14305115 C-34.82370654 21.68732001 -33.36740937 20.2328282 -31.90991211 18.77954102 C-29.67249105 16.54752732 -27.44052323 14.31015865 -25.20898438 12.07226562 C-23.78938346 10.65332466 -22.36947283 9.23469346 -20.94921875 7.81640625 C-20.28153976 7.14670303 -19.61386078 6.47699982 -18.9259491 5.78700256 C-18.30802994 5.17223557 -17.69011078 4.55746857 -17.0534668 3.92407227 C-16.51054489 3.38194595 -15.96762299 2.83981964 -15.4082489 2.28126526 C-11.3005577 -1.45603006 -5.18037529 -0.60866028 0 0 Z "
+                    transform="translate(69,112)"
+                  ></path>
+                  <path
+                    class="hero_logo-path__plBFD"
+                    d="M0 0 C2.70654297 2.00952148 2.70654297 2.00952148 5.2421875 4.62109375 C6.62277344 6.02391602 6.62277344 6.02391602 8.03125 7.45507812 C8.97928434 8.44910653 9.92719971 9.44324843 10.875 10.4375 C11.84500807 11.42905301 12.81635123 12.41930181 13.7890625 13.40820312 C21.87557881 21.70601965 21.87557881 21.70601965 22.3125 26.25 C21.94713599 30.63436813 20.73973233 32.61562477 18 36 C14.18865547 37.90567227 10.13426191 37.70435573 6 37 C2.78889075 35.20760569 0.51662934 32.6540562 -2 30 C-3.11361831 28.90002062 -4.23112562 27.8039707 -5.3515625 26.7109375 C-16.13861559 16.13282746 -16.13861559 16.13282746 -16.3125 10.6875 C-16.26904736 7.30905697 -16.04921727 6.08567451 -14.3125 3.0625 C-9.55583577 -1.17993026 -6.16333333 -1.39425372 0 0 Z "
+                    transform="translate(52,170)"
+                  ></path>
+                </g>
+                <text
+                  class="hero_logo-copy__CaEgF"
+                  x="488.5"
+                  y="360"
+                  text-anchor="middle"
+                  font-family="Arial, sans-serif"
+                  font-size="94"
+                  font-weight="400"
+                  letter-spacing="-0.03em"
+                  textLength="397"
+                  lengthAdjust="spacingAndGlyphs"
+                >
+                  Connect
+                </text>
+              </svg>
+            </div>
+            <div class="hero_smoke__8za_R org-inline-style-046">
+              <img
+                alt=""
+                width="3840"
+                height="1240"
+                decoding="async"
+                data-nimg="1"
+                sizes="(max-width: 640px) 75vw, (max-width: 1024px) 50vw, 33vw"
+                src="/assets/smoke.png"
+                class="org-inline-style-047"
+              />
+            </div>
+          </div>
+          <div class="hero_content__DK_Ny org-inline-style-048">
+            <div class="container_container__v5gtR">
+              <div class="hero_title__JpmHS" aria-label="Encontre o que move você">
+                <h1>Encontre o que move você</h1>
+              </div>
+              <div class="hero_text__R6LQ5 org-inline-style-057">
+                <p>
+                  Agentes especialistas. Orientação real.
+                  <span class="em">Um caminho claro para encontrar o que vem a seguir.</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="hero_overlap__d3EJV">
+            <div class="hero_smoke__8za_R">
+              <img
+                alt=""
+                width="3840"
+                height="1240"
+                decoding="async"
+                data-nimg="1"
+                sizes="(max-width: 640px) 75vw, (max-width: 1024px) 50vw, 33vw"
+                src="/assets/smoke.png"
+                class="org-inline-style-060"
+              />
+            </div>
+            <div class="hero_overlay__7ubgG"></div>
+          </div>
+        </div>
+      </section>
+      <section class="why-us_root__aGsFp">
+        <div class="container_container__v5gtR">
+          <div class="why-us_grid__RSZoF">
+            <div class="why-us_title__N3aCA"><h2>Por que 7LM</h2></div>
+            <div
+              class="why-us_text__rT1u9"
+              aria-label="Sua vida está mudando. Não encontre apenas um lugar — encontre o que vem a seguir. Ajudamos você a seguir em frente com clareza, confiança e o agente certo ao seu lado."
+            >
+              <div aria-hidden="true" class="org-inline-style-061">
+                Sua vida está mudando. Não encontre apenas um
+                <div class="org-inline-style-062"></div>
+              </div>
+              <div aria-hidden="true" class="org-inline-style-063">
+                lugar — encontre o que vem a seguir.
+                <!-- -->
+                <span class="em">Ajudamos você a</span>
+                <div class="org-inline-style-064"></div>
+              </div>
+              <div aria-hidden="true" class="org-inline-style-065">
+                <span class="em">seguir em frente com clareza, confiança</span>
+                <div class="org-inline-style-066"></div>
+              </div>
+              <div aria-hidden="true" class="org-inline-style-067">
+                <span class="em">e o agente certo ao seu lado.</span>
+                <div class="org-inline-style-068"></div>
+              </div>
+            </div>
+          </div>
+          <div class="why-us_preview__OofJt org-inline-style-069">
+            <video src="/videos/why-us.mp4" autoplay="" playsinline="" loop="" muted=""></video>
+          </div>
+        </div>
+      </section>
+      <section class="arrows-section_root__yyPBl">
+        <div class="container_container__v5gtR">
+          <div class="arrows-section_title__a4gyt" aria-label="Isto não é só sobre imóveis.">
+            <div aria-hidden="true" class="org-inline-style-070">
+              <h2>
+                Isto não é só
+                <span class="em">sobre imóveis.</span>
+              </h2>
+              <div class="org-inline-style-071"></div>
+            </div>
+          </div>
+          <div class="arrows-section_arrows__BPayV">
+            <div class="arrows-section_arrow___KXxg">
+              <img
+                alt=""
+                loading="lazy"
+                width="692"
+                height="880"
+                decoding="async"
+                data-nimg="1"
+                sizes="(max-width: 768px) 93px, 346px"
+                src="/assets/1.jpg"
+                class="org-inline-style-072"
+              />
+            </div>
+            <div class="arrows-section_arrow___KXxg org-inline-style-073">
+              <img
+                alt=""
+                loading="lazy"
+                width="692"
+                height="880"
+                decoding="async"
+                data-nimg="1"
+                sizes="(max-width: 768px) 93px, 346px"
+                src="/assets/2.jpg"
+                class="org-inline-style-074"
+              />
+            </div>
+            <div class="arrows-section_arrow___KXxg org-inline-style-075">
+              <img
+                alt=""
+                loading="lazy"
+                width="692"
+                height="880"
+                decoding="async"
+                data-nimg="1"
+                sizes="(max-width: 768px) 93px, 346px"
+                src="/assets/3.jpg"
+                class="org-inline-style-076"
+              />
+            </div>
+            <div class="arrows-section_arrow___KXxg org-inline-style-077">
+              <img
+                alt=""
+                loading="lazy"
+                width="692"
+                height="880"
+                decoding="async"
+                data-nimg="1"
+                sizes="(max-width: 768px) 93px, 346px"
+                src="/assets/4.jpg"
+                class="org-inline-style-078"
+              />
+            </div>
+          </div>
+          <div class="arrows-section_text__Z1Oii">
+            <p>
+              É sobre identidade. Progresso. Sair do lugar. Você não está apenas procurando um lugar.
+              <!-- -->
+              <span class="em">Você está procurando alinhamento. É isso que ajudamos você a encontrar.</span>
+            </p>
+          </div>
+        </div>
+      </section>
+      <section>
+        <div class="rewired_wrapper__mqx1v">
+          <div class="container_container__v5gtR">
+            <div class="assymetric-cols_row__tAyrs">
+              <div class="assymetric-cols_col__yB8jY">
+                <div class="rewired_left-col__vLphn">
+                  <div aria-label="Mercado Imobiliário, Reinventado.">
+                    <div aria-hidden="true" class="org-inline-style-079">
+                      <h2 class="rewired_title__1_3e9">
+                        <div>Mercado Imobiliário,</div>
+                        <div class="em">Reinventado.</div>
+                      </h2>
+                      <div class="org-inline-style-080"></div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="button_button-round__TFjlU button_color-primary__JJ7Hh"
+                    aria-haspopup="dialog"
+                    aria-expanded="false"
+                    aria-controls="radix-_R_152nn5tjb_"
+                    data-state="closed"
+                  >
+                    <div class="button_content__6Zh3n">
+                      <div class="button_button-round-text__IEwW5">
+                        <span data-text="Comece Sua Busca">Comece Sua Busca</span>
+                      </div>
+                      <span class="button_icon-after__vljdM">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <path
+                            fill="currentColor"
+                            d="m20.78 12.531-6.75 6.75a.75.75 0 1 1-1.06-1.061l5.47-5.47H3.75a.75.75 0 1 1 0-1.5h14.69l-5.47-5.469a.75.75 0 1 1 1.06-1.061l6.75 6.75a.75.75 0 0 1 0 1.061"
+                          ></path>
+                        </svg>
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+              <div class="assymetric-cols_col__yB8jY">
+                <div>
+                  <div class="rewired_label__db93N">Etapas:</div>
+                  <div>
+                    <div class="rewired_list-item__R5lrq org-inline-style-081" data-index="01">
+                      <span>
+                        Fale com uma pessoa de verdade.
+                        <span class="em">Conectamos você a um especialista que realmente escuta.</span>
+                      </span>
+                    </div>
+                    <div class="rewired_list-item__R5lrq org-inline-style-082" data-index="02">
+                      <span>
+                        Tenha Clareza.
+                        <span class="em">
+                          Definimos o que você realmente precisa, não apenas o que está disponível.
+                        </span>
+                      </span>
+                    </div>
+                    <div class="rewired_list-item__R5lrq org-inline-style-083" data-index="03">
+                      <span>
+                        Siga em Frente.
+                        <span class="em">Encontramos o que combina com você — e fazemos acontecer.</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section>
+        <div class="for-agents_wrapper__Os8to">
+          <div class="container_container__v5gtR">
+            <div class="assymetric-cols_row__tAyrs">
+              <div
+                class="assymetric-cols_col__yB8jY assymetric-cols_hide-left-col-on-mobile__BXT8l"
+              >
+                <div class="assymetric-image-split_label__4qblS">For Agentes</div>
+                <div class="assymetric-image-split_small-img__199s0 org-inline-style-084">
+                  <img
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    data-nimg="fill"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    src="/assets/1(1).jpg"
+                    class="org-inline-style-085"
+                  />
+                </div>
+              </div>
+              <div class="assymetric-cols_col__yB8jY">
+                <div class="assymetric-image-split_right-col__HoO1A">
+                  <div
+                    class="for-agents_above-text__SVOzq"
+                    aria-label="Não alugue sua carreira. Faça dela sua."
+                  >
+                    <div aria-hidden="true" class="org-inline-style-086">
+                      Não alugue sua carreira.
+                      <span class="em"></span>
+                      <span class="em">Faça dela sua.</span>
+                      <div class="org-inline-style-087"></div>
+                    </div>
+                  </div>
+                  <div class="assymetric-image-split_image___yxAD org-inline-style-088">
+                    <img
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      data-nimg="fill"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      src="/assets/2(1).jpg"
+                      class="org-inline-style-089"
+                    />
+                  </div>
+                  <div>
+                    <div class="for-agents_below-text__DBjLv">
+                      Na 7LM, nossos agentes não trabalham apenas para a marca — eles também fazem parte dela.
+                      <!-- -->
+                      <span class="em">
+                        Damos participação real aos melhores profissionais, então eles estão
+                        comprometidos com muito mais do que a sua transação — eles estão comprometidos com o seu resultado. Nossos agentes são certificados,
+                        recebem suporte e têm tudo para entregar um serviço de cinco estrelas, porque o sucesso
+                        deles está ligado ao seu. Você não está aqui apenas para fechar negócios — está construindo uma
+                        carreira, uma vida, um legado. Nós ajudamos agentes a encontrar a empresa que oferece
+                        suporte, ferramentas e liderança para prosperar.
+                      </span>
+                    </div>
+                    <div class="for-agents_controls__pBRRC">
+                      <a
+                        class="button_button-round__TFjlU button_color-primary__JJ7Hh"
+                        href="https://findrealestate.com/join"
+                      >
+                        <div class="button_content__6Zh3n">
+                          <div class="button_button-round-text__IEwW5">
+                            <span data-text="Junte-se ao Movimento">Junte-se ao Movimento</span>
+                          </div>
+                          <span class="button_icon-after__vljdM">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <path
+                                fill="currentColor"
+                                d="m20.78 12.531-6.75 6.75a.75.75 0 1 1-1.06-1.061l5.47-5.47H3.75a.75.75 0 1 1 0-1.5h14.69l-5.47-5.469a.75.75 0 1 1 1.06-1.061l6.75 6.75a.75.75 0 0 1 0 1.061"
+                              ></path>
+                            </svg>
+                          </span>
+                        </div>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="testimonials_root__PiYLZ">
+        <div class="container_container__v5gtR">
+          <div class="testimonials_title__V_61W" aria-label="Não acredite só na nossa palavra.">
+            <div aria-hidden="true" class="org-inline-style-090">
+              <h2>
+                Não acredite só na
+                <span class="em"></span>
+                <span class="em">nossa palavra.</span>
+              </h2>
+              <div class="org-inline-style-091"></div>
+            </div>
+          </div>
+          <div class="testimonials_grid__S3Kng">
+            <div class="testimonials_grid-col__LIQw1">
+              <div class="testimonials_divider__j4fVS"></div>
+              <div class="testimonials_carousel__EBBTD">
+                <div class="swiper swiper-initialized swiper-horizontal swiper-backface-hidden">
+                  <div class="swiper-wrapper">
+                    <div class="swiper-slide swiper-slide-active org-inline-style-092">
+                      <div class="testimonials_quote__877vg">
+                        <p>
+                          "Michael foi um corretor excelente. Extremamente dedicado, ajudou-nos a
+                          encontrar o bairro, a faixa de preço e o imóvel perfeitos. Ele trabalha
+                          incansavelmente e estava disponível de manhã, à tarde e à noite.
+                          Incansável e comprometido. Eu o recomendaria 100%!"
+                        </p>
+                      </div>
+                      <div class="testimonials_info__9SF7C">
+                        <div class="testimonials_author__5Drje">Bernadette Hogan</div>
+                        <div class="testimonials_separator__tLCPg">/</div>
+                        <div class="testimonials_rating__EHl0R"></div>
+                      </div>
+                    </div>
+                    <div class="swiper-slide swiper-slide-next org-inline-style-093">
+                      <div class="testimonials_quote__877vg">
+                        <p>
+                          "Foi uma bênção trabalhar com a Shirin. Ela nos ajudou a encontrar o
+                          condomínio perfeito em uma ótima região. Foi paciente e muito
+                          compreensiva. Eu recomendaria trabalhar com ela se você precisa de alguém
+                          que realmente faça de tudo para garantir que você encontre o imóvel dos
+                          seus sonhos. Ela é honesta e tem um coração puro."
+                        </p>
+                      </div>
+                      <div class="testimonials_info__9SF7C">
+                        <div class="testimonials_author__5Drje">Tyleen</div>
+                        <div class="testimonials_separator__tLCPg">/</div>
+                        <div class="testimonials_rating__EHl0R"></div>
+                      </div>
+                    </div>
+                    <div class="swiper-slide org-inline-style-094">
+                      <div class="testimonials_quote__877vg">
+                        <p>
+                          "Trabalhar com o Mathew foi um enorme prazer, e eu o recomendo fortemente
+                          a qualquer comprador sério — especialmente para quem está comprando pela
+                          primeira vez, como eu, e pode se sentir sobrecarregado com o processo.
+                          Desde o início, a capacidade de resolver problemas do Mathew se destacou.
+                          Obrigado, Mathew, por tornar isso possível — estamos realmente felizes em nosso novo lar!"
+                        </p>
+                      </div>
+                      <div class="testimonials_info__9SF7C">
+                        <div class="testimonials_author__5Drje">Johanna Nieto</div>
+                        <div class="testimonials_separator__tLCPg">/</div>
+                        <div class="testimonials_rating__EHl0R"></div>
+                      </div>
+                    </div>
+                    <div class="swiper-slide org-inline-style-095">
+                      <div class="testimonials_quote__877vg">
+                        <p>
+                          "Shirin foi um recurso inestimável, consultora e guia em todo o processo
+                          de compra do imóvel, desde a busca inicial até o fechamento. Ela
+                          entendeu imediatamente o que procurávamos em uma casa e ajudou a
+                          direcionar a nossa busca da maneira certa. Shirin foi ágil nas respostas
+                          e proativa em impulsionar cada etapa com segurança e
+                          tranquilidade."
+                        </p>
+                      </div>
+                      <div class="testimonials_info__9SF7C">
+                        <div class="testimonials_author__5Drje">mattmpowers</div>
+                        <div class="testimonials_separator__tLCPg">/</div>
+                        <div class="testimonials_rating__EHl0R"></div>
+                      </div>
+                    </div>
+                    <div class="swiper-slide org-inline-style-096">
+                      <div class="testimonials_quote__877vg">
+                        <p>
+                          "Depois de 12 anos em NYC, tive de longe a melhor experiência com
+                          corretora com Fay Blau. Fay me ajudou a encontrar um lindo apartamento no
+                          Upper West Side que atendia perfeitamente às minhas necessidades. Como
+                          moradora do Upper West Side, ela conhece o bairro como a palma da mão. Foi
+                          uma excelente comunicadora durante todo o processo."
+                        </p>
+                      </div>
+                      <div class="testimonials_info__9SF7C">
+                        <div class="testimonials_author__5Drje">Giavridis Theodore</div>
+                        <div class="testimonials_separator__tLCPg">/</div>
+                        <div class="testimonials_rating__EHl0R"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="swiper-pagination swiper-pagination-clickable swiper-pagination-bullets swiper-pagination-horizontal"
+                  >
+                    <span class="swiper-pagination-bullet swiper-pagination-bullet-active"></span>
+                    <span class="swiper-pagination-bullet"></span>
+                    <span class="swiper-pagination-bullet"></span>
+                    <span class="swiper-pagination-bullet"></span>
+                    <span class="swiper-pagination-bullet"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="testimonials_grid-col__LIQw1">
+              <div class="testimonials_preview___uhyO org-inline-style-097">
+                <img
+                  alt=""
+                  loading="lazy"
+                  width="976"
+                  height="688"
+                  decoding="async"
+                  data-nimg="1"
+                  src="/assets/1(2).jpg"
+                  class="org-inline-style-098"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="services_root__Ch_WM">
+        <div class="container_container__v5gtR">
+          <div class="services_hgrid__9FHyx">
+            <div class="services_hgrid-col__9VVDn">
+              <div class="services_caption__Q_j1k">Serviços</div>
+            </div>
+            <div class="services_hgrid-col__9VVDn">
+              <div class="services_title__eMyhw">
+                <h2>
+                  <div class="services_title__eMyhw" aria-label="Como a 7LM Pode Ajudar Você">
+                    <div aria-hidden="true" class="org-inline-style-099">
+                      Como a 7LM
+                      <div class="org-inline-style-100"></div>
+                    </div>
+                    <div aria-hidden="true" class="org-inline-style-101">
+                      <span class="em"></span>
+                      <span class="em">Pode Ajudar Você</span>
+                      <div class="org-inline-style-102"></div>
+                    </div>
+                  </div>
+                </h2>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="services_items__PESAO">
+          <button
+            class="services_item__D_u7g"
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+            aria-controls="radix-_R_pqnn5tjb_"
+            data-state="closed"
+          >
+            <div class="container_container__v5gtR">
+              <div class="services_item-bg___wJGg">
+                <img
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  data-nimg="fill"
+                  sizes="100vw"
+                  src="/assets/buy.jpg"
+                  class="org-inline-style-103"
+                />
+              </div>
+              <div class="services_item-num__QGde9"></div>
+              <div class="services_item-text__uKETL">
+                <h3>
+                  Compre com mais inteligência com agentes especialistas apoiados por profissionais
+                  de financiamento, jurídico e avaliação, focados em garantir o melhor negócio para
+                  você com agilidade. Já fizemos isso mais de 10.000 vezes e sabemos o que funciona.
+                </h3>
+              </div>
+              <div class="services_item-more__pkhNR">
+                <span>Comprar</span>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                  <path
+                    fill="currentColor"
+                    d="M3.315 10.996h16.623l-.884.707-8.084-8.135h2.526l8.261 8.337-8.286 8.337h-2.526l8.11-8.135.883.708H3.315z"
+                  ></path>
+                </svg>
+              </div>
+            </div>
+          </button>
+          <button
+            class="services_item__D_u7g"
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+            aria-controls="radix-_R_19qnn5tjb_"
+            data-state="closed"
+          >
+            <div class="container_container__v5gtR">
+              <div class="services_item-bg___wJGg">
+                <img
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  data-nimg="fill"
+                  sizes="100vw"
+                  src="/assets/sell.jpg"
+                  class="org-inline-style-104"
+                />
+              </div>
+              <div class="services_item-num__QGde9"></div>
+              <div class="services_item-text__uKETL">
+                <h3>
+                  Venda rápido e pelo melhor valor. Seu anúncio recebe preparação profissional,
+                  precificação estratégica, visitas abertas constantes e agentes que não param até o
+                  comprador certo assinar.
+                </h3>
+              </div>
+              <div class="services_item-more__pkhNR">
+                <span>Vender</span>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                  <path
+                    fill="currentColor"
+                    d="M3.315 10.996h16.623l-.884.707-8.084-8.135h2.526l8.261 8.337-8.286 8.337h-2.526l8.11-8.135.883.708H3.315z"
+                  ></path>
+                </svg>
+              </div>
+            </div>
+          </button>
+          <button
+            class="services_item__D_u7g"
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+            aria-controls="radix-_R_1pqnn5tjb_"
+            data-state="closed"
+          >
+            <div class="container_container__v5gtR">
+              <div class="services_item-bg___wJGg">
+                <img
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  data-nimg="fill"
+                  sizes="100vw"
+                  src="/assets/rent.jpg"
+                  class="org-inline-style-105"
+                />
+              </div>
+              <div class="services_item-num__QGde9"></div>
+              <div class="services_item-text__uKETL">
+                <h3>
+                  Acesse locações exclusivas antes de chegarem ao mercado com agentes que conhecem
+                  cada proprietário da cidade. Com décadas de experiência em NYC, abrimos as
+                  melhores oportunidades que você não vai encontrar online.
+                </h3>
+              </div>
+              <div class="services_item-more__pkhNR">
+                <span>Alugar</span>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                  <path
+                    fill="currentColor"
+                    d="M3.315 10.996h16.623l-.884.707-8.084-8.135h2.526l8.261 8.337-8.286 8.337h-2.526l8.11-8.135.883.708H3.315z"
+                  ></path>
+                </svg>
+              </div>
+            </div>
+          </button>
+        </div>
+        <div class="container_container__v5gtR">
+          <div class="services_brief__OJqWD">
+            <div
+              aria-label="Nossos agentes certificados orientam você em cada etapa do mercado imobiliário com conhecimento especializado e suporte confiável."
+            >
+              <div aria-hidden="true" class="org-inline-style-106">
+                Nossos agentes certificados orientam você em
+                <div class="org-inline-style-107"></div>
+              </div>
+              <div aria-hidden="true" class="org-inline-style-108">
+                cada etapa do mercado imobiliário
+                <!-- -->
+                <span class="em">com conhecimento especializado</span>
+                <div class="org-inline-style-109"></div>
+              </div>
+              <div aria-hidden="true" class="org-inline-style-110">
+                <span class="em">e suporte confiável.</span>
+                <div class="org-inline-style-111"></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="services_action__21_Mi org-inline-style-112">
+              <button
+                type="button"
+                class="button_button-round__TFjlU button_color-secondary__FZDOG button_inversed__slQcI"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+                aria-controls="radix-_R_1dqnn5tjb_"
+                data-state="closed"
+              >
+                <div class="button_content__6Zh3n">
+                  <div class="button_button-round-text__IEwW5">
+                    <span data-text="Comece com a 7LM">Comece com a 7LM</span>
+                  </div>
+                  <span class="button_icon-after__vljdM">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                      <path
+                        fill="currentColor"
+                        d="M3.315 10.996h16.623l-.884.707-8.084-8.135h2.526l8.261 8.337-8.286 8.337h-2.526l8.11-8.135.883.708H3.315z"
+                      ></path>
+                    </svg>
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="features_root__CCic6">
+        <div class="container_container__v5gtR">
+          <div class="features_grid__wL0aQ">
+            <div>
+              <div class="features_title__vVo3d">
+                <h2>
+                  <div aria-label="Suporte além da compra e da venda">
+                    <div aria-hidden="true" class="org-inline-style-113">
+                      Suporte
+                      <div class="org-inline-style-114"></div>
+                    </div>
+                    <div aria-hidden="true" class="org-inline-style-115">
+                      além da
+                      <span class="em"></span>
+                      <span class="em">compra</span>
+                      <div class="org-inline-style-116"></div>
+                    </div>
+                    <div aria-hidden="true" class="org-inline-style-117">
+                      <span class="em"></span>
+                      <span class="em">e da venda</span>
+                      <div class="org-inline-style-118"></div>
+                    </div>
+                  </div>
+                </h2>
+              </div>
+            </div>
+            <div>
+              <div class="features_text__Wp8am">
+                <p>
+                  O mercado imobiliário nunca para — e nós também não.
+                  <!-- -->
+                  <span class="em">
+                    Nossos especialistas oferecem suporte contínuo além da venda, ajudando você a
+                    maximizar seu investimento.
+                  </span>
+                </p>
+              </div>
+              <div class="features_actions__f8ehB">
+                <div>
+                  <a
+                    class="button_button-round__TFjlU button_color-primary__JJ7Hh button_inversed__slQcI"
+                    href="https://findrealestate.com/services"
+                  >
+                    <div class="button_content__6Zh3n">
+                      <div class="button_button-round-text__IEwW5">
+                        <span data-text="Descubra Nossos Serviços">Descubra Nossos Serviços</span>
+                      </div>
+                      <span class="button_icon-after__vljdM">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <path
+                            fill="currentColor"
+                            d="m20.78 12.531-6.75 6.75a.75.75 0 1 1-1.06-1.061l5.47-5.47H3.75a.75.75 0 1 1 0-1.5h14.69l-5.47-5.469a.75.75 0 1 1 1.06-1.061l6.75 6.75a.75.75 0 0 1 0 1.061"
+                          ></path>
+                        </svg>
+                      </span>
+                    </div>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="features_items__oPgtQ">
+            <div class="features_item__IPG1i">
+              <div class="features_item-bg__gntQ1">
+                <img
+                  alt="Serviços de Financiamento"
+                  loading="lazy"
+                  width="1107"
+                  height="940"
+                  decoding="async"
+                  data-nimg="1"
+                  src="/assets/mortgage-services.jpg"
+                  class="org-inline-style-119"
+                />
+              </div>
+              <div class="features_item-title__uXmdj"><h3>Serviços de Financiamento</h3></div>
+              <div class="features_item-text__X8po0">
+                <p>Ajudamos você a conquistar o imóvel dos seus sonhos com opções flexíveis de financiamento.</p>
+              </div>
+              <div class="features_item-more__MtYBo">
+                <button
+                  type="button"
+                  class="button_button-round__TFjlU button_color-secondary__FZDOG button_inversed__slQcI"
+                  aria-haspopup="dialog"
+                  aria-expanded="false"
+                  aria-controls="radix-_R_8q2nn5tjb_"
+                  data-state="closed"
+                >
+                  <div class="button_content__6Zh3n">
+                    <div class="button_button-round-text__IEwW5">
+                      <span data-text="Saiba Mais">Saiba Mais</span>
+                    </div>
+                    <span class="button_icon-after__vljdM">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <path
+                          fill="currentColor"
+                          d="m20.78 12.531-6.75 6.75a.75.75 0 1 1-1.06-1.061l5.47-5.47H3.75a.75.75 0 1 1 0-1.5h14.69l-5.47-5.469a.75.75 0 1 1 1.06-1.061l6.75 6.75a.75.75 0 0 1 0 1.061"
+                        ></path>
+                      </svg>
+                    </span>
+                  </div>
+                </button>
+              </div>
+            </div>
+            <div class="features_item__IPG1i">
+              <div class="features_item-bg__gntQ1">
+                <img
+                  alt="Gestão de Propriedades"
+                  loading="lazy"
+                  width="1107"
+                  height="940"
+                  decoding="async"
+                  data-nimg="1"
+                  src="/assets/property-management.jpg"
+                  class="org-inline-style-120"
+                />
+              </div>
+              <div class="features_item-title__uXmdj"><h3>Gestão de Propriedades</h3></div>
+              <div class="features_item-text__X8po0">
+                <p>Deixe os detalhes conosco para que você aproveite os resultados.</p>
+              </div>
+              <div class="features_item-more__MtYBo">
+                <button
+                  type="button"
+                  class="button_button-round__TFjlU button_color-secondary__FZDOG button_inversed__slQcI"
+                  aria-haspopup="dialog"
+                  aria-expanded="false"
+                  aria-controls="radix-_R_9a2nn5tjb_"
+                  data-state="closed"
+                >
+                  <div class="button_content__6Zh3n">
+                    <div class="button_button-round-text__IEwW5">
+                      <span data-text="Saiba Mais">Saiba Mais</span>
+                    </div>
+                    <span class="button_icon-after__vljdM">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <path
+                          fill="currentColor"
+                          d="m20.78 12.531-6.75 6.75a.75.75 0 1 1-1.06-1.061l5.47-5.47H3.75a.75.75 0 1 1 0-1.5h14.69l-5.47-5.469a.75.75 0 1 1 1.06-1.061l6.75 6.75a.75.75 0 0 1 0 1.061"
+                        ></path>
+                      </svg>
+                    </span>
+                  </div>
+                </button>
+              </div>
+            </div>
+            <div class="features_item__IPG1i">
+              <div class="features_item-bg__gntQ1">
+                <img
+                  alt="Gestão de Propriedades"
+                  loading="lazy"
+                  width="1107"
+                  height="940"
+                  decoding="async"
+                  data-nimg="1"
+                  src="/assets/development.jpg"
+                  class="org-inline-style-121"
+                />
+              </div>
+              <div class="features_item-title__uXmdj">
+                <h3>Construção e Desenvolvimento Imobiliário</h3>
+              </div>
+              <div class="features_item-text__X8po0">
+                <p>
+                  Orientamos você nas etapas de construção e desenvolvimento de imóveis com
+                  experiência e suporte especializado.
+                </p>
+              </div>
+              <div class="features_item-more__MtYBo">
+                <button
+                  type="button"
+                  class="button_button-round__TFjlU button_color-secondary__FZDOG button_inversed__slQcI"
+                  aria-haspopup="dialog"
+                  aria-expanded="false"
+                  aria-controls="radix-_R_9q2nn5tjb_"
+                  data-state="closed"
+                >
+                  <div class="button_content__6Zh3n">
+                    <div class="button_button-round-text__IEwW5">
+                      <span data-text="Saiba Mais">Saiba Mais</span>
+                    </div>
+                    <span class="button_icon-after__vljdM">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <path
+                          fill="currentColor"
+                          d="m20.78 12.531-6.75 6.75a.75.75 0 1 1-1.06-1.061l5.47-5.47H3.75a.75.75 0 1 1 0-1.5h14.69l-5.47-5.469a.75.75 0 1 1 1.06-1.061l6.75 6.75a.75.75 0 0 1 0 1.061"
+                        ></path>
+                      </svg>
+                    </span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!--$-->
+      <!--/$-->
+    </main>
+    <div class="footer_wrapper__9GQwi">
+      <div class="container_container__v5gtR">
+        <div class="footer_content__E2ijt org-inline-style-132">
+          <div class="footer_newsletter-container__POI_T">
+            <div class="footer_contacts__HFiAl">
+              <div data-contact="address" class="footer_contact__fFxbr">
+                <div class="footer_contact-label__gYKsP">FORMOSA</div>
+                <div class="footer_contact-value__e1jbK">
+                  <a href="https://maps.google.com/?q=RUA%20EM%C3%8DLIO%20P%C3%93VOA%2C%20R.L%20TREZE%2C%20N%C2%B0%2013%2C%20QUADRA%2018%2C%20CENTRO%2C%20FORMOSA%20-%20GO%2C%2073801-280">
+                    <div>RUA EMÍLIO PÓVOA, R.L TREZE, N° 13, QUADRA 18.</div>
+                    <div>CENTRO, FORMOSA - GO.</div>
+                    <div>73801-280</div>
+                  </a>
+                </div>
+              </div>
+              <div data-contact="email" class="footer_contact__fFxbr">
+                <div class="footer_contact-label__gYKsP">Envie um e-mail</div>
+                <div class="footer_contact-value__e1jbK">
+                  <a href="mailto:sucessodocliente@7lm.com.br">sucessodocliente@7lm.com.br</a>
+                </div>
+              </div>
+              <div data-contact="phone" class="footer_contact__fFxbr">
+                <div class="footer_contact-label__gYKsP">Ligue para nós</div>
+                <div class="footer_contact-value__e1jbK">
+                  <a href="tel:+556132466180"><span>(61) 3246-6180</span></a>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="footer_links__vib46">
+            <div class="footer_nav__XkBHY">
+              <a class="footer_nav-link__LFUNG" href="https://findrealestate.com/search">
+                <span data-text="Buscar">Buscar</span>
+              </a>
+              <a class="footer_nav-link__LFUNG" href="https://findrealestate.com/agents">
+                <span data-text="Agentes">Agentes</span>
+              </a>
+              <a class="footer_nav-link__LFUNG" href="https://findrealestate.com/join">
+                <span data-text="Faça Parte">Faça Parte</span>
+              </a>
+              <a class="footer_nav-link__LFUNG" href="https://findrealestate.com/about">
+                <span data-text="Sobre Nós">Sobre Nós</span>
+              </a>
+              <a
+                class="footer_nav-link__LFUNG"
+                href="/acesso"
+                aria-label="Entrar no Portal"
+              >
+                <span data-text="Entrar no Portal">Entrar no Portal</span>
+              </a>
+            </div>
+            <div class="footer_socials__4JfcA">
+              <a
+                href="https://facebook.com/findrealestate.hq"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="footer_social-link__2uQBq"
+              >
+                Facebook
+              </a>
+              <a
+                href="https://www.instagram.com/findrealestate.hq"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="footer_social-link__2uQBq"
+              >
+                Instagram
+              </a>
+              <a
+                href="https://www.youtube.com/@findrealestate_hq"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="footer_social-link__2uQBq"
+              >
+                Youtube
+              </a>
+              <a
+                href="https://www.linkedin.com/company/oxford-property-group"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="footer_social-link__2uQBq"
+              >
+                Linkedin
+              </a>
+            </div>
+          </div>
+          <div class="footer_logo__5ncK8">
+            <img src="/assets/7lm_mono.svg" alt="7LM" class="footer_brand-mark__offline" />
+          </div>
+          <div class="footer_copyright-container__yt1ht">
+            <div class="footer_sublinks__Pj_ed">
+              <a href="https://findrealestate.com/terms-of-service">Termos</a>
+              <a href="https://findrealestate.com/privacy-policy">Política de Privacidade</a>
+              <a
+                target="_blank"
+                href="https://dos.ny.gov/system/files/documents/2025/03/nys-housing-and-anti-discrimination-notice_02.2025.pdf"
+              >
+                Aviso de Habitação Justa
+              </a>
+              <a href="https://findrealestate.com/operating-procedure">Procedimento Operacional</a>
+              <a href="https://findrealestate.com/press-and-media">Imprensa</a>
+              <span class="undefined">Aceitamos vouchers de escolha de moradia</span>
+              <span class="undefined">Se Aceptan Vales de Elección de Vivienda</span>
+            </div>
+            <div>7LM</div>
+            <div>
+              Copyright ©
+              <!-- -->
+              2026
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="_rht_toaster" class="org-inline-style-138"></div>
+    <style>
+      .footer_contact-value__e1jbK a,
+      .footer_contact-value__e1jbK span {
+        display: inline-block;
+        white-space: nowrap;
+        letter-spacing: 0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .footer_contact__fFxbr {
+        max-width: 260px;
+      }
+    </style>
+    <script src="/assets/webpack-131f7c95e444aa24.js" id="_R_" async=""></script>
+    <script src="_organized/index/script-03.js"></script>
+    <script src="_organized/index/script-04.js"></script>
+    <script src="_organized/index/script-05.js"></script>
+    <script src="_organized/index/script-06.js"></script>
+    <script src="_organized/index/script-07.js"></script>
+    <script src="_organized/index/script-08.js"></script>
+    <script src="_organized/index/script-09.js"></script>
+    <script src="_organized/index/script-10.js"></script>
+    <script src="_organized/index/script-11.js"></script>
+    <script src="_organized/index/script-12.js"></script>
+    <script src="_organized/index/script-13.js"></script>
+    <script src="_organized/index/script-14.js"></script>
+    <script src="_organized/index/script-15.js"></script>
+    <script src="_organized/index/script-16.js"></script>
+    <script src="_organized/index/script-17.js"></script>
+    <script src="_organized/index/script-18.js"></script>
+    <script src="_organized/index/script-19.js"></script>
+    <script src="_organized/index/script-20.js"></script>
+    <script src="_organized/index/script-21.js"></script>
+    <script src="_organized/index/script-22.js"></script>
+    <script src="_organized/index/script-23.js"></script>
+    <script src="_organized/index/script-24.js"></script>
+    <script src="_organized/index/script-25.js"></script>
+    <script src="_organized/index/script-26.js"></script>
+    <script src="_organized/index/script-27.js"></script>
+    <script src="/assets/swap.js" data-nscript="afterInteractive"></script>
+    <script>
+      (function () {
+        var KEYS = {
+access: ["sevenlm_connect_token_de_acesso", "sevenlm_connect_token_de_acesso"],
+refresh: ["sevenlm_connect_token_de_renovacao", "sevenlm_connect_token_de_renovacao"],
+user: ["sevenlm_connect_usuario", "sevenlm_connect_usuario"],
+at: ["sevenlm_connect_login_at", "sevenlm_connect_login_at"],
+provider: ["sevenlm_connect_provedor_login", "sevenlm_connect_provedor_login"]
+        };
+        var state = { mode: "", challenge: "", busy: false, open: false, providersLoaded: false };
+
+        function prepararGatilhosIniciaisDeLogin() {
+          var candidatos = document.querySelectorAll('[data-portal-login], a[href="/acesso"], a[href="#portal-login"], a[href="/?abrir_login=1"]');
+          for (var i = 0; i < candidatos.length; i += 1) {
+            var item = candidatos[i];
+            if (item.tagName === "A") {
+              item.setAttribute("href", "/?abrir_login=1");
+            }
+          }
+        }
+
+        function bindPortalLoginButtons() {
+          var candidatos = document.querySelectorAll(
+            '[data-portal-login], a[aria-label="Entrar no Portal"], button[aria-label="Entrar no Portal"]'
+          );
+          for (var i = 0; i < candidatos.length; i += 1) {
+            var item = candidatos[i];
+            if (item.__portalLoginBound) {
+              continue;
+            }
+            item.setAttribute("data-portal-login", "true");
+            item.addEventListener("click", navegarParaLoginPortal);
+            item.__portalLoginBound = true;
+          }
+        }
+
+        function $(id) {
+          return document.getElementById(id);
+        }
+
+        function save(keys, value) {
+          try {
+            for (var i = 0; i < (keys || []).length; i += 1) {
+              sessionStorage.setItem(keys[i], value);
+            }
+          } catch (_) {}
+        }
+
+        function remove(keys) {
+          try {
+            for (var i = 0; i < (keys || []).length; i += 1) {
+              sessionStorage.removeItem(keys[i]);
+            }
+          } catch (_) {}
+        }
+
+        function clearSession() {
+          Object.keys(KEYS).forEach(function (key) {
+            remove(KEYS[key]);
+          });
+        }
+
+        function msg(payload, fallback) {
+          if (!payload) {
+            return fallback;
+          }
+          if (typeof payload === "string") {
+            return payload || fallback;
+          }
+          return payload.mensagem || payload.message || payload.detail || payload.erro || payload.error || fallback;
+        }
+
+        async function req(url, options, timeoutMs) {
+          var controller = new AbortController();
+          var timer = setTimeout(function () {
+            controller.abort();
+          }, timeoutMs || 12000);
+
+          try {
+            var response = await fetch(
+              url,
+              Object.assign(
+                {
+                  cache: "no-store",
+                  credentials: "same-origin",
+                  signal: controller.signal,
+                  headers: { Accept: "application/json" }
+                },
+                options || {}
+              )
+            );
+            var text = await response.text().catch(function () {
+              return "";
+            });
+            var payload = {};
+            if (text) {
+              try {
+                payload = JSON.parse(text);
+              } catch (_) {
+                payload = { detail: text };
+              }
+            }
+            return { response: response, payload: payload };
+          } catch (error) {
+            if (error && error.name === "AbortError") {
+              throw new Error("A autenticação demorou demais para responder. Verifique se a API local está ativa.");
+            }
+            throw new Error("Não foi possível conectar ao servidor de autenticação.");
+          } finally {
+            clearTimeout(timer);
+          }
+        }
+
+        function hasAdminAccess(user) {
+          if (!user || typeof user !== "object") {
+            return false;
+          }
+          if (
+            user.acessos_portal &&
+            typeof user.acessos_portal === "object" &&
+            typeof user.acessos_portal["administracao.view"] === "boolean"
+          ) {
+            return user.acessos_portal["administracao.view"];
+          }
+          if (typeof user.pode_ver === "boolean") {
+            return user.pode_ver;
+          }
+          return false;
+        }
+
+        async function resolveDestinoPosLogin(access) {
+          try {
+            var result = await req(
+              "/api/me",
+              {
+                method: "GET",
+                headers: {
+                  Accept: "application/json",
+                  Authorization: "Bearer " + access
+                }
+              },
+              7000
+            );
+
+            if (result.response.status === 401) {
+              clearSession();
+              return "/inicio";
+            }
+
+            if (result.response.ok) {
+              var usuario = result.payload && (result.payload.usuario || result.payload.user || result.payload.data || result.payload);
+              if (usuario && typeof usuario === "object") {
+                save(KEYS.user, JSON.stringify(usuario));
+                if (hasAdminAccess(usuario)) {
+                  return "/administracao/acessos";
+                }
+              }
+            }
+          } catch (_) {}
+
+          return "/inicio";
+        }
+
+        function onReady(callback) {
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", callback, { once: true });
+            return;
+          }
+
+          callback();
+        }
+
+        function criarModalLoginPortal() {
+          var existente = $("portalLoginModal");
+          if (existente) {
+            return existente;
+          }
+
+          var host = $("portalLoginHost");
+          if (!host) {
+            host = document.createElement("div");
+            host.id = "portalLoginHost";
+            document.body.appendChild(host);
+          }
+
+          var container = document.createElement("div");
+          container.innerHTML = `
+            <div id="portalLoginModal" class="portal-login-modal" hidden>
+              <div id="portalLoginBackdrop" class="portal-login-modal__backdrop"></div>
+              <section class="portal-login-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="portalLoginTitle">
+                <button id="portalLoginClose" class="portal-login-modal__close" type="button" aria-label="Fechar login">
+                  <span></span>
+                  <span></span>
+                </button>
+                <h2 id="portalLoginTitle">Entrar</h2>
+                <p class="portal-login-modal__intro">Use seu e-mail e senha para acessar o portal.</p>
+                <div id="feedback" class="portal-login-modal__feedback" role="status" aria-live="polite"></div>
+                <section id="stageLogin" class="portal-login-modal__stage">
+                  <form id="loginForm" class="portal-login-modal__form" novalidate>
+                    <div class="portal-login-modal__field">
+                      <label for="correio_eletronico">E-mail</label>
+                      <div class="portal-login-modal__input-shell">
+                        <input id="correio_eletronico" class="portal-login-modal__input" type="email" autocomplete="username" placeholder="Informe seu e-mail" required />
+                      </div>
+                    </div>
+                    <div class="portal-login-modal__field">
+                      <label for="senha">Senha</label>
+                      <div class="portal-login-modal__input-shell">
+                        <input id="senha" class="portal-login-modal__input" type="password" autocomplete="current-password" placeholder="Digite sua senha" required />
+                      </div>
+                    </div>
+                    <button id="btnLogin" class="portal-login-modal__btn portal-login-modal__btn--primary" type="submit">Entrar</button>
+                  </form>
+                  <div id="entraWrap" class="portal-login-modal__stack hide">
+                    <div class="portal-login-modal__sep"><span>ou</span></div>
+                    <a id="btnEntra" class="portal-login-modal__btn portal-login-modal__btn--ghost" href="/auth/entra/entrar">Entrar com conta Microsoft</a>
+                  </div>
+                </section>
+                <section id="stageMfa" class="portal-login-modal__stage hide">
+                  <span class="portal-login-modal__pill">Microsoft Authenticator</span>
+                  <div class="portal-login-modal__stack">
+                    <h3 id="mfaTitle">Digite o código do Microsoft Authenticator</h3>
+                    <p id="mfaText">Abra o aplicativo e informe o código atual de 6 dígitos para concluir seu acesso.</p>
+                  </div>
+                  <div class="portal-login-modal__mfa-grid">
+                    <div id="qrWrap" class="portal-login-modal__qr hide">
+                      <img id="qrImg" alt="QR Code do Microsoft Authenticator" />
+                    </div>
+                    <div id="manualWrap" class="portal-login-modal__manual hide">
+                      <strong>Chave manual</strong>
+                      <code id="manualKey">-</code>
+                    </div>
+                  </div>
+                  <form id="mfaForm" class="portal-login-modal__form" novalidate>
+                    <div class="portal-login-modal__field">
+                      <label for="codigo">Código de 6 dígitos</label>
+                      <div class="portal-login-modal__input-shell">
+                        <input id="codigo" class="portal-login-modal__input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" required />
+                      </div>
+                    </div>
+                    <button id="btnMfa" class="portal-login-modal__btn portal-login-modal__btn--primary" type="submit">Validar código</button>
+                    <button id="btnBack" class="portal-login-modal__btn portal-login-modal__btn--secondary" type="button">Voltar</button>
+                  </form>
+                </section>
+              </section>
+            </div>
+          `.trim();
+
+          var modal = container.firstElementChild;
+          if (!modal) {
+            return null;
+          }
+
+          host.appendChild(modal);
+          return modal;
+        }
+
+        onReady(function () {
+          prepararGatilhosIniciaisDeLogin();
+
+          var params = new URLSearchParams(window.location.search);
+          var mensagem = params.get("erro_msg");
+          var abrirLogin = params.get("abrir_login");
+          var feedback = document.getElementById("portalFeedback");
+          var els = null;
+          var modalRecoveryScheduled = false;
+
+          function capturarElementosModal() {
+            var modalAtual = $("portalLoginModal");
+            if (!modalAtual) {
+              return null;
+            }
+
+            return {
+              modal: modalAtual,
+              backdrop: $("portalLoginBackdrop"),
+              close: $("portalLoginClose"),
+              feedback: $("feedback"),
+              helper: $("helper"),
+              login: $("stageLogin"),
+              mfa: $("stageMfa"),
+              loginForm: $("loginForm"),
+              mfaForm: $("mfaForm"),
+              correioEletronico: $("correio_eletronico"),
+              senha: $("senha"),
+              codigo: $("codigo"),
+              btnLogin: $("btnLogin"),
+              btnMfa: $("btnMfa"),
+              btnBack: $("btnBack"),
+              entraWrap: $("entraWrap"),
+              btnEntra: $("btnEntra"),
+              mfaTitle: $("mfaTitle"),
+              mfaText: $("mfaText"),
+              qrWrap: $("qrWrap"),
+              qrImg: $("qrImg"),
+              manualWrap: $("manualWrap"),
+              manualKey: $("manualKey")
+            };
+          }
+
+          function sincronizarModal() {
+            var atual = capturarElementosModal();
+            if (!atual) {
+              criarModalLoginPortal();
+              atual = capturarElementosModal();
+            }
+            if (!atual) {
+              return null;
+            }
+            els = atual;
+            registrarEventosDaModal();
+            return els;
+          }
+
+          function recuperarModalSeNecessario() {
+            if (!state.open || modalRecoveryScheduled) {
+              return;
+            }
+
+            var modalAtual = $("portalLoginModal");
+            if (modalAtual && document.body.contains(modalAtual)) {
+              return;
+            }
+
+            modalRecoveryScheduled = true;
+            window.requestAnimationFrame(function () {
+              modalRecoveryScheduled = false;
+              els = null;
+              openModal({ reset: false });
+            });
+          }
+
+          function note(text, kind) {
+            if (!text || !els.feedback) {
+              return;
+            }
+            els.feedback.textContent = text;
+            els.feedback.dataset.kind = kind || "info";
+            els.feedback.dataset.show = "1";
+          }
+
+          function clearNote() {
+            if (!els.feedback) {
+              return;
+            }
+            els.feedback.textContent = "";
+            els.feedback.removeAttribute("data-kind");
+            els.feedback.removeAttribute("data-show");
+          }
+
+          function helperText(text) {
+            if (els.helper) {
+              els.helper.textContent = text || "";
+            }
+          }
+
+          function toggle(stage) {
+            var mfa = stage === "mfa";
+            els.login.classList.toggle("hide", mfa);
+            els.mfa.classList.toggle("hide", !mfa);
+          }
+
+          function busy(on) {
+            state.busy = !!on;
+            [els.correioEletronico, els.senha, els.codigo, els.btnLogin, els.btnMfa, els.btnBack].forEach(function (el) {
+              if (el) {
+                el.disabled = !!on;
+              }
+            });
+            els.btnLogin.textContent = on ? "Processando..." : "Entrar";
+            els.btnMfa.textContent = on ? "Validando..." : "Validar código";
+          }
+
+          function cleanCode(value) {
+            return String(value || "").replace(/\D+/g, "").slice(0, 6);
+          }
+
+          function resetModalState() {
+            state.mode = "";
+            state.challenge = "";
+            if (els.codigo) {
+              els.codigo.value = "";
+            }
+            toggle("login");
+            clearNote();
+            helperText("Use seu acesso atual para entrar no portal.");
+          }
+
+        function restoreHomeState() {
+          try {
+            var urlAtual = new URL(window.location.href);
+            urlAtual.searchParams.delete("erro_msg");
+            urlAtual.searchParams.delete("abrir_login");
+            if (urlAtual.hash === "#portal-login") {
+              urlAtual.hash = "";
+            }
+            window.history.replaceState({}, document.title, urlAtual.pathname + urlAtual.search + urlAtual.hash);
+          } catch (_) {}
+        }
+
+          function openModal(options) {
+            var config = options || {};
+            if (!sincronizarModal()) {
+              return;
+            }
+            try {
+              window.__sevenlmPendingOpenLogin = false;
+            } catch (_) {}
+            if (!state.open) {
+              els.modal.hidden = false;
+              requestAnimationFrame(function () {
+                els.modal.dataset.open = "1";
+              });
+              document.body.classList.add("portal-login-open");
+              state.open = true;
+            }
+
+            if (config.reset !== false) {
+              resetModalState();
+            }
+
+            ensureProviders();
+
+            if (config.message) {
+              note(config.message, config.kind || "error");
+            }
+
+            window.setTimeout(function () {
+              if (state.mode === "mfa" && els.codigo) {
+                els.codigo.focus();
+                return;
+              }
+              if (els.correioEletronico) {
+                els.correioEletronico.focus();
+              }
+            }, 60);
+          }
+
+          function closeModal(options) {
+            var config = options || {};
+            if (!els || !els.modal || !document.body.contains(els.modal)) {
+              state.open = false;
+              restoreHomeState();
+              return;
+            }
+            if (state.busy && !config.force) {
+              return;
+            }
+            if (!state.open && els.modal.hidden) {
+              restoreHomeState();
+              return;
+            }
+
+            restoreHomeState();
+
+            els.modal.dataset.open = "0";
+            document.body.classList.remove("portal-login-open");
+            state.open = false;
+            window.setTimeout(function () {
+              if (!state.open) {
+                els.modal.hidden = true;
+                resetModalState();
+              }
+            }, 220);
+          }
+
+          async function ensureProviders() {
+            if (state.providersLoaded) {
+              return;
+            }
+
+            state.providersLoaded = true;
+            try {
+              var result = await req("/api/autenticacao/opcoes", { method: "GET" }, 5000);
+              var provedores = Array.isArray(result.payload && result.payload.provedores) ? result.payload.provedores : [];
+              var entra = provedores.find(function (item) {
+                return item && item.codigo === "entra_id" && item.url_entrada;
+              });
+
+              if (result.response.ok && entra) {
+                els.btnEntra.href = entra.url_entrada;
+                els.entraWrap.classList.remove("hide");
+              }
+            } catch (_) {}
+          }
+
+          function back() {
+            resetModalState();
+            window.setTimeout(function () {
+              if (els.senha) {
+                els.senha.focus();
+              }
+            }, 40);
+          }
+
+          function showMfaLogin(message) {
+            state.mode = "login";
+            els.mfaTitle.textContent = "Digite o código do Microsoft Authenticator";
+            els.mfaText.textContent = message || "Abra o aplicativo e informe o código atual de 6 dígitos para concluir seu acesso.";
+            els.qrWrap.classList.add("hide");
+            els.manualWrap.classList.add("hide");
+            els.qrImg.removeAttribute("src");
+            els.manualKey.textContent = "-";
+            els.codigo.value = "";
+            toggle("mfa");
+            helperText("Digite o código atual do Microsoft Authenticator.");
+            window.setTimeout(function () {
+              els.codigo.focus();
+            }, 40);
+          }
+
+          async function showMfaSetup(message) {
+            state.mode = "setup";
+            helperText("Gerando seu QR Code de configuração...");
+            var result = await req(
+              "/api/mfa/iniciar",
+              {
+                method: "POST",
+                headers: { Accept: "application/json", "Content-Type": "application/json" },
+                body: JSON.stringify({ mfa_desafio: state.challenge })
+              }
+            );
+
+            if (!result.response.ok) {
+              throw new Error(msg(result.payload, "Não foi possível iniciar a configuração do Microsoft Authenticator."));
+            }
+
+            els.mfaTitle.textContent = "Configure seu Microsoft Authenticator";
+            els.mfaText.textContent = message || "Escaneie o QR Code ou copie a chave manual. Depois informe o código de 6 dígitos para ativar o acesso.";
+            els.qrWrap.classList.remove("hide");
+            els.manualWrap.classList.remove("hide");
+            els.qrImg.src = "data:image/png;base64," + (result.payload.qr_png_base64 || "");
+            els.manualKey.textContent = result.payload.chave_manual || "-";
+            els.codigo.value = "";
+            toggle("mfa");
+            helperText("Escaneie o QR Code e valide o código gerado no app.");
+            note("Seu autenticador ainda não estava configurado. Faça a vinculação abaixo.", "info");
+            window.setTimeout(function () {
+              els.codigo.focus();
+            }, 40);
+          }
+
+          async function finish(payload, provider) {
+            var access = payload.token_de_acesso || payload.access_token || payload.token || "";
+            if (!access) {
+              throw new Error("O portal não recebeu um token válido da autenticação.");
+            }
+
+            save(KEYS.access, access);
+            if (payload.token_de_renovacao || payload.refresh_token) {
+              save(KEYS.refresh, payload.token_de_renovacao || payload.refresh_token);
+            }
+            if (payload.usuario || payload.user) {
+              save(KEYS.user, JSON.stringify(payload.usuario || payload.user));
+            }
+            save(KEYS.at, new Date().toISOString());
+            save(KEYS.provider, provider || "credencial_interna");
+            helperText("Concluindo sua autenticação...");
+            window.location.replace(await resolveDestinoPosLogin(access));
+          }
+
+          function handleCodigoInput() {
+            this.value = cleanCode(this.value);
+          }
+
+          function handleCloseRequest() {
+            closeModal({ returnHome: true, force: true });
+          }
+
+          async function handleLoginSubmit(event) {
+            if (!sincronizarModal()) {
+              return;
+            }
+
+            event.preventDefault();
+            clearNote();
+            var correioEletronico = String(els.correioEletronico.value || "").trim();
+            var senha = String(els.senha.value || "");
+
+            if (!correioEletronico || !senha) {
+              return note("Informe o e-mail e a senha para continuar.", "error");
+            }
+
+            busy(true);
+            helperText("Validando suas credenciais...");
+
+            try {
+              var timezone = "";
+              try {
+                timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+              } catch (_) {}
+
+              var result = await req(
+                "/api/entrada",
+                {
+                  method: "POST",
+                  headers: { Accept: "application/json", "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    correio_eletronico: correioEletronico,
+                    senha: senha,
+                    fuso_horario_informado: timezone
+                  })
+                }
+              );
+
+              if (!result.response.ok) {
+                throw new Error(msg(result.payload, "Não foi possível iniciar o acesso ao portal."));
+              }
+
+              if (result.payload && (result.payload.token_de_acesso || result.payload.access_token || result.payload.token)) {
+                return await finish(result.payload, "credencial_interna");
+              }
+
+              state.challenge = (result.payload && result.payload.mfa_desafio) || "";
+
+              if (result.payload && result.payload.mfa_setup_required && state.challenge) {
+                return await showMfaSetup(msg(result.payload, ""));
+              }
+
+              if (result.payload && result.payload.mfa_required && state.challenge) {
+                return showMfaLogin(msg(result.payload, ""));
+              }
+
+              throw new Error(msg(result.payload, "O portal não informou a próxima etapa da autenticação."));
+            } catch (error) {
+              note(error.message || "Não foi possível concluir a autenticação.", "error");
+              helperText("Confira se a API local esta em execucao e tente novamente.");
+            } finally {
+              busy(false);
+            }
+          }
+
+          async function handleMfaSubmit(event) {
+            if (!sincronizarModal()) {
+              return;
+            }
+
+            event.preventDefault();
+            clearNote();
+            var codigo = cleanCode(els.codigo.value);
+            els.codigo.value = codigo;
+
+            if (codigo.length !== 6) {
+              return note("Informe um código válido de 6 dígitos.", "error");
+            }
+
+            if (!state.mode || !state.challenge) {
+              return note("A etapa de autenticação expirou. Volte e tente novamente.", "error");
+            }
+
+            busy(true);
+            helperText("Validando o código do Microsoft Authenticator...");
+
+            try {
+              var endpoint = state.mode === "setup" ? "/api/mfa/confirmar" : "/api/mfa/verificar";
+              var result = await req(
+                endpoint,
+                {
+                  method: "POST",
+                  headers: { Accept: "application/json", "Content-Type": "application/json" },
+                  body: JSON.stringify({ mfa_desafio: state.challenge, codigo: codigo })
+                }
+              );
+
+              if (!result.response.ok) {
+                throw new Error(msg(result.payload, "Não foi possível validar o código informado."));
+              }
+
+              await finish(result.payload, "credencial_interna");
+            } catch (error) {
+              note(error.message || "Não foi possível validar o código.", "error");
+              helperText("Confira o código no app e tente novamente.");
+            } finally {
+              busy(false);
+            }
+          }
+
+          function registrarEventosDaModal() {
+            if (!els || !els.modal || els.modal.__sevenlmBound) {
+              return;
+            }
+
+            if (els.codigo) {
+              els.codigo.addEventListener("input", handleCodigoInput);
+            }
+            if (els.btnBack) {
+              els.btnBack.addEventListener("click", back);
+            }
+            if (els.close) {
+              els.close.addEventListener("click", handleCloseRequest);
+            }
+            if (els.backdrop) {
+              els.backdrop.addEventListener("click", handleCloseRequest);
+            }
+            if (els.modal) {
+              els.modal.addEventListener("click", function (event) {
+                var closeTrigger = event.target && event.target.closest ? event.target.closest("#portalLoginClose") : null;
+                if (!closeTrigger) {
+                  return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                handleCloseRequest();
+              });
+            }
+            if (els.loginForm) {
+              els.loginForm.addEventListener("submit", handleLoginSubmit);
+            }
+            if (els.mfaForm) {
+              els.mfaForm.addEventListener("submit", handleMfaSubmit);
+            }
+
+            els.modal.__sevenlmBound = true;
+          }
+
+          sincronizarModal();
+          window.__sevenlmOpenLoginNow = function () {
+            openModal();
+          };
+
+          document.addEventListener(
+            "click",
+            function (event) {
+              var target = event.target;
+              var modalAtual = (els && els.modal) || $("portalLoginModal");
+              var candidato = target && target.closest ? target.closest("a, button") : null;
+              var trigger = null;
+              if (candidato && eGatilhoDeLoginPortal(candidato)) {
+                trigger = candidato;
+              }
+              if (!trigger || (modalAtual && modalAtual.contains(trigger))) {
+                return;
+              }
+
+              navegarParaLoginPortal(event);
+            },
+            true
+          );
+
+          document.addEventListener("sevenlm:open-login", function () {
+            openModal();
+          });
+
+          new MutationObserver(function () {
+            recuperarModalSeNecessario();
+          }).observe(document.documentElement, {
+            childList: true,
+            subtree: true
+          });
+
+          try {
+            var urlAtual = new URL(window.location.href);
+            var deveAbrirModal =
+              window.__sevenlmPendingOpenLogin === true ||
+              abrirLogin === "1" ||
+              abrirLogin === "true" ||
+              urlAtual.hash === "#portal-login" ||
+              !!mensagem;
+
+            if (deveAbrirModal) {
+              window.requestAnimationFrame(function () {
+                openModal({
+                  message: mensagem || "",
+                  kind: mensagem ? "error" : "info"
+                });
+              });
+            } else if (mensagem && feedback) {
+              feedback.textContent = mensagem;
+              feedback.hidden = false;
+              feedback.setAttribute("data-state", "visible");
+            }
+
+          } catch (erro) {}
+        });
+      })();
+    </script>
+    <div class="org-inline-style-139"><div></div></div>
+    <next-route-announcer class="org-inline-style-140">
+      <template shadowrootmode="open">
+        <div
+          aria-live="assertive"
+          id="__next-route-announcer__"
+          role="alert"
+          class="org-inline-style-141"
+        ></div>
+      </template>
+    </next-route-announcer>
+  </body>
+</html>
+
+
+

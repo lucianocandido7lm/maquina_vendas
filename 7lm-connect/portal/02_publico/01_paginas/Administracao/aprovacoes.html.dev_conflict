@@ -1,0 +1,135 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR" data-preload-root-classes="tl-admin-gated">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM MÃ¡quina de Vendas</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/inicio.css?v=20260425-modulos-qa1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/aprovacoes_excecao.css?v=20260529-theme-icon-fit-1" />
+
+  <meta name="sevenlm-connect-api-base-url" content="" />
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <meta name="sevenlm-connect-required-permission" content="aprovacoes.excecao.view" />
+  <meta name="sevenlm-connect-access-fallback" content="/inicio" />
+  <meta name="sevenlm-connect-endpoint-aprovacoes-resumo" content="/api/connect-comercial/aprovacoes-excecao/resumo" />
+  <meta name="sevenlm-connect-endpoint-aprovacoes-lista" content="/api/connect-comercial/aprovacoes-excecao" />
+  <meta name="sevenlm-connect-endpoint-aprovacoes-detalhe" content="/api/connect-comercial/aprovacoes-excecao/{id}" />
+  <meta name="sevenlm-connect-endpoint-aprovacoes-decisao" content="/api/connect-comercial/aprovacoes-excecao/{id}/decisao" />
+
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260519-access-contract-1" defer></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260512-title-fix-1" defer></script>
+  <script src="/02_recursos/02_scripts/aprovacoes_excecao.js?v=20260526-aprovacoes-composicao-1" defer></script>
+</head>
+<body class="tl-aprovacoes-page">
+  <div class="tl-shell tl-aprovacoes-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-aprovacoes-main">
+      <header class="tl-aprovacoes-topbar">
+        <div>
+          <p class="tl-aprovacoes-eyebrow">ADMINISTRAÃ‡ÃƒO â€¢ GOVERNANÃ‡A COMERCIAL</p>
+          <h1>AprovaÃ§Ãµes excepcionais</h1>
+          <p class="tl-aprovacoes-subtitle">
+            O gestor decide operações com gatilhos comerciais, composição familiar, incentivos e pendências documentais antes da venda.
+          </p>
+        </div>
+
+        <div class="tl-aprovacoes-userbox">
+          <button id="btnTema" class="tl-aprovacoes-icon-btn" type="button" aria-label="Alternar tema">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2"></path>
+              <path d="M12 20v2"></path>
+              <path d="m4.93 4.93 1.41 1.41"></path>
+              <path d="m17.66 17.66 1.41 1.41"></path>
+              <path d="M2 12h2"></path>
+              <path d="M20 12h2"></path>
+              <path d="m6.34 17.66-1.41 1.41"></path>
+              <path d="m19.07 4.93-1.41 1.41"></path>
+            </svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+            </svg>
+          </button>
+
+          <div class="tl-aprovacoes-user">
+            <div class="tl-aprovacoes-user__avatar" id="userInitials">7L</div>
+            <div>
+              <strong id="nomeUsuario">Carregando...</strong>
+              <span id="metaUsuario">Validando acesso...</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="tl-aprovacoes-summary">
+        <article class="tl-aprovacoes-kpi">
+          <span>Fila pendente</span>
+          <strong id="kpiPendentes">0</strong>
+          <small>SolicitaÃ§Ãµes aguardando decisÃ£o</small>
+        </article>
+        <article class="tl-aprovacoes-kpi">
+          <span>Status do acesso</span>
+          <strong id="kpiPerfil">GestÃ£o</strong>
+          <small id="kpiPerfilHint">Carregando permissÃµes...</small>
+        </article>
+        <article class="tl-aprovacoes-kpi">
+          <span>Ãšltima atualizaÃ§Ã£o</span>
+          <strong id="kpiAtualizadoEm">-</strong>
+          <small>Sincronizado com a fila do simulador</small>
+        </article>
+      </section>
+
+      <section id="feedbackAprovacoes" class="tl-aprovacoes-feedback" aria-live="polite"></section>
+
+      <section class="tl-aprovacoes-toolbar">
+        <div class="tl-aprovacoes-filtros" role="tablist" aria-label="Filtro de solicitaÃ§Ãµes">
+          <button class="is-active" type="button" data-filter="PENDENTE">Pendentes</button>
+          <button type="button" data-filter="APROVADA">Aprovadas</button>
+          <button type="button" data-filter="REPROVADA">Reprovadas</button>
+          <button type="button" data-filter="CANCELADA">Canceladas</button>
+          <button type="button" data-filter="TODAS">Todas</button>
+        </div>
+
+        <div class="tl-aprovacoes-toolbar__actions">
+          <input id="inputBuscaAprovacao" type="search" placeholder="Buscar por cliente, imÃ³vel ou motivo" />
+          <button id="btnAtualizarAprovacoes" type="button">Atualizar fila</button>
+        </div>
+      </section>
+
+      <section class="tl-aprovacoes-grid">
+        <article class="tl-aprovacoes-panel tl-aprovacoes-panel--lista">
+          <div class="tl-aprovacoes-panel__head">
+            <div>
+              <span class="tl-aprovacoes-panel__kicker">FILA</span>
+              <h2>SolicitaÃ§Ãµes</h2>
+            </div>
+            <span id="listaResumo" class="tl-aprovacoes-panel__count">0 itens</span>
+          </div>
+
+          <div id="listaAprovacoes" class="tl-aprovacoes-list" aria-live="polite"></div>
+        </article>
+
+        <article class="tl-aprovacoes-panel tl-aprovacoes-panel--detalhe">
+          <div class="tl-aprovacoes-panel__head">
+            <div>
+              <span class="tl-aprovacoes-panel__kicker">ANÃLISE</span>
+              <h2>Detalhe da operaÃ§Ã£o</h2>
+            </div>
+            <span id="badgeStatusDetalhe" class="tl-aprovacoes-status">Sem seleÃ§Ã£o</span>
+          </div>
+
+          <div id="detalheAprovacao" class="tl-aprovacoes-detail tl-aprovacoes-empty">
+            Selecione uma solicitaÃ§Ã£o Ã  esquerda para revisar os gatilhos, os gaps e decidir a operaÃ§Ã£o.
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

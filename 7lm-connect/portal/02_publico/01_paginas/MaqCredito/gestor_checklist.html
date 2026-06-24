@@ -1,0 +1,2835 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="/maq-credito/_next/static/css/d4dae26e25c227eb.css" data-precedence="next"/><link rel="preload" as="script" fetchPriority="low" href="/maq-credito/_next/static/chunks/webpack-b965cfe6332815e5.js"/><script src="/maq-credito/_next/static/chunks/4bd1b696-215e5051988c3dde.js" async=""></script><script src="/maq-credito/_next/static/chunks/794-37703094b8a496b0.js" async=""></script><script src="/maq-credito/_next/static/chunks/main-app-b94c8acf698b2289.js" async=""></script><script src="/maq-credito/_next/static/chunks/601-5c42fe17a6fc9aa6.js" async=""></script><script src="/maq-credito/_next/static/chunks/app/gestor/checklist/page-aa2ebf8ae7683a92.js" async=""></script><title>MAQ2 Credito</title><meta name="description" content="Sistema de analise e acompanhamento de credito."/><script src="/maq-credito/_next/static/chunks/polyfills-42372ed130431b0a.js" noModule=""></script></head><body><div hidden=""><!--$--><!--/$--></div><style>@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+:root {
+      --bg: #0f172a;
+      --card: #ffffff;
+      --card-soft: #f8fafc;
+      --accent: #22c55e;
+      --accent-soft: rgba(34, 197, 94, 0.15);
+      --accent-dark: #16a34a;
+      --text: #0f172a;
+      --text-soft: #475569;
+      --danger: #ef4444;
+      --warning: #f97316;
+      --info: #0ea5e9;
+      --border: #cbd5e1;
+      --shadow: 0 18px 38px rgba(15, 23, 42, 0.12);
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: #ffffff;
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .app-container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .topbar-left h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .topbar-left h1 i {
+      color: var(--accent);
+    }
+
+    .topbar-left .badge {
+      font-size: 0.8rem;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-weight: 600;
+      display: inline-block;
+      margin-top: 8px;
+    }
+
+    .topbar-left .subtitle {
+      color: var(--text-soft);
+      font-size: 0.9rem;
+      margin-top: 6px;
+    }
+
+    .topbar-right {
+      font-size: 0.85rem;
+      color: #334155;
+      background: #ffffff;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .topbar-right strong {
+      color: var(--accent);
+    }
+
+    .topbar-right .user-line {
+      font-size: 0.8rem;
+      color: #475569;
+      margin-top: 4px;
+    }
+
+    .btn-voltar-acompanhamento {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      margin-top: 8px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(34, 197, 94, 0.38);
+      background: rgba(34, 197, 94, 0.12);
+      color: #166534;
+      font-weight: 800;
+      font-size: 0.82rem;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 2fr 1.4fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .topbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      padding: 20px 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      transition: var(--transition);
+    }
+
+    .card:hover {
+      border-color: rgba(15, 23, 42, 0.22);
+      box-shadow: 0 22px 36px rgba(15, 23, 42, 0.16);
+    }
+
+    .card h2 {
+      color: #0f172a;
+      font-size: 1.2rem;
+      margin: 0 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card h2 i {
+      color: var(--accent);
+    }
+
+    .card small {
+      color: #475569;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+
+    .section {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px dashed rgba(15, 23, 42, 0.22);
+    }
+
+    .section-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #334155;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .section-title span.pill {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      padding: 4px 12px;
+      font-size: 0.75rem;
+      color: #334155;
+      background: #f8fafc;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 16px;
+    }
+
+    @media (max-width: 600px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.85rem;
+    }
+
+    label {
+      color: #334155;
+      font-weight: 500;
+    }
+
+    input, select {
+      background: var(--card-soft);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      color: var(--text);
+      font-size: 0.85rem;
+      outline: none;
+      transition: var(--transition);
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+    }
+
+    .input-error {
+      border-color: var(--danger) !important;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+    }
+
+    input[readonly] {
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #475569;
+      line-height: 1.6;
+      margin-top: 6px;
+    }
+
+    .hint i {
+      margin-right: 4px;
+      color: var(--accent);
+    }
+
+    .hint strong {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .rules-list {
+      background: #f8fafc;
+      color: #334155;
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 12px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-left: 3px solid var(--accent);
+    }
+
+    .rules-list ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .rules-list li {
+      margin-bottom: 6px;
+      font-size: 0.8rem;
+    }
+
+    .status-dots {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+      margin-top: 8px;
+    }
+
+    .dot-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #334155;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot.nao-enviado { background: #9ca3af; box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.2); }
+    .dot.em-analise { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2); }
+    .dot.aprovado { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2); }
+    .dot.rejeitado { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
+    .dot.pendenciado { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
+    .dot.reprovado { background: #020617; border: 1px solid #4b5563; }
+
+    .file-row {
+      display: block;
+      padding: 14px 16px 14px 14px;
+      border: 1px solid rgba(148, 163, 184, .24);
+      border-left: 4px solid #cbd5e1;
+      border-radius: 12px;
+      background: #ffffff;
+      margin-bottom: 12px;
+      transition: var(--transition);
+    }
+    .file-row[data-status="pendenciado"] { border-left-color: #ef4444; }
+    .file-row[data-status="enviado"] { border-left-color: #0ea5e9; }
+    .file-row[data-status="aprovado"] { border-left-color: #22c55e; }
+    .file-row[data-status="em-analise"] { border-left-color: #f59e0b; }
+
+    .file-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .file-info {
+      min-width: 0;
+    }
+
+    .file-row-title {
+      color: #0f172a;
+      font-size: 0.88rem;
+      font-weight: 900;
+      display: block;
+      gap: 8px;
+    }
+
+    .file-row-title i {
+      color: var(--accent);
+    }
+
+    .file-row-desc {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.75rem;
+      color: #475569;
+      line-height: 1.35;
+    }
+
+    .file-upload-action {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      font-size: 0.75rem;
+    }
+
+    .btn-upload {
+      border-radius: 999px;
+      min-height: 34px;
+      padding: 0 13px;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.2));
+      border: 1px solid rgba(34, 197, 94, 0.5);
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .btn-upload:hover {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.3));
+      border-color: var(--accent);
+    }
+
+    .btn-upload.uploaded {
+      background: rgba(34, 197, 94, 0.2);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .decision-select {
+      min-width: 132px;
+      border-radius: 999px;
+      border: 1px solid rgba(34, 197, 94, 0.45);
+      background: #ecfdf5;
+      color: #166534;
+      font-weight: 700;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+
+    .btn-upload.pending {
+      background: rgba(245, 158, 11, 0.2);
+      border-color: var(--warning);
+      color: var(--warning);
+    }
+
+    .btn-upload.rejected {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .btn-primary {
+      margin-top: 20px;
+      width: 100%;
+      border-radius: 12px;
+      padding: 14px 0;
+      border: none;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      color: white;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-weight: 600;
+      box-shadow: 0 12px 25px rgba(34, 197, 94, 0.3);
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-2px);
+      box-shadow: 0 16px 30px rgba(34, 197, 94, 0.4);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .sla-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      padding: 16px;
+      border-radius: 14px;
+      background: radial-gradient(circle at top left, rgba(34, 197, 94, 0.2), transparent 60%),
+                  var(--card-soft);
+      border: 1px solid rgba(34, 197, 94, 0.5);
+      transition: var(--transition);
+    }
+
+    .sla-box:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+    }
+
+    .sla-time {
+      font-size: 2rem;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--accent);
+    }
+
+    .sla-label {
+      color: var(--text-soft);
+      font-size: 0.75rem;
+    }
+
+    .sla-role {
+      font-size: 0.8rem;
+      text-align: right;
+    }
+
+    .sla-role strong {
+      color: var(--accent);
+      font-size: 1rem;
+    }
+
+    .kit-section {
+      background: rgba(30, 41, 59, 0.5);
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 12px;
+      text-align: center;
+    }
+
+    .kit-section i {
+      font-size: 2rem;
+      color: var(--accent);
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .notification {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--card);
+      border: 1px solid rgba(34, 197, 94, 0.5);
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 1000;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: var(--transition);
+    }
+
+    .notification.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .notification i {
+      color: var(--accent);
+      font-size: 1.2rem;
+    }
+
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: var(--transition);
+    }
+
+    .modal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 30px;
+      max-width: 500px;
+      width: 90%;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      box-shadow: var(--shadow);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-soft);
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+
+    .progress-bar {
+      height: 6px;
+      background: rgba(148, 163, 184, 0.2);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-dark));
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+
+    .doc-thumbnail {
+      height: 36px;
+      width: 36px;
+      object-fit: cover;
+      border-radius: 6px;
+      margin-left: 12px;
+      border: 2px solid rgba(148, 163, 184, 0.2);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .doc-thumbnail:hover {
+      transform: scale(1.8);
+      border-color: var(--accent);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      z-index: 100;
+    }
+
+    /* Loading Overlay */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(4px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+      opacity: 0;
+      visibility: hidden;
+      transition: var(--transition);
+    }
+
+    .loading-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(34, 197, 94, 0.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  
+
+    .checklist-only-card { max-width: 1120px; margin: 0 auto; }
+    .topbar { display: none; }
+    .checklist-backbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 14px;
+    }
+    .checklist-backbar a {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 16px;
+      border-radius: 14px;
+      background: #0f172a;
+      color: #f8fafc;
+      text-decoration: none;
+      font-weight: 900;
+      box-shadow: 0 12px 26px rgba(15, 23, 42, .16);
+      white-space: nowrap;
+    }
+    .kit-timeline-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .kit-timeline-card {
+      background: #ffffff;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-radius: 16px;
+      padding: 20px 22px;
+      box-shadow: var(--shadow);
+    }
+    .kit-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .kit-header h2 {
+      margin: 0;
+      color: #0f172a;
+      font-size: 1rem;
+      letter-spacing: .1em;
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: 1.2;
+    }
+    .kit-status-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(14, 165, 233, .26);
+      background: rgba(14, 165, 233, .09);
+      color: #075985;
+      font-size: .72rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .kit-agehab .kit-status-badge {
+      border-color: rgba(245, 158, 11, .28);
+      background: rgba(245, 158, 11, .12);
+      color: #92400e;
+    }
+    .kit-stepper {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+      padding-top: 4px;
+    }
+    .kit-stepper::before {
+      content: "";
+      position: absolute;
+      left: calc(8.33% + 10px);
+      right: calc(8.33% + 10px);
+      top: 14px;
+      height: 3px;
+      background: #dbe4ef;
+      border-radius: 999px;
+    }
+    .kit-progress-fill {
+      position: absolute;
+      left: calc(8.33% + 10px);
+      top: 14px;
+      display: block;
+      width: 0;
+      max-width: calc(83.33% - 20px);
+      height: 3px;
+      border-radius: 999px;
+      background: #22c55e;
+      transition: width .25s ease;
+    }
+    .kit-step {
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+      width: 100%;
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+      color: #64748b;
+      font-size: .68rem;
+      font-weight: 800;
+      text-align: center;
+      line-height: 1.15;
+    }
+    .kit-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2px solid #cbd5e1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-size: .58rem;
+      font-weight: 900;
+    }
+    .kit-step.done {
+      color: #0f172a;
+    }
+    .kit-step.done .kit-dot {
+      border-color: #22c55e;
+      background: #22c55e;
+    }
+    .kit-step.active {
+      color: #0f172a;
+      font-weight: 900;
+    }
+    .kit-step.active .kit-dot {
+      border-color: transparent;
+      box-shadow: 0 0 0 7px rgba(14, 165, 233, .14);
+      background: #0ea5e9;
+    }
+    .kit-agehab .kit-step.active .kit-dot {
+      box-shadow: 0 0 0 10px rgba(245, 158, 11, .16);
+      background: #f59e0b;
+    }
+    .kit-step-label {
+      display: block;
+      width: 64px;
+      max-width: calc(100% - 4px);
+      font-size: 11px;
+      line-height: 1.18;
+      text-align: center;
+      white-space: normal;
+      overflow-wrap: break-word;
+      word-break: keep-all;
+    }
+    .kit-stage-description {
+      margin: 12px 0 0;
+      color: #334155;
+      font-size: .86rem;
+      font-weight: 800;
+      line-height: 1.4;
+    }
+    .dados-proponente-card {
+      max-width: none;
+    }
+    .header-card {
+      padding: 16px 20px;
+      border-radius: 16px;
+      background: #ffffff;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      box-shadow: 0 12px 26px rgba(15, 23, 42, 0.07);
+    }
+    .dados-proponente-card > h2,
+    .dados-proponente-card > small {
+      display: none;
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 12px;
+    }
+    .header-title {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.1;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-transform: none;
+      color: #0f172a;
+    }
+    .header-subtitle {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: #475569;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .dados-proponente-card .section {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: 0;
+    }
+    .dados-proponente-card .section:first-of-type {
+      border-top: 0;
+    }
+    .dados-proponente-card .section-title {
+      display: none;
+    }
+    .executive-title-input,
+    .executive-meta-field input {
+      width: 100%;
+      height: auto;
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      border-radius: 0;
+      pointer-events: none;
+    }
+    .executive-title-input {
+      color: #0f172a;
+      font-size: 30px;
+      line-height: 1.12;
+      font-weight: 900;
+      letter-spacing: -0.01em;
+    }
+    .executive-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      color: #475569;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .executive-meta-field {
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .executive-meta-field input {
+      display: inline-block;
+      width: auto;
+      max-width: 190px;
+      color: #475569;
+      font: inherit;
+      opacity: .92;
+    }
+    .executive-meta-separator {
+      color: #94a3b8;
+    }
+    .status-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 10px 0 12px;
+    }
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .status-chip::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+    .status-chip[data-status-kind="caixa"]::before {
+      background: #0ea5e9;
+    }
+    .status-chip[data-status-kind="agehab"]::before {
+      background: #f59e0b;
+    }
+    .status-chip input {
+      display: inline;
+      width: auto;
+      max-width: 110px;
+      height: auto;
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      pointer-events: none;
+      box-shadow: none;
+      border-radius: 0;
+    }
+    .editable-grid,
+    .dados-proponente-card .form-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px 12px;
+    }
+    .dados-proponente-card label {
+      display: block;
+      margin-bottom: 4px;
+      color: #334155;
+      font-size: 10px;
+      line-height: 1.2;
+      font-weight: 900;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .dados-proponente-card input,
+    .dados-proponente-card select {
+      width: 100%;
+      height: 44px;
+      min-height: 0;
+      padding: 0 12px;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+      box-sizing: border-box;
+    }
+    .dados-proponente-card .executive-title-input {
+      height: auto;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: #0f172a;
+      font-size: 30px;
+      line-height: 1.12;
+      font-weight: 900;
+      letter-spacing: -0.01em;
+      box-shadow: none;
+    }
+    .dados-proponente-card .executive-meta-field input,
+    .dados-proponente-card .status-chip input {
+      width: auto;
+      height: auto;
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      box-shadow: none;
+      pointer-events: none;
+    }
+    .dados-proponente-card .hint {
+      display: none;
+    }
+    .dados-proponente-card > .section:nth-of-type(2),
+    .dados-proponente-card .dados-actions {
+      display: none;
+    }
+    .header-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .header-actions .btn-primary {
+      min-width: 0;
+      width: 100%;
+      min-height: 44px;
+    }
+    .header-actions #btnAcompanhar {
+      background: #ffffff;
+      color: #0f172a;
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+    .header-actions #btnProcessChat {
+      background: #ffffff;
+      color: #0f172a;
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+    @media (max-width: 1100px) {
+      .editable-grid,
+      .dados-proponente-card .form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 700px) {
+      .kit-timeline-grid { grid-template-columns: 1fr; }
+      .kit-header { flex-direction: column; gap: 10px; }
+      .kit-stepper { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 18px; }
+      .kit-stepper::before,
+      .kit-progress-fill { display: none; }
+      .header-top { flex-direction: column; }
+      .editable-grid,
+      .header-actions,
+      .dados-proponente-card .form-grid { grid-template-columns: 1fr; }
+      .header-card { padding: 14px; border-radius: 14px; }
+    }
+    .file-row-desc { white-space: pre-line; }
+    .pendency-note {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-left: 4px solid #ef4444;
+      border-radius: 10px;
+      background: #fff1f2;
+      color: #991b1b;
+      font-size: .82rem;
+      font-weight: 800;
+      line-height: 1.35;
+      white-space: pre-line;
+      max-height: 96px;
+      overflow-y: auto;
+    }
+    .pendency-note small {
+      display: block;
+      margin-top: 4px;
+      color: #7f1d1d;
+      font-weight: 700;
+    }
+    .analyst-review {
+      margin-top: 12px;
+      max-width: 780px;
+    }
+    .review-fields {
+      display: grid;
+      grid-template-columns: minmax(160px, 220px) minmax(240px, 1fr) minmax(170px, 210px);
+      gap: 10px 12px;
+      align-items: end;
+    }
+    .review-fields [data-pendency-box] {
+      display: contents;
+    }
+    .document-body [data-pendency-box] {
+      display: contents;
+    }
+    .review-fields [data-pendency-box][hidden] {
+      display: none;
+    }
+    .document-body [data-pendency-box][hidden] {
+      display: none;
+    }
+    .analyst-review select,
+    .analyst-review input,
+    .analyst-review textarea {
+      width: 100%;
+      border: 1px solid rgba(15, 23, 42, .14);
+      border-radius: 12px;
+      background: #fff;
+      color: #0f172a;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: .82rem;
+      box-sizing: border-box;
+    }
+    .review-field {
+      min-width: 0;
+    }
+    .review-field label {
+      display: block;
+      margin-bottom: 5px;
+      color: #475569;
+      font-size: 10px;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .analyst-review textarea {
+      min-height: 78px;
+      resize: vertical;
+      overflow: hidden;
+    }
+    .review-field-observation {
+      grid-column: span 2;
+    }
+    .review-actions {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      padding-top: 2px;
+    }
+    .analyst-review button {
+      width: auto;
+      box-sizing: border-box;
+      min-height: 34px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 999px;
+      background: #16a34a;
+      color: #fff;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .document-actions > button {
+      width: auto;
+      box-sizing: border-box;
+      min-height: 34px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 999px;
+      background: #16a34a;
+      color: #fff;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .file-upload-action { min-width: 145px; }
+    .document-card {
+      padding: 18px 24px;
+      border-radius: 18px;
+      border: 1px solid #dbe3ef;
+      border-left: 5px solid #ef4444;
+      background: #fff;
+    }
+    .document-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+    .document-card[data-status="pendenciado"] { border-left-color: #ef4444; }
+    .document-card[data-status="enviado"] { border-left-color: #0ea5e9; }
+    .document-card[data-status="aprovado"] { border-left-color: #22c55e; }
+    .document-card[data-status="em-analise"] { border-left-color: #f59e0b; }
+    .document-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .document-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+    }
+    .document-desc {
+      margin-top: 6px;
+      color: #475569;
+      line-height: 1.4;
+    }
+    .document-status-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .document-table-mode .section {
+      padding: 14px;
+      overflow: visible;
+    }
+    .document-table-mode .section-title {
+      margin-bottom: 4px;
+    }
+    .document-table-mode .section-summary {
+      margin-bottom: 10px;
+    }
+    .document-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: visible;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .document-table-header,
+    .document-table-mode .file-header {
+      min-width: 1040px;
+      display: grid;
+      grid-template-columns: minmax(190px, 1.35fr) minmax(280px, 1.75fr) 105px 120px 155px 165px minmax(292px, 292px);
+      align-items: center;
+      gap: 0;
+    }
+    .document-table-header {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: #f8fafc;
+      border-bottom: 1px solid #dbe3ee;
+      color: #475569;
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .document-table-header > span,
+    .document-table-cell {
+      min-height: 42px;
+      padding: 9px 10px;
+      border-right: 1px solid #edf2f7;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .document-table-header > span:last-child,
+    .document-table-cell:last-child {
+      border-right: 0;
+    }
+    .document-table-mode .file-row {
+      display: block;
+      padding: 0;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      border-left: 0;
+      background: #fff;
+      border-bottom: 1px solid #eef2f7;
+    }
+    .document-table-mode .file-row:hover {
+      background: #f8fafc;
+    }
+    .document-table-mode .file-row:last-child {
+      border-bottom: 0;
+    }
+    .document-table-mode .file-info {
+      display: flex;
+      align-items: center;
+    }
+    .document-table-mode .file-row-title {
+      font-size: .78rem;
+      line-height: 1.25;
+      font-weight: 800;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .document-table-mode .file-row-title i {
+      display: none;
+    }
+    .document-table-mode .file-row-desc {
+      margin: 0;
+      font-size: .72rem;
+      line-height: 1.3;
+      color: #475569;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      white-space: normal;
+    }
+    .document-table-mode .file-row-desc.is-expanded {
+      display: block;
+      overflow: visible;
+    }
+    .doc-description-cell {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .doc-description-toggle {
+      border: 0;
+      background: transparent;
+      color: #2563eb;
+      font-size: .7rem;
+      font-weight: 700;
+      padding: 0;
+      cursor: pointer;
+    }
+    .doc-muted {
+      color: #64748b;
+      font-size: .74rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .doc-status-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      min-width: fit-content;
+      padding: 10px 14px;
+      font-size: .64rem;
+      font-weight: 900;
+      line-height: 1;
+      box-sizing: border-box;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      border: 1px solid #cbd5e1;
+      color: #475569;
+      background: #f8fafc;
+    }
+    .doc-status-pill.status-em-analise,
+    .doc-status-pill.status-enviado {
+      background: #fff7ed;
+      border-color: #fed7aa;
+      color: #9a3412;
+    }
+    .doc-status-pill.status-pendente,
+    .doc-status-pill.status-pendenciado {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+    .doc-status-pill.status-aprovado {
+      background: #ecfdf5;
+      border-color: #bbf7d0;
+      color: #166534;
+    }
+    .doc-status-pill.status-reprovado {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+      color: #0f172a;
+    }
+    .doc-deadline-cell {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .doc-deadline-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      padding: 4px 8px;
+      font-size: .64rem;
+      font-weight: 900;
+      white-space: nowrap;
+      background: #f8fafc;
+      color: #475569;
+    }
+    .doc-deadline-badge.deadline-ok {
+      background: #ecfdf5;
+      border-color: #bbf7d0;
+      color: #166534;
+    }
+    .doc-deadline-badge.deadline-near {
+      background: #fefce8;
+      border-color: #fde68a;
+      color: #854d0e;
+    }
+    .doc-deadline-badge.deadline-late {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+    .doc-options-cell {
+      justify-content: flex-start;
+      gap: 8px;
+      overflow: visible;
+      min-width: 292px;
+      flex-wrap: nowrap;
+    }
+    .doc-action-menu {
+      position: relative;
+    }
+    .doc-action-trigger,
+    .document-table-mode .btn-upload {
+      min-width: fit-content;
+      min-height: 38px;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: .72rem;
+      font-weight: 800;
+      line-height: 1;
+      box-sizing: border-box;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #0f172a;
+      box-shadow: none;
+      white-space: nowrap;
+      overflow: visible;
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .doc-action-trigger {
+      min-width: 92px;
+      cursor: pointer;
+    }
+    .document-table-mode .btn-upload {
+      min-width: 150px;
+    }
+    .doc-action-trigger i,
+    .document-table-mode .btn-upload i,
+    .doc-status-pill i {
+      flex-shrink: 0;
+    }
+    .doc-action-dropdown {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      min-width: 190px;
+      padding: 6px;
+      border: 1px solid #dbe3ee;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 18px 35px rgba(15, 23, 42, .16);
+      z-index: 50;
+      display: none;
+    }
+    .doc-action-menu.is-open .doc-action-dropdown {
+      display: block;
+    }
+    .doc-action-dropdown button {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      border-radius: 6px;
+      padding: 8px 9px;
+      text-align: left;
+      font-size: .75rem;
+      color: #334155;
+      cursor: pointer;
+    }
+    .doc-action-dropdown button:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .document-table-mode .analyst-review {
+      margin: 0;
+      border: 0;
+      border-top: 1px solid #e2e8f0;
+      border-radius: 0;
+      background: #fbfdff;
+      padding: 12px;
+      max-width: none;
+    }
+    .document-table-mode .analyst-review[hidden] {
+      display: none;
+    }
+    .relationship-table .document-table-header,
+    .relationship-table .file-header {
+      min-width: 820px;
+      grid-template-columns: minmax(230px, 1.5fr) minmax(260px, 1.5fr) 110px 150px 170px;
+    }
+    .relationship-table .file-row-title {
+      font-weight: 900;
+    }
+    .relationship-table .file-row-desc {
+      font-size: .7rem;
+      -webkit-line-clamp: 3;
+    }
+    .relationship-response-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: fit-content;
+      border-radius: 999px;
+      border: 1px solid #fde68a;
+      background: #fefce8;
+      color: #854d0e;
+      padding: 10px 14px;
+      font-size: .64rem;
+      font-weight: 900;
+      line-height: 1;
+      white-space: nowrap;
+      box-sizing: border-box;
+    }
+    .relationship-response-pill.response-sim {
+      border-color: #bbf7d0;
+      background: #ecfdf5;
+      color: #166534;
+    }
+    .relationship-response-pill.response-nao {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+    .relationship-response-pill.response-na {
+      border-color: #cbd5e1;
+      background: #f8fafc;
+      color: #475569;
+    }
+    .relationship-actions-cell {
+      gap: 8px;
+      overflow: visible;
+    }
+    .relationship-answer-menu {
+      position: relative;
+    }
+    .relationship-answer-trigger,
+    .relationship-answer-dropdown button {
+      min-width: 112px;
+      min-height: 38px;
+      border-radius: 6px;
+      padding: 10px 14px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #0f172a;
+      font-size: .72rem;
+      font-weight: 800;
+      line-height: 1;
+      box-sizing: border-box;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .relationship-answer-dropdown {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      display: none;
+      min-width: 132px;
+      padding: 6px;
+      border: 1px solid #dbe3ee;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 18px 35px rgba(15, 23, 42, .16);
+      z-index: 50;
+    }
+    .relationship-answer-menu.is-open .relationship-answer-dropdown {
+      display: grid;
+      gap: 4px;
+    }
+    .relationship-native-select {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .document-body {
+      display: grid;
+      grid-template-columns: 320px 520px;
+      gap: 24px;
+      align-items: start;
+    }
+    .document-left,
+    .document-right {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+    }
+    .document-field label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #475569;
+      letter-spacing: .05em;
+    }
+    .document-field select,
+    .document-field textarea,
+    .document-field input {
+      width: 100%;
+      min-height: 48px;
+      box-sizing: border-box;
+    }
+    .document-field textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+    .document-actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 12px;
+      margin-top: 0;
+    }
+    .upload-action {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .upload-action .dot {
+      order: -1;
+    }
+    .doc-chat-count {
+      margin-left: 6px;
+      color: #0f172a;
+    }
+    .doc-chat-panel {
+      max-width: 1180px;
+      margin: 12px auto 0;
+      border: 1px solid #dbe3ef;
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 12px;
+    }
+    .doc-chat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 260px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .doc-chat-empty {
+      color: #64748b;
+      font-size: .82rem;
+      font-weight: 800;
+    }
+    .doc-chat-message {
+      max-width: 72%;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: #ffffff;
+      padding: 8px 10px;
+      color: #0f172a;
+      font-size: .82rem;
+      line-height: 1.35;
+    }
+    .doc-chat-message.mine {
+      align-self: flex-end;
+      background: #ecfdf5;
+      border-color: #bbf7d0;
+    }
+    .doc-chat-meta {
+      display: block;
+      margin-bottom: 4px;
+      color: #64748b;
+      font-size: .68rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .doc-chat-compose {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr) auto;
+      gap: 10px;
+      margin-top: 10px;
+      align-items: end;
+    }
+    .doc-chat-compose select,
+    .doc-chat-compose textarea {
+      width: 100%;
+      box-sizing: border-box;
+      color: #0f172a;
+      background: #fff;
+      font: inherit;
+      font-size: .82rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+    }
+    .doc-chat-compose select {
+      min-height: 46px;
+      padding: 0 11px;
+      font-weight: 900;
+    }
+    .doc-chat-compose textarea {
+      min-height: 46px;
+      max-height: 120px;
+      resize: vertical;
+      padding: 9px 11px;
+    }
+    .doc-chat-compose button {
+      min-height: 42px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 999px;
+      background: #0f172a;
+      color: #fff;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .document-actions .analyst-review button {
+      width: auto;
+    }
+    .section-summary { color: var(--text-soft); font-size: .78rem; }
+    .doc-counter { color: var(--accent); font-weight: 700; }
+    .btn-upload input[type="file"] { display: none; }
+    @media (max-width: 1000px) {
+      .document-body {
+        grid-template-columns: 1fr;
+      }
+
+      .document-actions {
+        justify-content: stretch;
+      }
+
+      .document-actions button,
+      .document-actions label {
+        flex: 1;
+      }
+      .doc-chat-compose { grid-template-columns: 1fr; }
+      .doc-chat-message { max-width: 100%; }
+    }
+    @media (max-width: 700px) {
+      .file-header { grid-template-columns: 1fr; }
+      .file-upload-action { width: 100%; justify-content: flex-start; }
+      .analyst-review { max-width: 100%; }
+      .review-fields { grid-template-columns: 1fr; }
+      .review-field-observation { grid-column: auto; }
+      .review-actions { justify-content: flex-start; flex-wrap: wrap; }
+      .btn-upload { flex: 1; justify-content: center; }
+    }</style><div><div class="app-container">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h1><i class="fas fa-file-contract"></i> Checklist de Documentos</h1>
+        <div class="badge">UPLOAD DE DOCUMENTOS</div>
+        <div class="subtitle">Checklist extraído do painel do analista com layout, cores, luz indicadora e botão de upload do DOCTYPE HTML.</div>
+      </div>
+      <div class="topbar-right">
+        <div><strong>Total de documentos:</strong> 36</div>
+        <div><strong>Status:</strong> <span id="totalEnviados">0</span> enviados</div>
+        <div class="user-line">Cada documento mantém o semáforo visual individual.</div>
+        <a class="btn-voltar-acompanhamento" href="/gestor/telemetria">Voltar para acompanhamento</a>
+      </div>
+    </div>
+
+
+    <div class="checklist-backbar">
+      <a href="/gestor/telemetria">Voltar</a>
+    </div>
+
+
+    <div class="kit-timeline-grid">
+      <div class="kit-timeline-card kit-caixa" data-timeline="caixa" data-current-stage="reserva">
+        <div class="kit-header">
+          <h2>KIT CAIXA</h2>
+          <span class="kit-status-badge" data-stage-badge="caixa">Recebido</span>
+        </div>
+        <div class="kit-stepper" role="list" aria-label="KIT CAIXA">
+          <span class="kit-progress-fill" data-stage-progress="caixa" style="width:0%"></span>
+          <div class="kit-step active" data-stage="reserva" data-state="active" role="listitem">
+            <span class="kit-dot" aria-hidden="true">1</span>
+            <span class="kit-step-label">Recebido</span>
+          </div><div class="kit-step pending" data-stage="em_analise_credito" data-state="pending" role="listitem">
+            <span class="kit-dot" aria-hidden="true">2</span>
+            <span class="kit-step-label">Conferência</span>
+          </div><div class="kit-step pending" data-stage="emitindo_formularios" data-state="pending" role="listitem">
+            <span class="kit-dot" aria-hidden="true">3</span>
+            <span class="kit-step-label">Emitir Formulários</span>
+          </div><div class="kit-step pending" data-stage="formularios_em_assinatura" data-state="pending" role="listitem">
+            <span class="kit-dot" aria-hidden="true">4</span>
+            <span class="kit-step-label">Formulários Anexos</span>
+          </div><div class="kit-step pending" data-stage="formularios_assinados" data-state="pending" role="listitem">
+            <span class="kit-dot" aria-hidden="true">5</span>
+            <span class="kit-step-label">Formulários Assinados</span>
+          </div><div class="kit-step pending" data-stage="envio_conformidade" data-state="pending" role="listitem">
+            <span class="kit-dot" aria-hidden="true">6</span>
+            <span class="kit-step-label">Envio Conformidade</span>
+          </div>
+        </div>
+        <p class="kit-stage-description" data-stage-description="caixa">Cliente em reserva. Aguardando inicio da analise de credito.</p>
+      </div>
+      <div class="kit-timeline-card kit-agehab" data-timeline="agehab" data-current-stage="reserva">
+        <div class="kit-header">
+          <h2>KIT AGEHAB</h2>
+          <span class="kit-status-badge" data-stage-badge="agehab">Recebido</span>
+        </div>
+        <div class="kit-stepper" role="list" aria-label="KIT AGEHAB">
+          <span class="kit-progress-fill" data-stage-progress="agehab" style="width:0%"></span>
+          <div class="kit-step active" data-stage="reserva" data-state="active" role="listitem">
+            <span class="kit-dot" aria-hidden="true">1</span>
+            <span class="kit-step-label">Recebido</span>
+          </div><div class="kit-step pending" data-stage="em_analise_credito" data-state="pending" role="listitem">
+            <span class="kit-dot" aria-hidden="true">2</span>
+            <span class="kit-step-label">Análise</span>
+          </div><div class="kit-step pending" data-stage="ficha_emitida" data-state="pending" role="listitem">
+            <span class="kit-dot" aria-hidden="true">3</span>
+            <span class="kit-step-label">Critérios</span>
+          </div><div class="kit-step pending" data-stage="ficha_recebida" data-state="pending" role="listitem">
+            <span class="kit-dot" aria-hidden="true">4</span>
+            <span class="kit-step-label">Ficha</span>
+          </div><div class="kit-step pending" data-stage="em_validacao_agehab" data-state="pending" role="listitem">
+            <span class="kit-dot" aria-hidden="true">5</span>
+            <span class="kit-step-label">Envio</span>
+          </div><div class="kit-step pending" data-stage="agehab_validada" data-state="pending" role="listitem">
+            <span class="kit-dot" aria-hidden="true">6</span>
+            <span class="kit-step-label">Finalizado</span>
+          </div>
+        </div>
+        <p class="kit-stage-description" data-stage-description="agehab">Cliente em reserva. Aguardando inicio da analise de credito.</p>
+      </div>
+    </div>
+
+
+    <div class="card dados-proponente-card header-card">
+      <h2><i class="fas fa-user-circle"></i> Dados do Proponente & Dependentes</h2>
+      <small>Preencha os dados básicos. Informações sensíveis (CPF, telefone, etc.) continuam apenas no CRM.</small>
+
+      <div class="section">
+        <div class="header-top">
+          <div>
+            <h2 class="header-title">Proponente</h2>
+            <p class="header-subtitle">Identificação e dados comerciais do processo</p>
+          </div>
+          <span class="header-badge">Identificação do processo</span>
+        </div>
+
+        <div class="header-top">
+          <div>
+            <input class="executive-title-input" type="text" id="nomeCompleto" placeholder="Nome do proponente" />
+            <div class="executive-meta">
+              <span>Reserva #</span><span class="executive-meta-field"><input type="text" id="numeroReserva" placeholder="458712" readonly /></span>
+              <span class="executive-meta-separator">-</span>
+              <span>Produto</span><span class="executive-meta-field"><input type="text" id="produto" value="PP" readonly /></span>
+              <span class="executive-meta-separator">-</span>
+              <span>Corretor</span><span class="executive-meta-field"><input type="text" id="corretor" placeholder="Nome do corretor" /></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-strip" aria-label="Status operacional">
+          <span class="status-chip" data-status-kind="sinal">Sinal <input type="text" id="sinalOk" value="Nao tem" readonly /></span>
+          <span class="status-chip" data-status-kind="fiador">Fiador <input type="text" id="fiadorOk" value="Nao tem" readonly /></span>
+          <span class="status-chip" data-status-kind="caixa" data-cca-conformidade-chip hidden>Conformidade <input type="checkbox" id="ccaEnviadoConformidade" /> Enviado</span>
+        </div>
+
+        <div class="form-grid editable-grid">
+          <div class="form-group">
+            <label>Cidade</label>
+            <input type="text" id="cidade" placeholder="Ex: Águas Lindas de Goiás" />
+          </div>
+
+          <div class="form-group">
+            <label>Empreendimento</label>
+            <select id="empreendimento">
+              <option value="">Selecione...</option>
+              <option>AGL</option>
+              <option>FSA</option>
+              <option>Catalão</option>
+              <option>Outro</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Estado civil</label>
+            <select id="estadoCivil">
+              <option value="">Selecione...</option>
+              <option value="solteiro">Solteiro(a)</option>
+              <option value="casado">Casado(a)</option>
+              <option value="uniao_estavel">União estável</option>
+              <option value="divorciado">Divorciado(a)</option>
+              <option value="viuvo">Viúvo(a)</option>
+            </select>
+            <div class="hint">
+              <i class="fas fa-info-circle"></i> Se marcar <strong>casado</strong> ou <strong>união estável</strong>, serão exigidos docs do cônjuge.
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Tipo de renda</label>
+            <select id="tipoRenda">
+              <option value="">Selecione...</option>
+              <option value="formal">Formal (CLT / comprovada)</option>
+              <option value="informal">Informal</option>
+              <option value="mista">Mista (formal + informal)</option>
+            </select>
+            <div class="hint">
+              <i class="fas fa-exclamation-triangle"></i>
+              <strong>Formal:</strong> obrigatório enviar <strong>extrato de FGTS</strong>.<br>
+              <strong>Informal:</strong> obrigatório anexar <strong>Declaração de Não Renda para Agehab.</strong>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Tipo de dependente</label>
+            <select id="tipoDependente">
+              <option value="">Nao definido</option>
+              <option value="filho_menor">Filho menor</option>
+              <option value="filho_maior">Filho maior</option>
+              <option value="parente">Parente ate 3 grau</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="dependenteCasadoGroup">
+            <label>Dependente casado?</label>
+            <select id="dependenteCasado">
+              <option value="nao" selected>Nao</option>
+              <option value="sim">Sim</option>
+            </select>
+          </div>
+        </div>      </div>
+
+      <div class="section">
+        <div class="section-title">
+          <span>Dependentes</span>
+          <span class="pill">Regras automáticas por tipo</span>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Tipo de dependente</label>
+            <select id="tipoDependente">
+              <option value="">Selecione...</option>
+              <option value="filho_menor">Filho menor</option>
+              <option value="filho_maior">Filho maior</option>
+              <option value="parente">Parente até 3º grau</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="dependenteCasadoGroup">
+            <label>Dependente casado?</label>
+            <select id="dependenteCasado">
+              <option value="nao" selected>Não</option>
+              <option value="sim">Sim</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="header-actions">
+        <button class="btn-primary" id="btnSalvar">
+          <i class="fas fa-save"></i> Salvar
+        </button>
+        <button class="btn-primary" id="btnAcompanhar">
+          <i class="fas fa-list"></i> Acompanhamento
+        </button>
+        <button class="btn-primary" id="btnProcessChat">
+          <i class="fas fa-comments"></i> Chat CCA <span class="doc-chat-count"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="card checklist-only-card">
+      <h2><i class="fas fa-list-check"></i> Conferência e envio do checklist</h2>
+      <small>Somente tipo de documento, descrição, indicador visual e botão de upload. Sem os campos extras do painel do analista.</small>
+      <div data-kit-caixa-download-slot></div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>Documentos do Proponente</span>
+              <span class="pill"><span class="doc-counter">6</span> documentos</span>
+            </div>
+            <div class="section-summary">Base do dossiê do proponente (identidade, estado civil, residência, etc.).</div>
+
+
+            <div class="file-row document-card" data-doc="documentos-do-proponente-identidade-e-cpf-1" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-id-card"></i> Identidade e CPF</span>
+                <span class="file-row-desc document-desc">CNH, RG, Identidade Militar, Passaporte brasileiro ou carteira funcional com fé pública (dentro da validade) do proponente.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-do-proponente-identidade-e-cpf-1" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-do-proponente-identidade-e-cpf-1">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-do-proponente-identidade-e-cpf-1" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-do-proponente-comp-de-estado-civil-2" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-heart"></i> Comp. de estado civil</span>
+                <span class="file-row-desc document-desc">Certidão de nascimento.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-do-proponente-comp-de-estado-civil-2" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-do-proponente-comp-de-estado-civil-2">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-do-proponente-comp-de-estado-civil-2" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-do-proponente-comprovante-de-residencia-3" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-house"></i> Comprovante de residência</span>
+                <span class="file-row-desc document-desc">Comprovante aberto; não precisa estar no nome do cliente.
+Água, luz, telefone, internet, celular, cartão de crédito.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-do-proponente-comprovante-de-residencia-3" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-do-proponente-comprovante-de-residencia-3">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-do-proponente-comprovante-de-residencia-3" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-do-proponente-irpf-recibo-4" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> IRPF + recibo</span>
+                <span class="file-row-desc document-desc">Declaração completa do ano atual + recibo de entrega + DARF pago (se houver).
+⚠️ Somente se perfil = INFORMAL e IRPF para informal = SIM.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-do-proponente-irpf-recibo-4" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-do-proponente-irpf-recibo-4">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-do-proponente-irpf-recibo-4" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-do-proponente-extrato-fgts-5" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-money-bill-wave"></i> Extrato FGTS</span>
+                <span class="file-row-desc document-desc">App FGTS / site Caixa / agência.
+Militar/soldado: anexar também 3 últimos extratos bancários da conta salário.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-do-proponente-extrato-fgts-5" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-do-proponente-extrato-fgts-5">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-do-proponente-extrato-fgts-5" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-do-proponente-ctps-carteira-6" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> CTPS (carteira)</span>
+                <span class="file-row-desc document-desc">Carteira Digital (todas infos) ou CTPS física: qualificação, contratos e anotações.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-do-proponente-ctps-carteira-6" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-do-proponente-ctps-carteira-6">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-do-proponente-ctps-carteira-6" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>Dependente — Filhos menores de 18 anos</span>
+              <span class="pill"><span class="doc-counter">1</span> documentos</span>
+            </div>
+            <div class="section-summary">Aparece quando o tipo de dependente for &quot;Filho menor&quot;.</div>
+
+
+            <div class="file-row document-card" data-doc="dependente-filhos-menores-de-18-anos-certidao-de-nascimento-1" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-heart"></i> Certidão de nascimento</span>
+                <span class="file-row-desc document-desc">Guarda/adoção: anexar termos respectivos.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-dependente-filhos-menores-de-18-anos-certidao-de-nascimento-1" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-dependente-filhos-menores-de-18-anos-certidao-de-nascimento-1">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="dependente-filhos-menores-de-18-anos-certidao-de-nascimento-1" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>Dependente — Filhos maiores / parentes até 3º grau</span>
+              <span class="pill"><span class="doc-counter">3</span> documentos</span>
+            </div>
+            <div class="section-summary">Aparece quando o dependente não for &quot;Filho menor&quot;.</div>
+
+
+            <div class="file-row document-card" data-doc="dependente-filhos-maiores-parentes-ate-3-grau-identidade-e-cpf-1" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-id-card"></i> Identidade e CPF</span>
+                <span class="file-row-desc document-desc">CNH, RG, Identidade Militar, Passaporte brasileiro ou carteira funcional com fé pública (dentro da validade) do dependente.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-dependente-filhos-maiores-parentes-ate-3-grau-identidade-e-cpf-1" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-dependente-filhos-maiores-parentes-ate-3-grau-identidade-e-cpf-1">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="dependente-filhos-maiores-parentes-ate-3-grau-identidade-e-cpf-1" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="dependente-filhos-maiores-parentes-ate-3-grau-comp-de-estado-civil-2" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-heart"></i> Comp. de estado civil</span>
+                <span class="file-row-desc document-desc">SOLTEIRO: Certidão de nascimento
+CASADO: Certidão de casamento – RG/CPF do cônjuge se houver renda
+VIÚVO: Certidão de casamento e óbito
+DIVORCIADO: Certidão averbada.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-dependente-filhos-maiores-parentes-ate-3-grau-comp-de-estado-civil-2" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-dependente-filhos-maiores-parentes-ate-3-grau-comp-de-estado-civil-2">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="dependente-filhos-maiores-parentes-ate-3-grau-comp-de-estado-civil-2" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="dependente-filhos-maiores-parentes-ate-3-grau-declaracao-de-parentesco-3" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> Declaração de parentesco</span>
+                <span class="file-row-desc document-desc">Declaração conforme regras Caixa, vinculando dependente ao proponente.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-dependente-filhos-maiores-parentes-ate-3-grau-declaracao-de-parentesco-3" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-dependente-filhos-maiores-parentes-ate-3-grau-declaracao-de-parentesco-3">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="dependente-filhos-maiores-parentes-ate-3-grau-declaracao-de-parentesco-3" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>Renda formal (CLT / vínculo)</span>
+              <span class="pill"><span class="doc-counter">2</span> documentos</span>
+            </div>
+            <div class="section-summary">Aparece quando perfil de renda = CLT.</div>
+
+
+            <div class="file-row document-card" data-doc="renda-formal-clt-vinculo-holerites-1" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-money-bill-wave"></i> Holerites</span>
+                <span class="file-row-desc document-desc">3 últimos holerites/contracheques (nome/CNPJ/cargo/admissão/bruto).</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-renda-formal-clt-vinculo-holerites-1" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-renda-formal-clt-vinculo-holerites-1">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="renda-formal-clt-vinculo-holerites-1" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="renda-formal-clt-vinculo-renda-variavel-2" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-money-bill-wave"></i> Renda variável</span>
+                <span class="file-row-desc document-desc">Comissões/HE/adicional: holerites suficientes para média conforme Caixa.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-renda-formal-clt-vinculo-renda-variavel-2" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-renda-formal-clt-vinculo-renda-variavel-2">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="renda-formal-clt-vinculo-renda-variavel-2" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>Renda informal (autônomo / liberal)</span>
+              <span class="pill"><span class="doc-counter">1</span> documentos</span>
+            </div>
+            <div class="section-summary">Aparece quando perfil de renda = INFORMAL.</div>
+
+
+            <div class="file-row document-card" data-doc="renda-informal-autonomo-liberal-extrato-bancario-1" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-money-bill-wave"></i> Extrato bancário</span>
+                <span class="file-row-desc document-desc">3 últimos meses (preferir mês fechado). Aceita PDF/impresso e bancos digitais.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-renda-informal-autonomo-liberal-extrato-bancario-1" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-renda-informal-autonomo-liberal-extrato-bancario-1">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="renda-informal-autonomo-liberal-extrato-bancario-1" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>Aposentados / Pensionistas</span>
+              <span class="pill"><span class="doc-counter">1</span> documentos</span>
+            </div>
+            <div class="section-summary">Aparece quando perfil de renda = APOSENTADO.</div>
+
+
+            <div class="file-row document-card" data-doc="aposentados-pensionistas-extrato-do-beneficio-1" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-money-bill-wave"></i> Extrato do benefício</span>
+                <span class="file-row-desc document-desc">Último extrato (Meu INSS / Dataprev).</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-aposentados-pensionistas-extrato-do-beneficio-1" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-aposentados-pensionistas-extrato-do-beneficio-1">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="aposentados-pensionistas-extrato-do-beneficio-1" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>Domésticos / contratação por CPF</span>
+              <span class="pill"><span class="doc-counter">1</span> documentos</span>
+            </div>
+            <div class="section-summary">Aparece quando perfil de renda = DOMÉSTICO.</div>
+
+
+            <div class="file-row document-card" data-doc="domesticos-contratacao-por-cpf-esocial-1" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> eSocial</span>
+                <span class="file-row-desc document-desc">3 últimos comprovantes do eSocial.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-domesticos-contratacao-por-cpf-esocial-1" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-domesticos-contratacao-por-cpf-esocial-1">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="domesticos-contratacao-por-cpf-esocial-1" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>Documentos Caixa</span>
+              <span class="pill"><span class="doc-counter">7</span> documentos</span>
+            </div>
+            <div class="section-summary">Extras (Cheque Azul/Cartão) aparecem se &quot;CCA gerou formulários&quot; = SIM.</div>
+
+
+            <div class="file-row document-card" data-doc="documentos-caixa-damp-1" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> DAMP</span>
+                <span class="file-row-desc document-desc">Preenchida e assinada digitalmente. Físico só com aprovação do crédito.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-caixa-damp-1" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-caixa-damp-1">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-caixa-damp-1" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-caixa-ficha-de-cadastro-caixa-2" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-building-columns"></i> Ficha de cadastro Caixa</span>
+                <span class="file-row-desc document-desc">Preenchida (endereço igual ao cadastro). Assinada digitalmente; físico com aprovação.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-caixa-ficha-de-cadastro-caixa-2" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-caixa-ficha-de-cadastro-caixa-2">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-caixa-ficha-de-cadastro-caixa-2" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-caixa-abertura-de-conta-3" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-building-columns"></i> Abertura de conta</span>
+                <span class="file-row-desc document-desc">Assinada digitalmente; físico precisa aprovação do crédito.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-caixa-abertura-de-conta-3" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-caixa-abertura-de-conta-3">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-caixa-abertura-de-conta-3" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-caixa-mo-4" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> MO</span>
+                <span class="file-row-desc document-desc">Assinatura correta (2ª página). Casal: assinatura de ambos.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-caixa-mo-4" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-caixa-mo-4">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-caixa-mo-4" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-caixa-formulario-cheque-azul-5" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> Formulário Cheque Azul</span>
+                <span class="file-row-desc document-desc">Formulário de contratação (assinatura digital). Físico somente com aprovação.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-caixa-formulario-cheque-azul-5" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-caixa-formulario-cheque-azul-5">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-caixa-formulario-cheque-azul-5" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-caixa-formulario-cartao-6" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> Formulário Cartão</span>
+                <span class="file-row-desc document-desc">Formulário do cartão Caixa com campos obrigatórios e assinatura digital.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-caixa-formulario-cartao-6" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-caixa-formulario-cartao-6">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-caixa-formulario-cartao-6" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-caixa-proposta-cartao-7" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> Proposta Cartão</span>
+                <span class="file-row-desc document-desc">Proposta comercial vinculada ao cliente e assinada digitalmente.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-caixa-proposta-cartao-7" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-caixa-proposta-cartao-7">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-caixa-proposta-cartao-7" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>Documentos Agehab</span>
+              <span class="pill"><span class="doc-counter">6</span> documentos</span>
+            </div>
+            <div class="section-summary">Padrões Agehab: assinaturas via GOV.BR ou Clicksign (quando aplicável).</div>
+
+
+            <div class="file-row document-card" data-doc="documentos-agehab-declaracao-de-endereco-1" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-house"></i> Declaração de endereço</span>
+                <span class="file-row-desc document-desc">Quando necessário. Assinada via GOV.BR ou Clicksign.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-agehab-declaracao-de-endereco-1" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-agehab-declaracao-de-endereco-1">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-agehab-declaracao-de-endereco-1" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-agehab-declaracao-renda-informal-2" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-money-bill-wave"></i> Declaração renda informal</span>
+                <span class="file-row-desc document-desc">Assinada pelo dependente via GOV.BR/Clicksign (modelo Agehab).</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-agehab-declaracao-renda-informal-2" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-agehab-declaracao-renda-informal-2">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-agehab-declaracao-renda-informal-2" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-agehab-declaracao-de-nao-renda-3" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-money-bill-wave"></i> Declaração de não renda</span>
+                <span class="file-row-desc document-desc">Para dependentes sem renda. Assinada via GOV.BR/Clicksign.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-agehab-declaracao-de-nao-renda-3" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-agehab-declaracao-de-nao-renda-3">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-agehab-declaracao-de-nao-renda-3" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-agehab-vinculo-3-anos-4" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> Vínculo ≥ 3 anos</span>
+                <span class="file-row-desc document-desc">Docs com fé pública comprovando vínculo mínimo na cidade do Cheque Moradia.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-agehab-vinculo-3-anos-4" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-agehab-vinculo-3-anos-4">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-agehab-vinculo-3-anos-4" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-agehab-checklist-agehab-5" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-list-check"></i> Checklist Agehab</span>
+                <span class="file-row-desc document-desc">Preenchido e assinado GOV.BR (ou próprio punho conforme orientação).</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-agehab-checklist-agehab-5" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-agehab-checklist-agehab-5">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-agehab-checklist-agehab-5" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-agehab-ficha-agehab-6" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-list-check"></i> Ficha Agehab</span>
+                <span class="file-row-desc document-desc">Preenchida pelo Assistente de Crédito; assinada GOV.BR (ou próprio punho).</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-agehab-ficha-agehab-6" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-agehab-ficha-agehab-6">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-agehab-ficha-agehab-6" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="section" data-creditu-section>
+            <div class="section-title">
+              <span>Documentos Creditú</span>
+              <button type="button" class="btn-primary" style="width: auto; margin-top: 0; padding: 6px 12px; font-size: 0.75rem;" data-creditu-download>Download Creditú</button>
+              <span class="pill"><span class="doc-counter">7</span> documentos</span>
+            </div>
+            <div class="section-summary">Documentos Creditú vinculados ao processo.</div>
+
+
+            <div class="file-row document-card" data-doc="documentos-creditu-tela-score-cliente-1" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-chart-line"></i> Tela do score do Cliente</span>
+                <span class="file-row-desc document-desc">Tela do score do cliente.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-creditu-tela-score-cliente-1" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-creditu-tela-score-cliente-1">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-creditu-tela-score-cliente-1" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-creditu-rg-cpf-ou-cnh-2" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-id-card"></i> RG/CPF OU CNH</span>
+                <span class="file-row-desc document-desc">Documento de identificação.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-creditu-rg-cpf-ou-cnh-2" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-creditu-rg-cpf-ou-cnh-2">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-creditu-rg-cpf-ou-cnh-2" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-creditu-tela-score-segundo-proponente-3" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-chart-line"></i> Tela do score do 2º Proponente</span>
+                <span class="file-row-desc document-desc">Tela do score do 2º proponente.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-creditu-tela-score-segundo-proponente-3" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-creditu-tela-score-segundo-proponente-3">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-creditu-tela-score-segundo-proponente-3" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-creditu-email-segundo-proponente-4" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-envelope"></i> Email do 2º proponente</span>
+                <span class="file-row-desc document-desc">Email do 2º proponente.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-creditu-email-segundo-proponente-4" title="Não enviado"></span>
+                <input type="text" data-creditu-input="documentos-creditu-email-segundo-proponente-4" />
+                <button type="button" class="btn-primary" style="width: auto; margin-top: 0; margin-left: 8px; padding-left: 16px; padding-right: 16px;" data-creditu-save="documentos-creditu-email-segundo-proponente-4">Salvar</button>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-creditu-telefone-segundo-proponente-5" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-phone"></i> Telefone do 2º proponente</span>
+                <span class="file-row-desc document-desc">Telefone do 2º proponente.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-creditu-telefone-segundo-proponente-5" title="Não enviado"></span>
+                <input type="text" data-creditu-input="documentos-creditu-telefone-segundo-proponente-5" />
+                <button type="button" class="btn-primary" style="width: auto; margin-top: 0; margin-left: 8px; padding-left: 16px; padding-right: 16px;" data-creditu-save="documentos-creditu-telefone-segundo-proponente-5">Salvar</button>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-creditu-tela-aprovacao-creditu-6" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-circle-check"></i> Tela de aprovação do Creditú</span>
+                <span class="file-row-desc document-desc">Tela de aprovação do Creditú.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-creditu-tela-aprovacao-creditu-6" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-creditu-tela-aprovacao-creditu-6">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-creditu-tela-aprovacao-creditu-6" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="documentos-creditu-tela-sicaq-cliente-7" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> Tela do SICAQ do cliente</span>
+                <span class="file-row-desc document-desc">Tela do SICAQ do cliente.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-documentos-creditu-tela-sicaq-cliente-7" title="Não enviado"></span>
+                <label class="btn-upload" id="btn-documentos-creditu-tela-sicaq-cliente-7">
+                  <i class="fas fa-paperclip"></i> Anexar
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" data-doc-input="documentos-creditu-tela-sicaq-cliente-7" />
+                </label>
+              </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="section">
+            <div class="section-title">
+              <span>Relacionamento com o banco e produto</span>
+              <span class="pill"><span class="doc-counter">8</span> confirmações</span>
+            </div>
+            <div class="section-summary">Confirmações operacionais registradas com Sim, Não ou N/A.</div>
+
+
+            <div class="file-row document-card" data-doc="relacionamento-com-o-banco-e-produto-cliente-ciente-da-portabilidade-para-a-agencia-cai-1" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-building-columns"></i> Cliente ciente da portabilidade para a agencia Caixa que vai assinar o contrato?</span>
+                <span class="file-row-desc document-desc">Relacionamento Caixa</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-relacionamento-com-o-banco-e-produto-cliente-ciente-da-portabilidade-para-a-agencia-cai-1" title="Não enviado"></span>
+                <select class="decision-select" data-decision-input="relacionamento-com-o-banco-e-produto-cliente-ciente-da-portabilidade-para-a-agencia-cai-1"><option value="">Selecione...</option><option>Sim</option><option>Não</option><option>N/A</option></select>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="relacionamento-com-o-banco-e-produto-cliente-ciente-que-sera-preciso-fazer-open-finance-2" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-building-columns"></i> Cliente ciente que sera preciso fazer Open Finance com a agencia Caixa?</span>
+                <span class="file-row-desc document-desc">Relacionamento Caixa</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-relacionamento-com-o-banco-e-produto-cliente-ciente-que-sera-preciso-fazer-open-finance-2" title="Não enviado"></span>
+                <select class="decision-select" data-decision-input="relacionamento-com-o-banco-e-produto-cliente-ciente-que-sera-preciso-fazer-open-finance-2"><option value="">Selecione...</option><option>Sim</option><option>Não</option><option>N/A</option></select>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="relacionamento-com-o-banco-e-produto-cliente-ciente-que-sera-necessario-cadastrar-o-cpf-3" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-id-card"></i> Cliente ciente que sera necessario cadastrar o CPF como Pix na agencia Caixa?</span>
+                <span class="file-row-desc document-desc">Relacionamento Caixa</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-relacionamento-com-o-banco-e-produto-cliente-ciente-que-sera-necessario-cadastrar-o-cpf-3" title="Não enviado"></span>
+                <select class="decision-select" data-decision-input="relacionamento-com-o-banco-e-produto-cliente-ciente-que-sera-necessario-cadastrar-o-cpf-3"><option value="">Selecione...</option><option>Sim</option><option>Não</option><option>N/A</option></select>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="relacionamento-com-o-banco-e-produto-propos-e-orientou-o-cliente-sobre-o-fgts-futuro-4" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-money-bill-wave"></i> Propos e orientou o cliente sobre o FGTS Futuro?</span>
+                <span class="file-row-desc document-desc">Obrigatorio quando o cliente entrar na regra de FGTS Futuro.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-relacionamento-com-o-banco-e-produto-propos-e-orientou-o-cliente-sobre-o-fgts-futuro-4" title="Não enviado"></span>
+                <select class="decision-select" data-decision-input="relacionamento-com-o-banco-e-produto-propos-e-orientou-o-cliente-sobre-o-fgts-futuro-4"><option value="">Selecione...</option><option>Sim</option><option>Não</option><option>N/A</option></select>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="relacionamento-com-o-banco-e-produto-cliente-autorizou-no-app-fgts-a-consulta-para-util-5" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-money-bill-wave"></i> Cliente autorizou no app FGTS a consulta para utilizar o FGTS Futuro?</span>
+                <span class="file-row-desc document-desc">Obrigatorio quando o cliente entrar na regra de FGTS Futuro.</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-relacionamento-com-o-banco-e-produto-cliente-autorizou-no-app-fgts-a-consulta-para-util-5" title="Não enviado"></span>
+                <select class="decision-select" data-decision-input="relacionamento-com-o-banco-e-produto-cliente-autorizou-no-app-fgts-a-consulta-para-util-5"><option value="">Selecione...</option><option>Sim</option><option>Não</option><option>N/A</option></select>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="relacionamento-com-o-banco-e-produto-cliente-foi-orientado-sobre-o-produto-6" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> Cliente foi orientado sobre o produto?</span>
+                <span class="file-row-desc document-desc">Produto</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-relacionamento-com-o-banco-e-produto-cliente-foi-orientado-sobre-o-produto-6" title="Não enviado"></span>
+                <select class="decision-select" data-decision-input="relacionamento-com-o-banco-e-produto-cliente-foi-orientado-sobre-o-produto-6"><option value="">Selecione...</option><option>Sim</option><option>Não</option><option>N/A</option></select>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="relacionamento-com-o-banco-e-produto-o-cliente-ja-pagou-o-produto-no-fechamento-7" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> O cliente ja pagou o produto no fechamento?</span>
+                <span class="file-row-desc document-desc">Produto</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-relacionamento-com-o-banco-e-produto-o-cliente-ja-pagou-o-produto-no-fechamento-7" title="Não enviado"></span>
+                <select class="decision-select" data-decision-input="relacionamento-com-o-banco-e-produto-o-cliente-ja-pagou-o-produto-no-fechamento-7"><option value="">Selecione...</option><option>Sim</option><option>Não</option><option>N/A</option></select>
+              </div>
+              </div>
+            </div>
+
+
+            <div class="file-row document-card" data-doc="relacionamento-com-o-banco-e-produto-cliente-saiu-ciente-que-na-assinatura-tera-que-ter-8" data-status="nao-enviado">
+              <div class="file-header document-header">
+              <div class="file-info">
+                <span class="file-row-title document-title"><i class="fas fa-file-lines"></i> Cliente saiu ciente que na assinatura tera que ter R$ 300,00 para o produto?</span>
+                <span class="file-row-desc document-desc">Produto</span>
+              </div>
+              <div class="file-upload-action upload-action">
+                <span class="dot nao-enviado" id="dot-relacionamento-com-o-banco-e-produto-cliente-saiu-ciente-que-na-assinatura-tera-que-ter-8" title="Não enviado"></span>
+                <select class="decision-select" data-decision-input="relacionamento-com-o-banco-e-produto-cliente-saiu-ciente-que-na-assinatura-tera-que-ter-8"><option value="">Selecione...</option><option>Sim</option><option>Não</option><option>N/A</option></select>
+              </div>
+              </div>
+            </div>
+
+          </div>
+    </div>
+  </div>
+
+  <div class="notification" id="notification">
+    <i class="fas fa-check-circle"></i>
+    <div>
+      <strong id="notificationTitle">Documento anexado</strong>
+      <div id="notificationText">Arquivo selecionado com sucesso.</div>
+    </div>
+  </div></div><!--$--><!--/$--><script src="/maq-credito/_next/static/chunks/webpack-b965cfe6332815e5.js" id="_R_" async=""></script><script>(self.__next_f=self.__next_f||[]).push([0])</script><script>self.__next_f.push([1,"1:\"$Sreact.fragment\"\n2:I[7121,[],\"\"]\n3:I[4581,[],\"\"]\n4:I[1221,[\"601\",\"static/chunks/601-5c42fe17a6fc9aa6.js\",\"42\",\"static/chunks/app/gestor/checklist/page-aa2ebf8ae7683a92.js\"],\"default\"]\n5:I[484,[],\"OutletBoundary\"]\n6:\"$Sreact.suspense\"\n9:I[484,[],\"ViewportBoundary\"]\nb:I[484,[],\"MetadataBoundary\"]\nd:I[7123,[],\"default\",1]\n:HL[\"/maq-credito/_next/static/css/d4dae26e25c227eb.css\",\"style\"]\n"])</script><script>self.__next_f.push([1,"0:{\"P\":null,\"c\":[\"\",\"gestor\",\"checklist\"],\"q\":\"\",\"i\":false,\"f\":[[[\"\",{\"children\":[\"gestor\",{\"children\":[\"checklist\",{\"children\":[\"__PAGE__\",{}]}]}]},\"$undefined\",\"$undefined\",16],[[\"$\",\"$1\",\"c\",{\"children\":[[[\"$\",\"link\",\"0\",{\"rel\":\"stylesheet\",\"href\":\"/maq-credito/_next/static/css/d4dae26e25c227eb.css\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}]],[\"$\",\"html\",null,{\"lang\":\"pt-BR\",\"children\":[\"$\",\"body\",null,{\"children\":[\"$\",\"$L2\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L3\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":[[[\"$\",\"title\",null,{\"children\":\"404: This page could not be found.\"}],[\"$\",\"div\",null,{\"style\":{\"fontFamily\":\"system-ui,\\\"Segoe UI\\\",Roboto,Helvetica,Arial,sans-serif,\\\"Apple Color Emoji\\\",\\\"Segoe UI Emoji\\\"\",\"height\":\"100vh\",\"textAlign\":\"center\",\"display\":\"flex\",\"flexDirection\":\"column\",\"alignItems\":\"center\",\"justifyContent\":\"center\"},\"children\":[\"$\",\"div\",null,{\"children\":[[\"$\",\"style\",null,{\"dangerouslySetInnerHTML\":{\"__html\":\"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}\"}}],[\"$\",\"h1\",null,{\"className\":\"next-error-h1\",\"style\":{\"display\":\"inline-block\",\"margin\":\"0 20px 0 0\",\"padding\":\"0 23px 0 0\",\"fontSize\":24,\"fontWeight\":500,\"verticalAlign\":\"top\",\"lineHeight\":\"49px\"},\"children\":404}],[\"$\",\"div\",null,{\"style\":{\"display\":\"inline-block\"},\"children\":[\"$\",\"h2\",null,{\"style\":{\"fontSize\":14,\"fontWeight\":400,\"lineHeight\":\"49px\",\"margin\":0},\"children\":\"This page could not be found.\"}]}]]}]}]],[]],\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]}]}]]}],{\"children\":[[\"$\",\"$1\",\"c\",{\"children\":[null,[\"$\",\"$L2\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L3\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":\"$undefined\",\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]]}],{\"children\":[[\"$\",\"$1\",\"c\",{\"children\":[null,[\"$\",\"$L2\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L3\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":\"$undefined\",\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]]}],{\"children\":[[\"$\",\"$1\",\"c\",{\"children\":[[\"$\",\"$L4\",null,{\"perfil\":\"gestor\",\"modo\":\"envio\"}],null,[\"$\",\"$L5\",null,{\"children\":[\"$\",\"$6\",null,{\"name\":\"Next.MetadataOutlet\",\"children\":\"$@7\"}]}]]}],{},null,false,null]},null,false,\"$@8\"]},null,false,\"$@8\"]},null,false,null],[\"$\",\"$1\",\"h\",{\"children\":[null,[\"$\",\"$L9\",null,{\"children\":\"$La\"}],[\"$\",\"div\",null,{\"hidden\":true,\"children\":[\"$\",\"$Lb\",null,{\"children\":[\"$\",\"$6\",null,{\"name\":\"Next.Metadata\",\"children\":\"$Lc\"}]}]}],null]}],false]],\"m\":\"$undefined\",\"G\":[\"$d\",[]],\"S\":true,\"h\":null,\"s\":\"$undefined\",\"l\":\"$undefined\",\"p\":\"$undefined\",\"d\":\"$undefined\",\"b\":\"8UgnkkajyND_OsCKHJMAC\"}\n"])</script><script>self.__next_f.push([1,"e:[]\n8:\"$We\"\n"])</script><script>self.__next_f.push([1,"a:[[\"$\",\"meta\",\"0\",{\"charSet\":\"utf-8\"}],[\"$\",\"meta\",\"1\",{\"name\":\"viewport\",\"content\":\"width=device-width, initial-scale=1\"}]]\n"])</script><script>self.__next_f.push([1,"7:null\nc:[[\"$\",\"title\",\"0\",{\"children\":\"MAQ2 Credito\"}],[\"$\",\"meta\",\"1\",{\"name\":\"description\",\"content\":\"Sistema de analise e acompanhamento de credito.\"}]]\n"])</script></body></html>

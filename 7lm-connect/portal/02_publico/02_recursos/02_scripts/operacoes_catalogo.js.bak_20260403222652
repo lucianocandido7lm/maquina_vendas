@@ -1,0 +1,248 @@
+(function () {
+  "use strict";
+
+  const shared = window.SevenLMConnectOperacoes;
+  const LOGIN_AT_KEYS = ["sevenlm_connect_login_at", "sevenlm_connect_login_at"];
+
+  function readSession(key) {
+    const keys = Array.isArray(key) ? key : [key];
+    try {
+      for (const item of keys) {
+        const value = sessionStorage.getItem(item) || "";
+        if (value) return value;
+      }
+    } catch {}
+    return "";
+  }
+
+  const el = {
+    catalogo: document.getElementById("operacoesCatalogo"),
+    heroTitle: document.getElementById("opsHeroTitle"),
+    heroText: document.getElementById("opsHeroText"),
+    summaryPrimary: document.getElementById("opsSummaryPrimary"),
+    summarySecondary: document.getElementById("opsSummarySecondary"),
+    lastAccess: document.getElementById("opsLastAccess"),
+    lastAccessMeta: document.getElementById("opsLastAccessMeta"),
+    kpiClientes: document.getElementById("opsKpiClientes"),
+    kpiDashboards: document.getElementById("opsKpiDashboards"),
+    kpiScenes: document.getElementById("opsKpiScenes"),
+    kpiEscopo: document.getElementById("opsKpiEscopo"),
+    catalogIntro: document.getElementById("opsCatalogIntro"),
+    searchInput: document.getElementById("opsSearchInput"),
+  };
+
+  const ITEMS = [
+    {
+      id: "imoveis",
+      badge: "IMOVEIS",
+      titulo: "Cadastro e listagem de imoveis",
+      resumo: "Modulo operacional para cadastrar imoveis, consultar base ativa e manter fotos e videos vinculados por permissao.",
+      destaque: "Ativo",
+      estatisticas: ["Cadastro", "Listagem", "Midias"],
+      acento: "#00B3DE",
+      prioridade: "Disponivel",
+      href: shared.buildPortalPath("/imoveis"),
+      cta: "Abrir modulo",
+      permission: "imoveis.view",
+    },
+    {
+      id: "relacionamento",
+      badge: "RELACIONAMENTO",
+      titulo: "Relacionamento e cliente",
+      resumo: "Base pronta para receber cadastro estruturado, historico de atendimento e jornada comercial sem perder governanca.",
+      destaque: "Fase futura",
+      estatisticas: ["Cliente", "Comercial", "Jornada"],
+      acento: "#00B3DE",
+      prioridade: "Proxima fase",
+      href: shared.buildPortalPath("/inicio"),
+      cta: "Ver contexto",
+    },
+    {
+      id: "credito",
+      badge: "CREDITO",
+      titulo: "Analise de credito e simulacao",
+      resumo: "Estrutura institucional preparada para suportar renda, dividas, CFMU segura, score e simulacao imobiliaria de forma modular.",
+      destaque: "Planejado",
+      estatisticas: ["Credito", "Simulador", "Imobiliario"],
+      acento: "#010101",
+      prioridade: "Alta",
+      href: shared.buildPortalPath("/inicio"),
+      cta: "Ver contexto",
+    },
+    {
+      id: "proposta",
+      badge: "PROPOSTA",
+      titulo: "Proposta, aprovacao e operacao",
+      resumo: "Base desenhada para evoluir ate proposta, caixa, aprovacao e acompanhamento operacional em uma plataforma integrada.",
+      destaque: "Escalavel",
+      estatisticas: ["Proposta", "Caixa", "Operacao"],
+      acento: "#738086",
+      prioridade: "Alta",
+      href: shared.buildPortalPath("/inicio"),
+      cta: "Ver contexto",
+    },
+    {
+      id: "crm",
+      badge: "CRM",
+      titulo: "CRM 7LM e expansao modular",
+      resumo: "O nome 7LM foi aplicado para comportar a evolucao natural para um CRM completo sem parecer um aplicativo isolado.",
+      destaque: "Roadmap",
+      estatisticas: ["CRM", "Pipeline", "Historico"],
+      acento: "#00B3DE",
+      prioridade: "Media",
+      href: shared.buildPortalPath("/inicio"),
+      cta: "Ver contexto",
+    },
+    {
+      id: "acessos",
+      badge: "ACESSOS",
+      titulo: "Acessos, papeis e seguranca",
+      resumo: "Login atual, 2FA com Microsoft Authenticator e controle de acesso persistido em banco continuam como base confiavel da plataforma.",
+      destaque: "Preservado",
+      estatisticas: ["Login", "2FA", "Permissoes"],
+      acento: "#010101",
+      prioridade: "Ativo",
+      href: shared.buildPortalPath("/administracao/acessos"),
+      cta: "Abrir acessos",
+    },
+    {
+      id: "administracao",
+      badge: "ADMINISTRACAO",
+      titulo: "Governanca institucional",
+      resumo: "A home e a navegação foram ajustadas para refletir uma plataforma central da 7LM com espaço para configurações e administração.",
+      destaque: "Atual",
+      estatisticas: ["Configuracao", "Auditoria", "Gestao"],
+      acento: "#738086",
+      prioridade: "Ativo",
+      href: shared.buildPortalPath("/configuracoes"),
+      cta: "Ver contexto",
+    },
+  ];
+
+  function normalize(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
+
+  function setText(node, value) {
+    if (node) node.textContent = value;
+  }
+
+  function formatDateTime(value) {
+    if (!value) return "Agora ha pouco";
+    return shared.formatDateTime(value);
+  }
+
+  function renderEmpty() {
+    if (!el.catalogo) return;
+    el.catalogo.innerHTML = `
+      <article class="tl-ops-empty-state">
+        <span class="tl-ops-empty-state__badge mono-font">7LM</span>
+        <h3>Nenhuma frente encontrada</h3>
+        <p>Tente outro termo para localizar um bloco institucional da plataforma.</p>
+      </article>
+    `;
+  }
+
+  function mountItem(item) {
+    const href = item.href || shared.buildPortalPath("/inicio");
+    const permissionAttr = item.permission
+      ? ` data-permission="${shared.escapeHtml(item.permission)}"`
+      : "";
+    const tags = item.estatisticas
+      .map((tag) => `<span class="tl-ops-access-card__chip">${shared.escapeHtml(tag)}</span>`)
+      .join("");
+
+    return `
+      <article class="tl-ops-access-card" style="--access-accent:${shared.escapeHtml(item.acento)};">
+        <div class="tl-ops-access-card__head">
+          <span class="tl-ops-access-card__badge mono-font">${shared.escapeHtml(item.badge)}</span>
+          <span class="tl-ops-access-card__meta mono-font">${shared.escapeHtml(item.prioridade)}</span>
+        </div>
+
+        <div class="tl-ops-access-card__logo tl-ops-access-card__logo--fallback">
+          <span>${shared.escapeHtml(item.badge.slice(0, 3))}</span>
+        </div>
+
+        <div class="tl-ops-access-card__copy">
+          <h3>${shared.escapeHtml(item.titulo)}</h3>
+          <p>${shared.escapeHtml(item.resumo)}</p>
+        </div>
+
+        <div class="tl-ops-access-card__stats">
+          <div class="tl-ops-access-card__stat">
+            <span>Status</span>
+            <strong>${shared.escapeHtml(item.destaque)}</strong>
+          </div>
+          <div class="tl-ops-access-card__stat">
+            <span>Escopo</span>
+            <strong>Base pronta</strong>
+          </div>
+          <div class="tl-ops-access-card__stat">
+            <span>Fase</span>
+            <strong>${shared.escapeHtml(item.prioridade)}</strong>
+          </div>
+        </div>
+
+        <div class="tl-ops-access-card__chips">
+          ${tags}
+        </div>
+
+        <a class="tl-ops-access-card__cta" href="${shared.escapeHtml(href)}"${permissionAttr}>
+          <span>${shared.escapeHtml(item.cta || "Ver contexto")}</span>
+          <strong>${shared.escapeHtml(item.titulo)}</strong>
+        </a>
+      </article>
+    `;
+  }
+
+  function updateHeader(items) {
+    setText(el.summaryPrimary, `${items.length} frente(s) estruturais mapeada(s)`);
+    setText(el.summarySecondary, "A plataforma foi limpa do contexto antigo e preparada para evolucao modular da 7LM.");
+    setText(el.lastAccess, formatDateTime(readSession(LOGIN_AT_KEYS)));
+    setText(el.lastAccessMeta, "Autenticacao, acessos e identidade institucional preservados.");
+    setText(el.heroTitle, "Localize as frentes preparadas para evolucao.");
+  setText(el.heroText, "Esta visao organiza a base institucional da 7LM sem criar modulos prematuros nesta etapa.");
+    setText(el.kpiClientes, String(items.length).padStart(2, "0"));
+    setText(el.kpiDashboards, "Base");
+    setText(el.kpiScenes, "2FA");
+    setText(el.kpiEscopo, "Pronto");
+  }
+
+  function updateIntro(total, filtered) {
+    if (!el.catalogIntro) return;
+    if (filtered === total) {
+  el.catalogIntro.textContent = "A base abaixo resume o que foi preservado agora e o que fica preparado para a proxima fase da 7LM.";
+      return;
+    }
+    el.catalogIntro.textContent = `${filtered} bloco(s) encontrados para a busca atual.`;
+  }
+
+  function renderCatalog() {
+    const query = normalize(el.searchInput?.value || "");
+    const filtered = ITEMS.filter((item) =>
+      normalize([item.badge, item.titulo, item.resumo, ...item.estatisticas].join(" ")).includes(query)
+    );
+
+    updateHeader(ITEMS);
+    updateIntro(ITEMS.length, filtered.length);
+
+    if (!filtered.length) {
+      renderEmpty();
+      return;
+    }
+
+    el.catalogo.innerHTML = filtered.map(mountItem).join("");
+  }
+
+  function boot() {
+    shared.initChrome();
+    renderCatalog();
+    el.searchInput?.addEventListener("input", renderCatalog);
+  }
+
+  document.addEventListener("DOMContentLoaded", boot);
+})();

@@ -1,0 +1,21 @@
+﻿/*
+ Autor: Willian Elias Franca
+ Projeto: 7LM Connect - Plataforma Integrada
+ Observação: arquivo criado automaticamente para organizar o projeto.
+*/
+
+/*
+Temas (claro e escuro) usando variáveis.
+A personalização do usuário será aplicada alterando variáveis.
+*/
+:root {
+  --cor-principal: #2f80ed;
+  --fundo: #ffffff;
+  --texto: #111111;
+}
+[data-tema='escuro'] {
+  --cor-principal: #2f80ed;
+  --fundo: #0f1115;
+  --texto: #f2f2f2;
+}
+

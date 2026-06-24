@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>7LM Máquina de Vendas</title>
+  <script>
+    (function () {
+      try {
+        var queryTheme = new URLSearchParams(window.location.search).get("theme") || "";
+        var localTheme = window.localStorage.getItem("tl.theme") || "";
+        var cookieTheme = document.cookie.split(";").map(function (item) { return item.trim(); }).find(function (item) { return item.indexOf("tl.theme=") === 0; });
+        var theme = queryTheme || localTheme || (cookieTheme ? decodeURIComponent(cookieTheme.slice("tl.theme=".length)) : "") || "light";
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (_) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/02_recursos/01_estilos/acesso.css?v=20260423-access-minimal-2" />
+</head>
+<body class="tl-access-page tl-entry-page">
+  <main class="tl-min-shell">
+    <section class="tl-min-card tl-min-card--entry">
+      <div class="tl-min-card__top">
+        <a class="tl-min-brand" href="/acesso" aria-label="Ir para o acesso">
+          <span class="tl-min-brand__mark">
+            <img src="/assets/7lm_logo.png" alt="Logo 7LM" />
+          </span>
+          <span class="tl-min-brand__copy">
+            <strong>Máquina de Vendas</strong>
+            <small>Uso interno</small>
+          </span>
+        </a>
+
+        <button id="btnThemeToggle" class="tl-min-theme" type="button" aria-label="Alternar tema">
+          <span aria-hidden="true">◐</span>
+        </button>
+      </div>
+
+      <div class="dialog__head tl-min-head">
+        <span class="dialog__eyebrow">Portal</span>
+        <h2>Acesso interno</h2>
+        <p>Entre para abrir o portal comercial.</p>
+      </div>
+
+      <div class="tl-entry-actions">
+        <a class="btn btn-p" href="/acesso">Entrar</a>
+      </div>
+
+      <div class="tl-entry-status" id="entryStatus">
+        Verificando sessão local.
+      </div>
+
+      <div class="tl-min-foot">
+        <span>Uso interno</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var ACCESS_KEYS = ["sevenlm_connect_token_de_acesso", "sevenlm_connect_token_de_acesso"];
+      var status = document.getElementById("entryStatus");
+      function read(keys) {
+        try {
+          for (var i = 0; i < keys.length; i += 1) {
+            var value = sessionStorage.getItem(keys[i]) || "";
+            if (value) return value;
+          }
+        } catch (_) {}
+        return "";
+      }
+      var token = read(ACCESS_KEYS);
+      if (!token) {
+        if (status) status.textContent = "Nenhuma sessão encontrada.";
+        return;
+      }
+      if (status) status.textContent = "Sessão encontrada. Abrindo portal.";
+      window.setTimeout(function () {
+        window.location.replace("/inicio");
+      }, 220);
+    })();
+  </script>
+  <script>
+    (function () {
+      var button = document.getElementById("btnThemeToggle");
+      if (!button) return;
+      button.addEventListener("click", function () {
+        var current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        var next = current === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        try {
+          window.localStorage.setItem("tl.theme", next);
+          document.cookie = "tl.theme=" + encodeURIComponent(next) + "; path=/; max-age=31536000";
+        } catch (_) {}
+      });
+    })();
+  </script>
+</body>
+</html>

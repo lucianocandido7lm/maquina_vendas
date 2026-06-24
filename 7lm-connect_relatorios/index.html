@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analisador de Crédito 7LM</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo-area">
+            <i class="fa-solid fa-chart-pie logo-icon"></i>
+            <h1>Analisador de Crédito 7LM</h1>
+        </div>
+        <div class="nav-actions">
+            <button id="theme-toggle" class="icon-btn" title="Alternar Tema">
+                <i class="fa-solid fa-sun" id="theme-icon"></i>
+            </button>
+            <button class="icon-btn"><i class="fa-regular fa-eye"></i></button>
+            <button class="icon-btn"><i class="fa-regular fa-envelope"></i></button>
+            <button class="icon-btn"><i class="fa-regular fa-bell"></i></button>
+            <button class="icon-btn profile-btn"><i class="fa-solid fa-bars"></i></button>
+            <img src="https://via.placeholder.com/100x40.png?text=7LM&bg=ffffff&text_color=333" alt="7LM Logo" class="header-logo-img">
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        <!-- Coluna 1: Dados do Cliente -->
+        <section class="card col-dados-cliente">
+            <h2><i class="fa-solid fa-user"></i> Dados do Cliente</h2>
+            <div class="form-group">
+                <label>Nome Completo</label>
+                <input type="text" value="João Silva">
+            </div>
+            <div class="form-group">
+                <label>CPF</label>
+                <input type="text" value="123.456.789-00">
+            </div>
+            <div class="form-group">
+                <label>Data de Nascimento</label>
+                <input type="date" value="1982-03-15">
+            </div>
+            <div class="form-group">
+                <label>Estado Civil</label>
+                <select>
+                    <option>Casado</option>
+                    <option>Solteiro</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Ocupação</label>
+                <select>
+                    <option>Gerente de Vendas</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Renda Principal</label>
+                <input type="text" value="R$ 8.500">
+            </div>
+            <button class="btn btn-primary btn-block mt-3">Simular Capacidade</button>
+        </section>
+
+        <!-- Coluna 2: Núcleo Familiar, Filtros e Unidades -->
+        <div class="middle-col">
+            <section class="card">
+                <h2><i class="fa-solid fa-users"></i> Núcleo Familiar</h2>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Parentesco</th>
+                                <th>Renda</th>
+                                <th>Incluído na Análise</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><img src="https://i.pravatar.cc/30?img=5" class="avatar" alt="Avatar"> Maria Silva</td>
+                                <td>Cônjuge</td>
+                                <td>R$ 6.000</td>
+                                <td><span class="badge badge-success">Sim <i class="fa-solid fa-check"></i></span></td>
+                            </tr>
+                            <tr>
+                                <td><img src="https://i.pravatar.cc/30?img=11" class="avatar" alt="Avatar"> Lucas Silva</td>
+                                <td>Filho</td>
+                                <td>R$ 2.200</td>
+                                <td><span class="badge badge-success">Sim <i class="fa-solid fa-check"></i></span></td>
+                            </tr>
+                            <tr>
+                                <td><img src="https://i.pravatar.cc/30?img=9" class="avatar" alt="Avatar"> Ana Souza</td>
+                                <td>Sogra</td>
+                                <td>R$ 1.500</td>
+                                <td><span class="badge badge-warning">Não <i class="fa-solid fa-times"></i></span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div class="filters-row">
+                <section class="card filters-card">
+                    <h2><i class="fa-solid fa-filter"></i> Filtros de Busca</h2>
+                    <div class="form-row">
+                        <div class="form-group grow">
+                            <label>Cidade</label>
+                            <select><option>São Paulo / SP</option></select>
+                        </div>
+                        <div class="form-group grow">
+                            <label>Bairro</label>
+                            <select><option>Moema</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group grow">
+                            <label>Número de Dormitórios</label>
+                            <select><option>3</option></select>
+                        </div>
+                        <div class="form-group grow">
+                            <label>Área (m²)</label>
+                            <select><option>de 70 até 90</option></select>
+                        </div>
+                    </div>
+                </section>
+                <div class="action-card">
+                    <button class="btn btn-success generate-btn"><i class="fa-solid fa-wand-magic-sparkles"></i> Gerar Análise Inteligente</button>
+                    <div class="ideal-badges mt-3">
+                        <span class="badge-tab active">Ideal <i class="fa-solid fa-star"></i></span>
+                        <span class="badge-tab">Alta</span>
+                        <span class="badge-tab">Média</span>
+                        <span class="badge-tab">Baixa</span>
+                    </div>
+                </div>
+            </div>
+
+            
+        </div>
+
+        <!-- Coluna 3: Resumo e Captação -->
+        <div class="right-col">
+            <section class="card summary-card">
+                <h2><i class="fa-solid fa-wallet"></i> Resumo Financeiro</h2>
+                <div class="summary-item">
+                    <span>Renda Total Núcleo:</span><div class="dotted-leader"></div><strong>R$ 18.200</strong>
+                </div>
+                <div class="summary-item">
+                    <span>Dívidas Existentes:</span><div class="dotted-leader"></div><strong>R$ 3.900</strong>
+                </div>
+                <div class="summary-item">
+                    <span>CFMU Calculada:</span><div class="dotted-leader"></div><strong>R$ 12.500</strong>
+                </div>
+                <div class="summary-item">
+                    <span>Folga Financeira:</span><div class="dotted-leader"></div><strong class="text-success">R$ 6.100</strong>
+                </div>
+                <div class="summary-item endividamento">
+                    <span>Endividamento Total do Núcleo:</span>
+                    <strong class="text-warning">48%</strong>
+                </div>
+            </section>
+
+            <section class="card chart-card">
+                <h2><i class="fa-solid fa-chart-line"></i> CAPTAÇÃO TOTAL</h2>
+                <div class="chart-extra-info vertical-stats">
+                    <div class="stat-small"><span>Entrada:</span> <strong>R$ 90.000,00</strong></div>
+                    <div class="stat-small"><span>Juros pagos:</span> <strong>R$ 418.300,00</strong></div>
+                    <div class="stat-small"><span>Total pago:</span> <strong>R$ 758.300,00</strong></div>
+                </div>
+                <div class="chart-container-small mt-3">
+                    <canvas id="captacaoChart"></canvas>
+                </div>
+            </section>
+        </div>
+
+        <!-- Área Inferior -->
+        <div class="bottom-area">
+            <section class="card units-card">
+                <h2><i class="fa-solid fa-building"></i> Unidades</h2>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Unidade</th>
+                                <th>Empreendimento</th>
+                                <th>Tipo</th>
+                                <th>Dorm.</th>
+                                <th>Andar</th>
+                                <th>Localidade</th>
+                                <th>Área</th>
+                                <th>Preço Base</th>
+                                <th>Financiamento</th>
+                                <th>Subs.</th>
+                                <th>FGTS</th>
+                                <th>Entrada</th>
+                                <th>ProSoluto</th>
+                                <th>Sobrepreço</th>
+                                <th>PRO+Sobre</th>
+                            </tr>
+                        </thead>
+                        <tbody id="unidades-lista">
+                            <tr class="clickable-row active-row" data-id="imovel-1">
+                                <td>Imovel 1</td>
+                                <td><strong>Margarida</strong></td>
+                                <td>Garden</td>
+                                <td>2 Quartos</td>
+                                <td>1</td>
+                                <td>AGL</td>
+                                <td>60m²</td>
+                                <td>R$ 300.000,00</td>
+                                <td>R$ 210.000,00</td>
+                                <td>R$ 5.000,00</td>
+                                <td>R$ 5.000,00</td>
+                                <td>R$ 40.000,00</td>
+                                <td>R$ 40.000,00</td>
+                                <td>R$ 18.000,00</td>
+                                <td>R$ 58.000,00</td>
+                            </tr>
+                            <tr class="clickable-row" data-id="imovel-2">
+                                <td>Imovel 2</td>
+                                <td><strong>Margarida</strong></td>
+                                <td>Garden Fit</td>
+                                <td>3 Quartos</td>
+                                <td>1</td>
+                                <td>AGL</td>
+                                <td>110m²</td>
+                                <td>R$ 360.000,00</td>
+                                <td>R$ 252.000,00</td>
+                                <td>R$ 5.000,00</td>
+                                <td>R$ 5.000,00</td>
+                                <td>R$ 49.000,00</td>
+                                <td>R$ 49.000,00</td>
+                                <td>R$ 21.600,00</td>
+                                <td>R$ 70.600,00</td>
+                            </tr>
+                            <tr class="clickable-row" data-id="imovel-3">
+                                <td>Imovel 3</td>
+                                <td><strong>Margarida</strong></td>
+                                <td>Super Garden</td>
+                                <td>2 Quartos</td>
+                                <td>2</td>
+                                <td>AGL</td>
+                                <td>43m²</td>
+                                <td>R$ 256.000,00</td>
+                                <td>R$ 179.200,00</td>
+                                <td>R$ 5.000,00</td>
+                                <td>R$ 5.000,00</td>
+                                <td>R$ 33.400,00</td>
+                                <td>R$ 33.400,00</td>
+                                <td>R$ 15.360,00</td>
+                                <td>R$ 48.760,00</td>
+                            </tr>
+                            <tr class="clickable-row" data-id="imovel-4">
+                                <td>Imovel 4</td>
+                                <td><strong>Margarida</strong></td>
+                                <td>Tipo</td>
+                                <td>3 Quartos</td>
+                                <td>3</td>
+                                <td>AGL</td>
+                                <td>43m²</td>
+                                <td>R$ 256.000,00</td>
+                                <td>R$ 179.200,00</td>
+                                <td>R$ 5.000,00</td>
+                                <td>R$ 5.000,00</td>
+                                <td>R$ 33.400,00</td>
+                                <td>R$ 33.400,00</td>
+                                <td>R$ 15.360,00</td>
+                                <td>R$ 48.760,00</td>
+                            </tr>
+                            <tr class="clickable-row" data-id="imovel-5">
+                                <td>Imovel 5</td>
+                                <td><strong>Margarida</strong></td>
+                                <td>Tipo/Moto</td>
+                                <td>2 Quartos</td>
+                                <td>4</td>
+                                <td>AGL</td>
+                                <td>43m²</td>
+                                <td>R$ 256.000,00</td>
+                                <td>R$ 179.200,00</td>
+                                <td>R$ 5.000,00</td>
+                                <td>R$ 5.000,00</td>
+                                <td>R$ 33.400,00</td>
+                                <td>R$ 33.400,00</td>
+                                <td>R$ 15.360,00</td>
+                                <td>R$ 48.760,00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+             <section class="card chart-card-large mt-3">
+                 <div class="chart-header-flex" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="margin-bottom: 0; border: none; padding: 0;"><i class="fa-solid fa-chart-area"></i> Projeção de Valores - <span id="chart-title-unit" class="text-primary">Margarida Garden</span></h2>
+                 </div>
+                 <div class="chart-container-large">
+                     <canvas id="lineChart"></canvas>
+                 </div>
+             </section>
+        </div>
+    </div>
+    </main>
+    <!-- Toast Notification -->
+    <div id="toast-notification" class="toast hidden">
+        <div class="toast-icon">
+            <i class="fa-regular fa-circle-check"></i>
+        </div>
+        <div class="toast-content">
+            <h4>Unidade ideal encontrada!</h4>
+            <p>U202 combinação com máximo sobrepreço. Resumo da Captação incluído.</p>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
+

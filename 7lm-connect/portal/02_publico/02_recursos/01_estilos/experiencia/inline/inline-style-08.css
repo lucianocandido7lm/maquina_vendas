@@ -1,0 +1,43 @@
+/* ===============================
+       GRAVITY FORMS #1 STYLING FIXES
+       =============================== */
+
+    /* Evitar overlay borroso */
+    body.gform_overlay_active {
+        filter: none !important;
+        pointer-events: auto !important;
+    }
+
+    /* Barra de progreso encima de los botones */
+    #gform_1 .gf_progressbar_wrapper {
+        position: relative;
+        margin-bottom: 1.5em;
+        z-index: 2;
+    }
+
+    /* Botones debajo del progress bar */
+    #gform_1 .gform_footer,
+    #gform_1 .gform_page_footer {
+        position: relative;
+        z-index: 1;
+        margin-top: 2em;
+    }
+
+    /* TransiciÃƒÂ³n de progreso */
+    #gform_1 .gf_progressbar .gf_progressbar_percentage {
+        transition: width 0.3s ease-in-out;
+    }
+
+    /* Botones bien alineados */
+    #gform_1 .gform_page_footer input[type="button"],
+    #gform_1 .gform_page_footer input[type="submit"] {
+        display: inline-block;
+        margin: 0.5em 0.5em 0 0;
+        vertical-align: middle;
+    }
+
+    /* Estilo error visual en campos */
+    #gform_1 input.gfield_error {
+        border: 2px solid #e00 !important;
+        background-color: rgba(255,0,0,0.05);
+    }

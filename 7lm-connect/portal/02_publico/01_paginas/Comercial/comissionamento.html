@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Comissionamento</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/02_recursos/01_estilos/inicio.css?v=20260420-flat-solid-1" />
+  <link rel="stylesheet" href="/02_recursos/01_estilos/operacoes.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="/02_recursos/01_estilos/imoveis.css?v=20260602-imoveis-filtros-bloco-apto1" />
+  <link rel="stylesheet" crossorigin href="/02_recursos/05_modulos/comissionamento/assets/index_20260616_comissionamento_react_6.css">
+
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <meta name="sevenlm-connect-required-permission" content="comissionamento.view" />
+  <meta name="sevenlm-connect-access-fallback" content="/inicio" />
+
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260610-comissionamento-access-1"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260512-title-fix-1" defer></script>
+</head>
+<body class="tl-home tl-ops-page tl-comissionamento-page">
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <div id="comissionamentoRoot"></div>
+    </main>
+  </div>
+
+  <script src="/02_recursos/02_scripts/operacoes_shared.js?v=20260407-theme-persist1"></script>
+  <script type="module" crossorigin src="/02_recursos/05_modulos/comissionamento/assets/comissionamento_20260616_comissionamento_react_6.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.SevenLMConnectOperacoes && window.SevenLMConnectOperacoes.initChrome) {
+        window.SevenLMConnectOperacoes.initChrome();
+      }
+    });
+  </script>
+</body>
+</html>

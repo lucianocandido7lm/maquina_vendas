@@ -1,0 +1,1993 @@
+﻿"""
+Servicos de dominio do simulador comercial inteligente.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+
+from datetime import date
+from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
+from typing import Any
+
+from utilitarios.documentos import cpf_valido, normalizar_cpf
+from validacoes.imoveis import (
+    calcular_percentual_captacao_ate_entrega_por_valor,
+    calcular_data_entrega_dinamica,
+    calcular_meses_ate_entrega,
+    calcular_meses_ate_entrega_dinamica,
+    calcular_valor_captacao_ate_entrega_planejado,
+    calcular_valor_garantido_padrao,
+    normalizar_data,
+)
+
+
+DECIMAL_ZERO = Decimal("0")
+DECIMAL_100 = Decimal("100")
+
+LIMITE_COMPROMETIMENTO_PADRAO = Decimal("0.45")
+MAXIMO_MESES_TOTAIS_SIMULACAO = 80
+MAXIMO_MESES_POS_ENTREGA_SIMULACAO = MAXIMO_MESES_TOTAIS_SIMULACAO
+FINANCIAMENTO_REFERENCIA = Decimal("0.70")
+FECHAMENTO_REFERENCIA = Decimal("0.90")
+FECHAMENTO_MINIMO_PADRAO = Decimal("0.70")
+FECHAMENTO_FAIXA_IDEAL_MIN = Decimal("0.88")
+FECHAMENTO_FAIXA_IDEAL_MAX = Decimal("0.92")
+
+ENTREGA_REFERENCIA = Decimal("1.00")
+ENTREGA_MINIMO = Decimal("0.95")
+ENTREGA_FAIXA_IDEAL = Decimal("0.98")
+
+ESTIMATIVA_TAXA_FINANCIAMENTO_MENSAL = Decimal("0.006")
+
+STATUS_SIMULACAO_IDEAL = "ideal"
+STATUS_SIMULACAO_ATENCAO = "atencao"
+STATUS_SIMULACAO_INVALIDA = "invalida"
+
+CLASSIFICACAO_IDEAL = "ideal"
+CLASSIFICACAO_ATENCAO = "atencao"
+CLASSIFICACAO_INVALIDA = "invalida"
+
+
+def _decimal(valor: Any, padrao: Decimal = DECIMAL_ZERO) -> Decimal:
+    if valor in (None, ""):
+        return padrao
+    if isinstance(valor, Decimal):
+        return valor
+    try:
+        texto = str(valor).strip()
+        if not texto:
+            return padrao
+        if "," in texto and "." in texto:
+            if texto.rfind(",") > texto.rfind("."):
+                texto = texto.replace(".", "").replace(",", ".")
+            else:
+                texto = texto.replace(",", "")
+        elif "," in texto:
+            texto = texto.replace(".", "").replace(",", ".")
+        return Decimal(texto)
+    except Exception:
+        return padrao
+
+
+def _money(valor: Any) -> Decimal:
+    return _decimal(valor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _percent(valor: Decimal) -> Decimal:
+    return _decimal(valor).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+def _percentual_texto(valor: Decimal) -> str:
+    return f"{(valor * DECIMAL_100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)}%"
+
+
+def _moeda_texto(valor: Any) -> str:
+    numero = _money(valor)
+    texto = f"{numero:,.2f}"
+    texto = texto.replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {texto}"
+
+
+def _limpar_texto(valor: Any) -> str:
+    return str(valor or "").strip()
+
+
+def _percentual_fechamento_minimo_imovel(valor: Any) -> Decimal:
+    percentual = _percent(_decimal(valor, FECHAMENTO_MINIMO_PADRAO))
+    if percentual > Decimal("1"):
+        percentual = _percent(percentual / DECIMAL_100)
+    if percentual <= DECIMAL_ZERO:
+        return FECHAMENTO_MINIMO_PADRAO
+    if percentual > Decimal("1"):
+        return Decimal("1.00")
+    return percentual
+
+
+def _valor_garantido_imovel(
+    valor_configurado: Any,
+    valor_imovel: Any,
+    percentual_fechamento_minimo: Any = FECHAMENTO_MINIMO_PADRAO,
+) -> Decimal:
+    valor_garantido = _money(valor_configurado)
+    if valor_garantido > DECIMAL_ZERO:
+        return valor_garantido
+
+    valor_padrao = calcular_valor_garantido_padrao(valor_imovel, percentual_fechamento_minimo)
+    return _money(valor_padrao or DECIMAL_ZERO)
+
+
+def _percentual_fechamento_minimo_por_valor_garantido(
+    valor_garantido: Any,
+    valor_total_operacao: Any,
+    percentual_padrao: Any = FECHAMENTO_MINIMO_PADRAO,
+) -> Decimal:
+    total_operacao = _money(valor_total_operacao)
+    valor_minimo = _money(valor_garantido)
+
+    if total_operacao > DECIMAL_ZERO and valor_minimo > DECIMAL_ZERO:
+        percentual = _percent(valor_minimo / total_operacao)
+        if percentual <= DECIMAL_ZERO:
+            return FECHAMENTO_MINIMO_PADRAO
+        if percentual > Decimal("1"):
+            return Decimal("1.00")
+        return percentual
+
+    return _percentual_fechamento_minimo_imovel(percentual_padrao)
+
+
+def _parcela_minima_pre_obra_imovel(valor: Any) -> Decimal:
+    parcela = _money(valor)
+    if parcela <= DECIMAL_ZERO:
+        return DECIMAL_ZERO
+    return parcela
+
+
+def _valor_garantido_pre_obra_planejado_imovel(
+    valor_configurado: Any,
+    valor_imovel: Any,
+    percentual_captacao_ate_entrega: Any,
+) -> Decimal:
+    valor_planejado = _money(valor_configurado)
+    if valor_planejado > DECIMAL_ZERO:
+        return valor_planejado
+
+    valor_padrao = calcular_valor_captacao_ate_entrega_planejado(
+        valor_imovel,
+        percentual_captacao_ate_entrega,
+    )
+    return _money(valor_padrao or DECIMAL_ZERO)
+
+
+def _percentual_captacao_ate_entrega_imovel(
+    percentual_configurado: Any,
+    valor_imovel: Any,
+    valor_planejado: Any,
+) -> Decimal:
+    percentual = _percent(_decimal(percentual_configurado))
+    if percentual > Decimal("1"):
+        percentual = _percent(percentual / DECIMAL_100)
+    if percentual > DECIMAL_ZERO:
+        return min(percentual, Decimal("1.00"))
+
+    percentual_por_valor = calcular_percentual_captacao_ate_entrega_por_valor(
+        valor_imovel,
+        valor_planejado,
+    )
+    return _percent(percentual_por_valor or DECIMAL_ZERO)
+
+
+def _extrair_campo_rotulado(texto: Any, rotulo: str) -> str:
+    conteudo = _limpar_texto(texto)
+    if not conteudo:
+        return ""
+
+    correspondencia = re.search(
+        rf"{re.escape(rotulo)}\s*:\s*([^.\n\r]+)",
+        conteudo,
+        flags=re.IGNORECASE,
+    )
+    return correspondencia.group(1).strip() if correspondencia else ""
+
+
+def _extrair_regex(texto: Any, padrao: str) -> str:
+    conteudo = _limpar_texto(texto)
+    if not conteudo:
+        return ""
+    correspondencia = re.search(padrao, conteudo, flags=re.IGNORECASE)
+    return correspondencia.group(1).strip() if correspondencia else ""
+
+
+def _inferir_pavimento_por_unidade(unidade: str) -> str:
+    digitos = re.sub(r"\D", "", _limpar_texto(unidade))
+    if len(digitos) < 3:
+        return ""
+
+    andar = digitos[:-2].lstrip("0") or "0"
+    return f"{andar}o PAVIMENTO"
+
+
+def montar_identificacao_imovel_simulador(imovel: dict[str, Any] | Any) -> dict[str, Any]:
+    linha = dict(imovel or {})
+    titulo = _limpar_texto(linha.get("titulo"))
+    descricao = _limpar_texto(linha.get("descricao"))
+    endereco = _limpar_texto(linha.get("endereco"))
+    tipo = _limpar_texto(linha.get("tipo_imovel") or linha.get("tipologia")) or "Imovel"
+
+    unidade = (
+        _extrair_campo_rotulado(descricao, "Unidade")
+        or _extrair_regex(titulo, r"\b([a-z0-9-]+)\s*-\s*bloco\b")
+        or _extrair_regex(endereco, r"\bunidade\s+([a-z0-9-]+)")
+    )
+    bloco = (
+        _extrair_campo_rotulado(descricao, "Bloco")
+        or _extrair_regex(titulo, r"\bbloco\s+([a-z0-9-]+)")
+        or _extrair_regex(endereco, r"\bbloco\s+([a-z0-9-]+)")
+    )
+    pavimento = (
+        _extrair_campo_rotulado(descricao, "Pavimento")
+        or _extrair_regex(endereco, r"\bpavimento\s+([^,\n\r.]+)")
+        or _inferir_pavimento_por_unidade(unidade)
+    )
+    empreendimento = (
+        _extrair_campo_rotulado(descricao, "Empreendimento")
+        or _extrair_campo_rotulado(descricao, "Localidade")
+        or _limpar_texto(linha.get("empreendimento"))
+        or _limpar_texto(linha.get("bairro"))
+        or _limpar_texto(linha.get("cidade"))
+    )
+    orientacao = _extrair_campo_rotulado(descricao, "Orientacao")
+    posicao = _extrair_campo_rotulado(descricao, "Posicao")
+
+    titulo_exibicao = titulo
+    if unidade and bloco:
+        titulo_exibicao = f"{tipo} {unidade} - Bloco {bloco}"
+    elif unidade:
+        titulo_exibicao = f"{tipo} {unidade}"
+
+    agrupamento = {
+        "localidade": empreendimento or "Sem localidade",
+        "bloco": bloco or "Sem bloco",
+        "andar": pavimento or "Andar nao informado",
+        "pavimento": pavimento or "Andar nao informado",
+        "unidade": unidade or titulo or "Unidade",
+    }
+    detalhes_comerciais = {
+        "empreendimento": empreendimento,
+        "bloco": bloco,
+        "unidade": unidade,
+        "pavimento": pavimento,
+        "andar": pavimento,
+        "orientacao": orientacao,
+        "posicao": posicao,
+    }
+
+    return {
+        "titulo": titulo_exibicao or titulo or "Imovel",
+        "titulo_original": titulo or None,
+        "agrupamento": agrupamento,
+        "detalhes_comerciais": detalhes_comerciais,
+    }
+
+
+def _json_dict(valor: Any) -> dict[str, Any]:
+    if isinstance(valor, dict):
+        return valor
+    if isinstance(valor, str):
+        try:
+            carregado = json.loads(valor)
+            return carregado if isinstance(carregado, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def _valor_prefixado(linha: dict[str, Any], prefixo: str, campo: str) -> Any:
+    chave_prefixada = f"{prefixo}{campo}" if prefixo else campo
+    if chave_prefixada in linha:
+        return linha.get(chave_prefixada)
+    return linha.get(campo)
+
+
+def _normalizar_status_imovel(valor: Any) -> str:
+    return _limpar_texto(valor).lower()
+
+
+def _add_months(data_base: date, meses: int) -> date:
+    if meses <= 0:
+        return data_base
+
+    ano = data_base.year + ((data_base.month - 1 + meses) // 12)
+    mes = ((data_base.month - 1 + meses) % 12) + 1
+
+    dias_por_mes = [
+        31,
+        29 if (ano % 4 == 0 and (ano % 100 != 0 or ano % 400 == 0)) else 28,
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ]
+    dia = min(data_base.day, dias_por_mes[mes - 1])
+    return date(ano, mes, dia)
+
+
+def serializar_complemento_renda(registro: dict[str, Any] | Any) -> dict[str, Any]:
+    linha = dict(registro or {})
+    return {
+        "id": str(linha.get("identificador_complemento") or ""),
+        "cliente_id": str(linha.get("identificador_cliente") or ""),
+        "nome": linha.get("nome"),
+        "cpf": linha.get("cpf"),
+        "parentesco": linha.get("parentesco"),
+        "renda": _money(linha.get("renda")),
+        "incluir_na_analise": bool(linha.get("incluir_na_analise", True)),
+        "compoe_renda": bool(linha.get("compoe_renda", True)),
+        "incluir_na_composicao_financeira": bool(linha.get("incluir_na_composicao_financeira", True)),
+        "ativo": bool(linha.get("ativo", True)),
+        "data_hora_criacao": linha.get("data_hora_criacao"),
+        "data_hora_atualizado_em": linha.get("data_hora_atualizado_em"),
+    }
+
+
+def normalizar_payload_complemento(payload: dict[str, Any]) -> dict[str, Any]:
+    cpf = normalizar_cpf(payload.get("cpf"))
+    if not cpf or len(cpf) != 11 or not cpf_valido(cpf):
+        raise ValueError("CPF invalido para complemento de renda.")
+
+    return {
+        "nome": _limpar_texto(payload.get("nome")),
+        "cpf": cpf,
+        "parentesco": _limpar_texto(payload.get("parentesco")) or None,
+        "renda": _money(payload.get("renda")),
+        "incluir_na_analise": bool(payload.get("incluir_na_analise", True)),
+        "compoe_renda": bool(payload.get("compoe_renda", True)),
+        "incluir_na_composicao_financeira": bool(payload.get("incluir_na_composicao_financeira", True)),
+        "ativo": bool(payload.get("ativo", True)),
+    }
+
+
+def _classificar_fechamento(percentual: Decimal, fechamento_minimo: Decimal = FECHAMENTO_MINIMO_PADRAO) -> str:
+    if percentual < fechamento_minimo:
+        return CLASSIFICACAO_INVALIDA
+
+    if FECHAMENTO_FAIXA_IDEAL_MIN <= percentual <= FECHAMENTO_FAIXA_IDEAL_MAX:
+        return CLASSIFICACAO_IDEAL
+
+    return CLASSIFICACAO_ATENCAO
+
+
+def _classificar_entrega(percentual: Decimal, percentual_meta: Any = None) -> str:
+    meta = _percent(_decimal(percentual_meta))
+    if meta > Decimal("1"):
+        meta = _percent(meta / DECIMAL_100)
+
+    if meta <= DECIMAL_ZERO:
+        if percentual >= ENTREGA_FAIXA_IDEAL:
+            return CLASSIFICACAO_IDEAL
+        return CLASSIFICACAO_ATENCAO
+
+    meta = min(meta, Decimal("1.00"))
+    limite_invalido = max(meta - Decimal("0.05"), DECIMAL_ZERO)
+    if percentual < limite_invalido:
+        return CLASSIFICACAO_INVALIDA
+    if percentual >= meta:
+        return CLASSIFICACAO_IDEAL
+    return CLASSIFICACAO_ATENCAO
+
+
+def _coletar_parametros_financeiros(payload: dict[str, Any], valor_imovel: Decimal) -> dict[str, Decimal]:
+    sobrepreco = _money(payload.get("sobrepreco"))
+    valor_total_operacao = _money(valor_imovel + sobrepreco)
+
+    entrada = _money(payload.get("entrada"))
+    usar_entrada_padrao = bool(payload.get("usar_entrada_padrao", True))
+    if entrada <= DECIMAL_ZERO and usar_entrada_padrao:
+        entrada = _money(valor_total_operacao * Decimal("0.10"))
+
+    fgts = _money(payload.get("fgts"))
+    subsidio = _money(payload.get("subsidio"))
+    cheque_moradia = _money(payload.get("cheque_moradia"))
+
+    financiamento_caixa = _money(payload.get("financiamento_caixa"))
+    if financiamento_caixa <= DECIMAL_ZERO:
+        financiamento_caixa = _money(valor_total_operacao * FINANCIAMENTO_REFERENCIA)
+
+    parcela_financiamento_banco = _money(payload.get("parcela_financiamento_banco"))
+    limite_entrada = _money(max(valor_total_operacao - (financiamento_caixa + fgts + subsidio), DECIMAL_ZERO))
+    if entrada > limite_entrada:
+        entrada = limite_entrada
+
+    estrutura_operacao_inicial = _money(entrada + financiamento_caixa + fgts + subsidio)
+    valor_captacao_entrega_base = estrutura_operacao_inicial
+
+    if valor_captacao_entrega_base > valor_total_operacao:
+        financiamento_caixa = _money(max(valor_total_operacao - (entrada + fgts + subsidio), DECIMAL_ZERO))
+        estrutura_operacao_inicial = _money(entrada + financiamento_caixa + fgts + subsidio)
+        valor_captacao_entrega_base = estrutura_operacao_inicial
+
+    valor_captacao_inicial = estrutura_operacao_inicial
+
+    if parcela_financiamento_banco <= DECIMAL_ZERO and financiamento_caixa > DECIMAL_ZERO:
+        parcela_financiamento_banco = _money(financiamento_caixa * ESTIMATIVA_TAXA_FINANCIAMENTO_MENSAL)
+
+    pro_soluto_total = _money(max(valor_total_operacao - valor_captacao_entrega_base, DECIMAL_ZERO))
+
+    return {
+        "valor_imovel": _money(valor_imovel),
+        "sobrepreco": sobrepreco,
+        "valor_total_operacao": valor_total_operacao,
+        "entrada": entrada,
+        "fgts": fgts,
+        "subsidio": subsidio,
+        "cheque_moradia": cheque_moradia,
+        "financiamento_caixa": financiamento_caixa,
+        "parcela_financiamento_banco": parcela_financiamento_banco,
+        "estrutura_operacao_inicial": estrutura_operacao_inicial,
+        "valor_captacao_inicial": valor_captacao_inicial,
+        "valor_captacao_entrega_base": valor_captacao_entrega_base,
+        "pro_soluto_total": pro_soluto_total,
+    }
+
+
+def _total_parcelamento(valor_unitario: Any, quantidade: Any) -> tuple[Decimal, int, Decimal]:
+    valor = _money(valor_unitario)
+    qtd = int(quantidade or 0)
+    if qtd < 0:
+        qtd = 0
+    if valor <= DECIMAL_ZERO or qtd <= 0:
+        return DECIMAL_ZERO, 0, DECIMAL_ZERO
+    return _money(valor * Decimal(qtd)), qtd, valor
+
+
+def _percentual_obra(valor: Any) -> Decimal:
+    percentual = _decimal(valor)
+    if percentual < DECIMAL_ZERO:
+        return DECIMAL_ZERO
+    if percentual > DECIMAL_100:
+        return DECIMAL_100
+    return _percent(percentual)
+
+
+def _fator_obra(valor: Any) -> Decimal:
+    return _percent(_percentual_obra(valor) / DECIMAL_100)
+
+
+def _registrar_extra_pre(extras_por_mes: dict[int, Decimal], mes: int, valor: Decimal, meses_pre: int) -> None:
+    if valor <= DECIMAL_ZERO or meses_pre <= 0:
+        return
+    mes_normalizado = max(1, min(meses_pre, int(mes or 1)))
+    extras_por_mes[mes_normalizado] = _money(extras_por_mes.get(mes_normalizado, DECIMAL_ZERO) + valor)
+
+
+def _mapear_extras_pre_entrega(
+    *,
+    meses_pre: int,
+    intermediaria_valor: Decimal,
+    intermediaria_qtd: int,
+    anual_valor: Decimal,
+    anual_qtd: int,
+    semestral_valor: Decimal,
+    semestral_qtd: int,
+    reforco_valor: Decimal,
+    reforco_qtd: int,
+) -> dict[int, Decimal]:
+    extras_por_mes: dict[int, Decimal] = {}
+
+    if intermediaria_qtd > 0 and intermediaria_valor > DECIMAL_ZERO:
+        for indice in range(intermediaria_qtd):
+            deslocamento = max(1, int(((indice + 1) * meses_pre) / (intermediaria_qtd + 1)))
+            _registrar_extra_pre(extras_por_mes, deslocamento, intermediaria_valor, meses_pre)
+
+    if anual_qtd > 0 and anual_valor > DECIMAL_ZERO:
+        for indice in range(anual_qtd):
+            _registrar_extra_pre(extras_por_mes, 12 * (indice + 1), anual_valor, meses_pre)
+
+    if semestral_qtd > 0 and semestral_valor > DECIMAL_ZERO:
+        for indice in range(semestral_qtd):
+            _registrar_extra_pre(extras_por_mes, 6 * (indice + 1), semestral_valor, meses_pre)
+
+    if reforco_qtd > 0 and reforco_valor > DECIMAL_ZERO:
+        for indice in range(reforco_qtd):
+            deslocamento = max(1, int(((indice + 1) * meses_pre) / (reforco_qtd + 1)))
+            _registrar_extra_pre(extras_por_mes, deslocamento, reforco_valor, meses_pre)
+
+    return extras_por_mes
+
+
+def _planejar_fluxo_pos_entrega(
+    *,
+    pro_soluto_pos: Decimal,
+    capacidade_pos_7lm: Decimal,
+    meses_pos_limite: int,
+) -> tuple[int, Decimal, Decimal]:
+    saldo_pos = _money(pro_soluto_pos)
+    capacidade = _money(capacidade_pos_7lm)
+    limite = max(min(int(meses_pos_limite or 0), MAXIMO_MESES_POS_ENTREGA_SIMULACAO), 0)
+
+    if saldo_pos <= DECIMAL_ZERO:
+        return 0, DECIMAL_ZERO, DECIMAL_ZERO
+
+    if limite <= 0:
+        return 0, saldo_pos, capacidade
+
+    if capacidade <= DECIMAL_ZERO:
+        mensal = _money(saldo_pos / Decimal(max(limite, 1)))
+        return limite, mensal, DECIMAL_ZERO
+
+    meses_necessarios = int((saldo_pos / capacidade).to_integral_value(rounding=ROUND_CEILING))
+    meses_planejados = max(1, min(limite, meses_necessarios))
+    mensal = _money(saldo_pos / Decimal(max(meses_planejados, 1)))
+    return meses_planejados, mensal, _money(capacidade * Decimal(meses_planejados))
+
+
+def _montar_fluxo_obra_pre_entrega(
+    *,
+    meses_pre: int,
+    limite_comprometimento: Decimal,
+    parcela_financiamento_banco: Decimal,
+    percentual_conclusao_obra: Decimal,
+    mensal_pre_total: Decimal,
+    extras_por_mes: dict[int, Decimal],
+) -> list[dict[str, Decimal | int]]:
+    if meses_pre <= 0:
+        return []
+
+    percentual_inicial = _percentual_obra(percentual_conclusao_obra)
+    incremento_total = max(DECIMAL_100 - percentual_inicial, DECIMAL_ZERO)
+    meses_decimal = Decimal(max(meses_pre, 1))
+    fluxo: list[dict[str, Decimal | int]] = []
+
+    for mes in range(1, meses_pre + 1):
+        percentual_mes = _percent(percentual_inicial + (incremento_total * Decimal(mes) / meses_decimal))
+        if percentual_mes > DECIMAL_100:
+            percentual_mes = DECIMAL_100
+        parcela_banco_obra = _money(parcela_financiamento_banco * (percentual_mes / DECIMAL_100))
+        extras_mes = _money(extras_por_mes.get(mes, DECIMAL_ZERO))
+        capacidade_7lm = _money(max(limite_comprometimento - parcela_banco_obra - extras_mes, DECIMAL_ZERO))
+        fluxo.append(
+            {
+                "mes": mes,
+                "percentual_conclusao_obra": percentual_mes,
+                "parcela_banco_obra": parcela_banco_obra,
+                "extras_mes": extras_mes,
+                "capacidade_parcela_7lm": capacidade_7lm,
+                "parcela_7lm": DECIMAL_ZERO,
+                "valor_total_cliente": parcela_banco_obra,
+                "valor_total_comprometido": _money(parcela_banco_obra + extras_mes),
+            }
+        )
+
+    restante = _money(mensal_pre_total)
+    if restante <= DECIMAL_ZERO:
+        return fluxo
+
+    capacidades = [_money(item["capacidade_parcela_7lm"]) for item in fluxo]
+    for indice, item in enumerate(fluxo):
+        if restante <= DECIMAL_ZERO:
+            break
+        capacidade_atual = capacidades[indice]
+        meses_restantes = len(fluxo) - indice
+        capacidade_futura = _money(sum(capacidades[indice + 1 :], DECIMAL_ZERO))
+        minimo_agora = _money(max(restante - capacidade_futura, DECIMAL_ZERO))
+        ideal_agora = _money(restante / Decimal(max(meses_restantes, 1)))
+        parcela_7lm = _money(min(capacidade_atual, max(minimo_agora, ideal_agora)))
+        if indice == len(fluxo) - 1:
+            parcela_7lm = _money(min(capacidade_atual, restante))
+        item["parcela_7lm"] = parcela_7lm
+        item["valor_total_cliente"] = _money(item["parcela_banco_obra"] + parcela_7lm)
+        item["valor_total_comprometido"] = _money(item["valor_total_cliente"] + item["extras_mes"])
+        restante = _money(max(restante - parcela_7lm, DECIMAL_ZERO))
+
+    return fluxo
+
+
+def _limite_meses_pos_entrega_por_prazo_total(meses_pre: int) -> int:
+    meses_pre_normalizado = max(int(meses_pre or 0), 0)
+    return max(
+        min(MAXIMO_MESES_TOTAIS_SIMULACAO - meses_pre_normalizado, MAXIMO_MESES_POS_ENTREGA_SIMULACAO),
+        0,
+    )
+
+
+def _normalizar_prazos_simulacao(
+    meses_pre_origem: Any,
+    meses_pos_origem: Any,
+) -> tuple[int, int, int, int]:
+    meses_pre = int(meses_pre_origem or 20)
+    meses_pos_solicitado = int(24 if meses_pos_origem in (None, "") else meses_pos_origem)
+
+    if meses_pre < 1:
+        meses_pre = 1
+    if meses_pos_solicitado < 0:
+        meses_pos_solicitado = 0
+
+    limite_meses_pos = _limite_meses_pos_entrega_por_prazo_total(meses_pre)
+    meses_pos = min(meses_pos_solicitado, limite_meses_pos)
+    return meses_pre, meses_pos, limite_meses_pos, meses_pos_solicitado
+
+
+def _definir_alvo_pre_entrega(
+    *,
+    pro_soluto_total: Decimal,
+    meses_pre: int,
+    meses_pos_configurado: int,
+    valor_captacao_entrega_base: Decimal,
+    valor_garantido_pre_obra_planejado: Decimal,
+    capacidade_pos_7lm: Decimal,
+) -> Decimal:
+    if pro_soluto_total <= DECIMAL_ZERO:
+        return DECIMAL_ZERO
+
+    pre_planejado_minimo = _money(
+        max(valor_garantido_pre_obra_planejado - valor_captacao_entrega_base, DECIMAL_ZERO)
+    )
+
+    if meses_pos_configurado <= 0:
+        return _money(max(pre_planejado_minimo, pro_soluto_total))
+
+    total_meses_fluxo = max(meses_pre + meses_pos_configurado, 1)
+    pre_distribuido = _money(
+        pro_soluto_total * (Decimal(meses_pre) / Decimal(total_meses_fluxo))
+    )
+    capacidade_pos_total = _money(capacidade_pos_7lm * Decimal(max(meses_pos_configurado, 0)))
+    pre_necessario_para_respeitar_prazo = _money(
+        max(pro_soluto_total - capacidade_pos_total, DECIMAL_ZERO)
+    )
+
+    return _money(
+        min(
+            pro_soluto_total,
+            max(pre_planejado_minimo, pre_distribuido, pre_necessario_para_respeitar_prazo),
+        )
+    )
+
+
+def _gerar_demonstrativo_parcelas(
+    *,
+    renda_total: Decimal,
+    entrada: Decimal,
+    fluxo_pre_entrega: list[dict[str, Any]],
+    mensal_pos: Decimal,
+    parcela_financiamento_banco: Decimal,
+    capacidade_pos_7lm: Decimal,
+    meses_pre: int,
+    meses_pos: int,
+    intermediaria_valor: Decimal,
+    intermediaria_qtd: int,
+    anual_valor: Decimal,
+    anual_qtd: int,
+    semestral_valor: Decimal,
+    semestral_qtd: int,
+    reforco_valor: Decimal,
+    reforco_qtd: int,
+) -> list[dict[str, Any]]:
+    hoje = date.today()
+    parcelas: list[dict[str, Any]] = []
+
+    def adicionar(
+        *,
+        fase: str,
+        tipo: str,
+        numero: int,
+        vencimento: date,
+        valor: Decimal,
+        observacao: str,
+        valor_7lm: Decimal | None = None,
+        parcela_banco_obra: Decimal = DECIMAL_ZERO,
+        percentual_conclusao_obra: Decimal | None = None,
+        capacidade_parcela_7lm: Decimal | None = None,
+        valor_total_cliente: Decimal | None = None,
+    ):
+        valor_7lm_final = _money(valor if valor_7lm is None else valor_7lm)
+        parcela_banco_final = _money(parcela_banco_obra)
+        valor_total_final = _money(valor_total_cliente if valor_total_cliente is not None else valor_7lm_final + parcela_banco_final)
+        if valor <= DECIMAL_ZERO and valor_total_final <= DECIMAL_ZERO:
+            return
+        percentual_renda = _percent(valor_total_final / renda_total) if renda_total > DECIMAL_ZERO else Decimal("1")
+        parcelas.append(
+            {
+                "fase": fase,
+                "tipo": tipo,
+                "parcela": numero,
+                "vencimento": vencimento,
+                "valor": valor_total_final,
+                "valor_7lm": valor_7lm_final,
+                "parcela_banco_obra": parcela_banco_final,
+                "valor_total_cliente": valor_total_final,
+                "percentual_conclusao_obra": _percent(percentual_conclusao_obra or DECIMAL_ZERO),
+                "capacidade_parcela_7lm": _money(capacidade_parcela_7lm or DECIMAL_ZERO),
+                "percentual_renda": percentual_renda,
+                "observacao": observacao,
+            }
+        )
+
+    adicionar(
+        fase="pre_entrega",
+        tipo="entrada_sinal",
+        numero=1,
+        vencimento=hoje,
+        valor=entrada,
+        observacao="Sinal de fechamento comercial.",
+    )
+
+    for item in fluxo_pre_entrega:
+        adicionar(
+            fase="pre_entrega",
+            tipo="mensal_pre",
+            numero=int(item.get("mes") or 1),
+            vencimento=_add_months(hoje, int(item.get("mes") or 1)),
+            valor=_money(item.get("valor_total_cliente")),
+            valor_7lm=_money(item.get("parcela_7lm")),
+            parcela_banco_obra=_money(item.get("parcela_banco_obra")),
+            percentual_conclusao_obra=_percent(item.get("percentual_conclusao_obra") or DECIMAL_ZERO),
+            capacidade_parcela_7lm=_money(item.get("capacidade_parcela_7lm")),
+            valor_total_cliente=_money(item.get("valor_total_cliente")),
+            observacao="Parcela 7LM ajustada pela evolucao da obra e pela parcela proporcional do banco.",
+        )
+
+    if intermediaria_qtd > 0 and intermediaria_valor > DECIMAL_ZERO:
+        for indice in range(intermediaria_qtd):
+            deslocamento = max(1, int(((indice + 1) * meses_pre) / (intermediaria_qtd + 1)))
+            adicionar(
+                fase="pre_entrega",
+                tipo="intermediaria",
+                numero=indice + 1,
+                vencimento=_add_months(hoje, deslocamento),
+                valor=intermediaria_valor,
+                observacao="Intermediaria planejada para reforcar pre-entrega.",
+            )
+
+    if anual_qtd > 0 and anual_valor > DECIMAL_ZERO:
+        for indice in range(anual_qtd):
+            deslocamento = min(meses_pre, 12 * (indice + 1))
+            adicionar(
+                fase="pre_entrega",
+                tipo="anual",
+                numero=indice + 1,
+                vencimento=_add_months(hoje, deslocamento),
+                valor=anual_valor,
+                observacao="Parcela anual de reforco.",
+            )
+
+    if semestral_qtd > 0 and semestral_valor > DECIMAL_ZERO:
+        for indice in range(semestral_qtd):
+            deslocamento = min(meses_pre, 6 * (indice + 1))
+            adicionar(
+                fase="pre_entrega",
+                tipo="semestral",
+                numero=indice + 1,
+                vencimento=_add_months(hoje, deslocamento),
+                valor=semestral_valor,
+                observacao="Parcela semestral de reforco.",
+            )
+
+    if reforco_qtd > 0 and reforco_valor > DECIMAL_ZERO:
+        for indice in range(reforco_qtd):
+            deslocamento = max(1, int(((indice + 1) * meses_pre) / (reforco_qtd + 1)))
+            adicionar(
+                fase="pre_entrega",
+                tipo="reforco",
+                numero=indice + 1,
+                vencimento=_add_months(hoje, deslocamento),
+                valor=reforco_valor,
+                observacao="Reforco comercial de equilibrio de fluxo.",
+            )
+
+    if meses_pos <= 0 and mensal_pos > DECIMAL_ZERO:
+        adicionar(
+            fase="pos_entrega",
+            tipo="saldo_pos",
+            numero=1,
+            vencimento=_add_months(hoje, meses_pre + 1),
+            valor=mensal_pos,
+            valor_7lm=mensal_pos,
+            parcela_banco_obra=parcela_financiamento_banco,
+            percentual_conclusao_obra=DECIMAL_100,
+            capacidade_parcela_7lm=capacidade_pos_7lm,
+            observacao="Saldo pos-entrega sem parcelamento configurado, considerando a parcela cheia do banco.",
+        )
+    else:
+        for indice in range(meses_pos):
+            adicionar(
+                fase="pos_entrega",
+                tipo="mensal_pos",
+                numero=indice + 1,
+                vencimento=_add_months(hoje, meses_pre + indice + 1),
+                valor=mensal_pos,
+                valor_7lm=mensal_pos,
+                parcela_banco_obra=parcela_financiamento_banco,
+                percentual_conclusao_obra=DECIMAL_100,
+                capacidade_parcela_7lm=capacidade_pos_7lm,
+                observacao="Parcela pos-entrega para fechamento da operacao, somada a parcela cheia do banco.",
+            )
+
+    return parcelas
+
+
+def _avaliar_status_geral(
+    *,
+    percentual_comprometimento: Decimal,
+    classificacao_fechamento: str,
+    percentual_fechamento_minimo: Decimal,
+    valor_fechamento_inicial: Decimal,
+    valor_garantido: Decimal,
+    parcela_7lm_media_pre: Decimal,
+    valor_parcela_minima_pre_obra: Decimal,
+    classificacao_entrega: str,
+    status_imovel: str,
+    valor_total_operacao: Decimal,
+) -> tuple[str, list[str], list[str]]:
+    bloqueios: list[str] = []
+    atencoes: list[str] = []
+
+    if valor_total_operacao <= DECIMAL_ZERO:
+        bloqueios.append("Valor total da operacao invalido.")
+
+    if percentual_comprometimento > LIMITE_COMPROMETIMENTO_PADRAO:
+        bloqueios.append("Comprometimento de renda acima da trava de 45%.")
+
+    if classificacao_fechamento == CLASSIFICACAO_INVALIDA:
+        bloqueios.append(
+            f"Estrutura inicial abaixo do valor garantido da unidade ({_moeda_texto(valor_garantido)})."
+        )
+    elif classificacao_fechamento == CLASSIFICACAO_ATENCAO:
+        atencoes.append("Aproxime o fechamento inicial da referencia de 90%.")
+
+    if valor_parcela_minima_pre_obra > DECIMAL_ZERO and parcela_7lm_media_pre < valor_parcela_minima_pre_obra:
+        bloqueios.append(
+            f"Parcela media de pre-obra abaixo do minimo da unidade ({_moeda_texto(valor_parcela_minima_pre_obra)})."
+        )
+
+    if classificacao_entrega == CLASSIFICACAO_INVALIDA:
+        bloqueios.append("Projecao de entrega abaixo da meta comercial da unidade.")
+    elif classificacao_entrega == CLASSIFICACAO_ATENCAO:
+        atencoes.append("A operacao respeita o prazo configurado, mas ainda pode ganhar mais forca ate a entrega.")
+
+    status_normalizado = _normalizar_status_imovel(status_imovel)
+    if status_normalizado in ("reservado", "vendido", "inativo"):
+        if status_normalizado == "reservado":
+            bloqueios.append("Imovel reservado no momento. Selecione unidade disponivel.")
+        elif status_normalizado == "vendido":
+            bloqueios.append("Imovel vendido e indisponivel para nova operacao.")
+        else:
+            bloqueios.append("Imovel inativo para operacao comercial.")
+
+    if bloqueios:
+        return STATUS_SIMULACAO_INVALIDA, bloqueios, atencoes
+
+    if classificacao_fechamento == CLASSIFICACAO_IDEAL and classificacao_entrega == CLASSIFICACAO_IDEAL:
+        return STATUS_SIMULACAO_IDEAL, bloqueios, atencoes
+
+    return STATUS_SIMULACAO_ATENCAO, bloqueios, atencoes
+
+
+def _gerar_sugestoes_ajuste(
+    *,
+    valor_fechamento_inicial: Decimal,
+    valor_garantido: Decimal,
+    parcela_7lm_media_pre: Decimal,
+    valor_parcela_minima_pre_obra: Decimal,
+    percentual_fechamento_inicial: Decimal,
+    percentual_fechamento_minimo: Decimal,
+    percentual_projetado_entrega: Decimal,
+    percentual_comprometimento: Decimal,
+) -> list[str]:
+    sugestoes: list[str] = []
+
+    if percentual_comprometimento > LIMITE_COMPROMETIMENTO_PADRAO:
+        sugestoes.append("Aumentar entrada ou renda complementar para reduzir a pressao mensal.")
+
+    if valor_fechamento_inicial < valor_garantido:
+        sugestoes.append(
+            f"Reforcar entrada, FGTS, subsidio ou financiamento para atingir ao menos {_moeda_texto(valor_garantido)} no fechamento."
+        )
+    elif percentual_fechamento_inicial < FECHAMENTO_REFERENCIA:
+        sugestoes.append("Pequeno ajuste de entrada pode levar o fechamento para a faixa ideal de 90%.")
+
+    if valor_parcela_minima_pre_obra > DECIMAL_ZERO and parcela_7lm_media_pre < valor_parcela_minima_pre_obra:
+        sugestoes.append(
+            f"Esta unidade exige ao menos {_moeda_texto(valor_parcela_minima_pre_obra)} de parcela pre-obra. Priorize um imovel com encaixe natural maior ou revise a estrutura comercial."
+        )
+
+    if percentual_projetado_entrega < ENTREGA_MINIMO:
+        sugestoes.append("Redistribuir pro-soluto para elevar o percentual projetado ate a entrega.")
+    elif percentual_projetado_entrega < ENTREGA_REFERENCIA:
+        sugestoes.append("Aumentar ligeiramente o fluxo pre-entrega para aproximar a quitacao de 100%.")
+
+    if not sugestoes:
+        sugestoes.append("Cenario equilibrado. Mantenha os parametros para fechamento seguro.")
+
+    return sugestoes[:4]
+
+
+def _resumo_cliente(cliente: dict[str, Any] | Any, complementos: list[dict[str, Any] | Any]) -> dict[str, Any]:
+    cliente_linha = dict(cliente or {})
+
+    renda_principal = _money(cliente_linha.get("renda_principal"))
+    renda_total_cadastro = _money(cliente_linha.get("renda_total"))
+    renda_conjuge = _money(cliente_linha.get("renda_conjuge"))
+    outras_rendas = _money(cliente_linha.get("outras_rendas"))
+
+    base_complementar = _money(renda_conjuge + outras_rendas)
+
+    complementos_serializados = [serializar_complemento_renda(item) for item in (complementos or [])]
+    membros_ativos = [
+        item
+        for item in complementos_serializados
+        if item.get("ativo", True)
+    ]
+    membros_em_analise = [
+        item
+        for item in membros_ativos
+        if item.get("incluir_na_analise", True)
+    ]
+    complementos_ativos = [
+        item
+        for item in membros_em_analise
+        if item.get("compoe_renda", True)
+        and item.get("incluir_na_composicao_financeira", True)
+    ]
+    renda_complementar_dinamica = _money(sum((_money(item.get("renda")) for item in complementos_ativos), DECIMAL_ZERO))
+
+    renda_complementar_total = _money(base_complementar + renda_complementar_dinamica)
+    renda_total = _money(renda_principal + renda_complementar_total)
+
+    if renda_total <= DECIMAL_ZERO and renda_total_cadastro > DECIMAL_ZERO:
+        renda_total = renda_total_cadastro
+
+    if renda_principal <= DECIMAL_ZERO and renda_total > DECIMAL_ZERO:
+        renda_principal = renda_total
+
+    limite_comprometimento = _money(renda_total * LIMITE_COMPROMETIMENTO_PADRAO)
+
+    return {
+        "cliente": {
+            "id": str(cliente_linha.get("identificador_cliente") or ""),
+            "nome_completo": cliente_linha.get("nome_completo"),
+            "cpf": cliente_linha.get("cpf"),
+            "cidade": cliente_linha.get("cidade"),
+            "email": cliente_linha.get("email"),
+            "telefone": cliente_linha.get("telefone") or cliente_linha.get("celular"),
+            "status_documental": cliente_linha.get("status_documental"),
+            "aprovado": bool(cliente_linha.get("aprovado", True)),
+        },
+        "renda_principal": renda_principal,
+        "renda_complementar": renda_complementar_total,
+        "renda_total": renda_total,
+        "limite_comprometimento": limite_comprometimento,
+        "nucleo_familiar": {
+            "total_membros": len(complementos_serializados),
+            "membros_ativos": len(membros_ativos),
+            "membros_em_analise": len(membros_em_analise),
+            "membros_compoem_renda": len(complementos_ativos),
+            "renda_complementar_ativa": renda_complementar_dinamica,
+        },
+        "complementos": complementos_serializados,
+    }
+
+
+def consolidar_nucleo_familiar(
+    cliente: dict[str, Any] | Any,
+    complementos: list[dict[str, Any] | Any],
+) -> dict[str, Any]:
+    return _resumo_cliente(cliente, complementos)
+
+def calcular_simulacao_comercial(
+    cliente: dict[str, Any] | Any,
+    complementos: list[dict[str, Any] | Any],
+    imovel: dict[str, Any] | Any,
+    payload: dict[str, Any],
+    *,
+    incluir_demonstrativo: bool = True,
+) -> dict[str, Any]:
+    imovel_linha = dict(imovel or {})
+    valor_imovel_base = _money(imovel_linha.get("valor"))
+    valor_imovel = valor_imovel_base
+
+    resumo_cliente = _resumo_cliente(cliente, complementos)
+    renda_total = resumo_cliente["renda_total"]
+    limite_comprometimento = resumo_cliente["limite_comprometimento"]
+
+    parametros = _coletar_parametros_financeiros(payload, valor_imovel)
+    percentual_fechamento_minimo_configurado = _percentual_fechamento_minimo_imovel(
+        imovel_linha.get("percentual_fechamento_minimo")
+    )
+    valor_garantido = _valor_garantido_imovel(
+        imovel_linha.get("valor_garantido"),
+        valor_imovel_base,
+        percentual_fechamento_minimo_configurado,
+    )
+    percentual_fechamento_minimo = _percentual_fechamento_minimo_por_valor_garantido(
+        valor_garantido,
+        parametros["valor_total_operacao"],
+        percentual_fechamento_minimo_configurado,
+    )
+    valor_parcela_minima_pre_obra = _parcela_minima_pre_obra_imovel(
+        imovel_linha.get("valor_parcela_minima_pre_obra")
+    )
+    valor_garantido_pre_obra_planejado = _valor_garantido_pre_obra_planejado_imovel(
+        imovel_linha.get("valor_garantido_pre_obra_planejado"),
+        valor_imovel_base,
+        imovel_linha.get("percentual_captacao_ate_entrega"),
+    )
+    percentual_captacao_ate_entrega = _percentual_captacao_ate_entrega_imovel(
+        imovel_linha.get("percentual_captacao_ate_entrega"),
+        valor_imovel_base,
+        imovel_linha.get("valor_garantido_pre_obra_planejado"),
+    )
+
+    fechamento_percentual = _percent(
+        parametros["valor_captacao_inicial"] / parametros["valor_total_operacao"]
+    ) if parametros["valor_total_operacao"] > DECIMAL_ZERO else Decimal("0")
+
+    data_entrega_imovel = normalizar_data(imovel_linha.get("data_entrega"), "data de entrega")
+    data_entrega_resolvida = data_entrega_imovel or calcular_data_entrega_dinamica()
+    meses_pre_origem = calcular_meses_ate_entrega(data_entrega_imovel) if data_entrega_imovel else None
+    if meses_pre_origem in (None, ""):
+        meses_pre_origem = imovel_linha.get("meses_pre_entrega")
+    if meses_pre_origem in (None, ""):
+        meses_pre_origem = calcular_meses_ate_entrega_dinamica()
+    meses_pos_origem = payload.get("meses_pos_entrega")
+    if meses_pos_origem in (None, ""):
+        meses_pos_origem = imovel_linha.get("meses_pos_entrega")
+
+    meses_pre, meses_pos, limite_meses_pos, meses_pos_solicitado = _normalizar_prazos_simulacao(
+        meses_pre_origem,
+        meses_pos_origem,
+    )
+
+    total_intermediarias, qtd_intermediarias, valor_intermediaria = _total_parcelamento(
+        payload.get("parcela_intermediaria_valor"),
+        payload.get("parcelas_intermediarias_quantidade"),
+    )
+    total_anuais, qtd_anuais, valor_anual = _total_parcelamento(
+        payload.get("parcela_anual_valor"),
+        payload.get("parcelas_anuais_quantidade"),
+    )
+    total_semestrais, qtd_semestrais, valor_semestral = _total_parcelamento(
+        payload.get("parcela_semestral_valor"),
+        payload.get("parcelas_semestrais_quantidade"),
+    )
+    total_reforcos, qtd_reforcos, valor_reforco = _total_parcelamento(
+        payload.get("parcela_reforco_valor"),
+        payload.get("parcelas_reforco_quantidade"),
+    )
+
+    total_extras_pre = _money(total_intermediarias + total_anuais + total_semestrais + total_reforcos)
+    percentual_conclusao_obra = _percentual_obra(imovel_linha.get("percentual_conclusao_obra"))
+    parcela_banco_atual_obra = _money(parametros["parcela_financiamento_banco"] * _fator_obra(percentual_conclusao_obra))
+    extras_por_mes = _mapear_extras_pre_entrega(
+        meses_pre=meses_pre,
+        intermediaria_valor=valor_intermediaria,
+        intermediaria_qtd=qtd_intermediarias,
+        anual_valor=valor_anual,
+        anual_qtd=qtd_anuais,
+        semestral_valor=valor_semestral,
+        semestral_qtd=qtd_semestrais,
+        reforco_valor=valor_reforco,
+        reforco_qtd=qtd_reforcos,
+    )
+
+    capacidade_pos_7lm = _money(max(limite_comprometimento - parametros["parcela_financiamento_banco"], DECIMAL_ZERO))
+
+    fluxo_capacidade_pre = _montar_fluxo_obra_pre_entrega(
+        meses_pre=meses_pre,
+        limite_comprometimento=limite_comprometimento,
+        parcela_financiamento_banco=parametros["parcela_financiamento_banco"],
+        percentual_conclusao_obra=percentual_conclusao_obra,
+        mensal_pre_total=DECIMAL_ZERO,
+        extras_por_mes=extras_por_mes,
+    )
+    capacidade_pre_total = _money(
+        sum((_money(item.get("capacidade_parcela_7lm")) for item in fluxo_capacidade_pre), DECIMAL_ZERO)
+    )
+    pro_soluto_pre_maximo = _money(min(parametros["pro_soluto_total"], capacidade_pre_total + total_extras_pre))
+    meses_pos_configurado = meses_pos
+    meses_pos_planejado = meses_pos_configurado
+    fluxo_pre_entrega: list[dict[str, Any]] = []
+    mensal_pre = DECIMAL_ZERO
+    pro_soluto_pre = DECIMAL_ZERO
+    pro_soluto_pos = _money(parametros["pro_soluto_total"])
+    mensal_pos = DECIMAL_ZERO
+    capacidade_pos_total_7lm = DECIMAL_ZERO
+
+    for _ in range(max(meses_pos_configurado, 1) + 1):
+        pro_soluto_pre_teorico = _definir_alvo_pre_entrega(
+            pro_soluto_total=parametros["pro_soluto_total"],
+            meses_pre=meses_pre,
+            meses_pos_configurado=meses_pos_planejado,
+            valor_captacao_entrega_base=parametros["valor_captacao_entrega_base"],
+            valor_garantido_pre_obra_planejado=valor_garantido_pre_obra_planejado,
+            capacidade_pos_7lm=capacidade_pos_7lm,
+        )
+        pro_soluto_pre_planejado = _money(min(pro_soluto_pre_teorico, pro_soluto_pre_maximo))
+        mensal_pre_total = _money(max(pro_soluto_pre_planejado - total_extras_pre, DECIMAL_ZERO))
+        fluxo_pre_entrega = _montar_fluxo_obra_pre_entrega(
+            meses_pre=meses_pre,
+            limite_comprometimento=limite_comprometimento,
+            parcela_financiamento_banco=parametros["parcela_financiamento_banco"],
+            percentual_conclusao_obra=percentual_conclusao_obra,
+            mensal_pre_total=mensal_pre_total,
+            extras_por_mes=extras_por_mes,
+        )
+        mensal_pre_total_alocado = _money(
+            sum((_money(item.get("parcela_7lm")) for item in fluxo_pre_entrega), DECIMAL_ZERO)
+        )
+        mensal_pre = _money(mensal_pre_total_alocado / Decimal(max(meses_pre, 1)))
+        pro_soluto_pre = _money(min(pro_soluto_pre_planejado, mensal_pre_total_alocado + total_extras_pre))
+        pro_soluto_pos = _money(max(parametros["pro_soluto_total"] - pro_soluto_pre, DECIMAL_ZERO))
+        meses_pos_calculado, mensal_pos_calculado, capacidade_pos_total_calculada = _planejar_fluxo_pos_entrega(
+            pro_soluto_pos=pro_soluto_pos,
+            capacidade_pos_7lm=capacidade_pos_7lm,
+            meses_pos_limite=meses_pos_planejado,
+        )
+        mensal_pos = mensal_pos_calculado
+        capacidade_pos_total_7lm = capacidade_pos_total_calculada
+
+        if meses_pos_calculado >= meses_pos_planejado:
+            meses_pos = meses_pos_calculado
+            break
+
+        meses_pos_planejado = meses_pos_calculado
+        meses_pos = meses_pos_calculado
+
+    total_projetado_entrega = _money(parametros["valor_captacao_entrega_base"] + pro_soluto_pre)
+    percentual_projetado_entrega = _percent(
+        total_projetado_entrega / parametros["valor_total_operacao"]
+    ) if parametros["valor_total_operacao"] > DECIMAL_ZERO else Decimal("0")
+    saldo_pos_entrega = _money(max(parametros["valor_total_operacao"] - total_projetado_entrega, DECIMAL_ZERO))
+
+    parcela_pre_pico = _money(
+        max([_money(item.get("valor_total_comprometido")) for item in fluxo_pre_entrega] or [DECIMAL_ZERO])
+    )
+    parcela_pos_pico = _money(mensal_pos + parametros["parcela_financiamento_banco"])
+    parcela_referencia = max(parcela_pre_pico, parcela_pos_pico)
+
+    percentual_comprometimento = _percent(
+        parcela_referencia / renda_total
+    ) if renda_total > DECIMAL_ZERO else Decimal("1")
+
+    classificacao_fechamento = _classificar_fechamento(fechamento_percentual, percentual_fechamento_minimo)
+    classificacao_entrega = _classificar_entrega(
+        percentual_projetado_entrega,
+        percentual_captacao_ate_entrega,
+    )
+
+    status_simulacao, bloqueios, atencoes = _avaliar_status_geral(
+        percentual_comprometimento=percentual_comprometimento,
+        classificacao_fechamento=classificacao_fechamento,
+        percentual_fechamento_minimo=percentual_fechamento_minimo,
+        valor_fechamento_inicial=parametros["valor_captacao_inicial"],
+        valor_garantido=valor_garantido,
+        parcela_7lm_media_pre=mensal_pre,
+        valor_parcela_minima_pre_obra=valor_parcela_minima_pre_obra,
+        classificacao_entrega=classificacao_entrega,
+        status_imovel=imovel_linha.get("status"),
+        valor_total_operacao=parametros["valor_total_operacao"],
+    )
+    if pro_soluto_pos > DECIMAL_ZERO and mensal_pos > capacidade_pos_7lm:
+        status_simulacao = STATUS_SIMULACAO_INVALIDA
+        bloqueios.append(
+            "No pos-obra, a parcela 7LM excede a margem disponivel depois de descontar a parcela cheia do banco."
+        )
+    if meses_pos_solicitado > limite_meses_pos:
+        atencoes.append(
+            f"Meses pos-entrega ajustados para {meses_pos_configurado} porque pre + pos nao pode passar de {MAXIMO_MESES_TOTAIS_SIMULACAO}."
+        )
+    if (
+        pro_soluto_pos > DECIMAL_ZERO
+        and capacidade_pos_7lm > DECIMAL_ZERO
+        and meses_pos > 0
+        and meses_pos < meses_pos_configurado
+    ):
+        atencoes.append(
+            f"Meses pos-entrega travados em {meses_pos} para usar a parcela maxima segura e quitar no menor prazo."
+        )
+
+    sugestoes = _gerar_sugestoes_ajuste(
+        valor_fechamento_inicial=parametros["valor_captacao_inicial"],
+        valor_garantido=valor_garantido,
+        parcela_7lm_media_pre=mensal_pre,
+        valor_parcela_minima_pre_obra=valor_parcela_minima_pre_obra,
+        percentual_fechamento_inicial=fechamento_percentual,
+        percentual_fechamento_minimo=percentual_fechamento_minimo,
+        percentual_projetado_entrega=percentual_projetado_entrega,
+        percentual_comprometimento=percentual_comprometimento,
+    )
+
+    demonstrativo = []
+    if incluir_demonstrativo:
+        demonstrativo = _gerar_demonstrativo_parcelas(
+            renda_total=renda_total,
+            entrada=parametros["entrada"],
+            fluxo_pre_entrega=fluxo_pre_entrega,
+            mensal_pos=mensal_pos,
+            parcela_financiamento_banco=parametros["parcela_financiamento_banco"],
+            capacidade_pos_7lm=capacidade_pos_7lm,
+            meses_pre=meses_pre,
+            meses_pos=meses_pos,
+            intermediaria_valor=valor_intermediaria,
+            intermediaria_qtd=qtd_intermediarias,
+            anual_valor=valor_anual,
+            anual_qtd=qtd_anuais,
+            semestral_valor=valor_semestral,
+            semestral_qtd=qtd_semestrais,
+            reforco_valor=valor_reforco,
+            reforco_qtd=qtd_reforcos,
+        )
+
+    identificacao_imovel = montar_identificacao_imovel_simulador(imovel_linha)
+
+    return {
+        "cliente": resumo_cliente,
+        "imovel": {
+            "id": str(imovel_linha.get("identificador_imovel") or ""),
+            "titulo": identificacao_imovel["titulo"],
+            "titulo_original": identificacao_imovel["titulo_original"],
+            "descricao": imovel_linha.get("descricao"),
+            "empreendimento": imovel_linha.get("empreendimento") or imovel_linha.get("titulo"),
+            "cidade": imovel_linha.get("cidade"),
+            "bairro": imovel_linha.get("bairro"),
+            "endereco": imovel_linha.get("endereco"),
+            "estado": imovel_linha.get("estado"),
+            "cep": imovel_linha.get("cep"),
+            "tipologia": imovel_linha.get("tipo_imovel"),
+            "dormitorios": imovel_linha.get("quartos"),
+            "quartos": imovel_linha.get("quartos"),
+            "banheiros": imovel_linha.get("banheiros"),
+            "vagas": imovel_linha.get("vagas_garagem"),
+            "tipo_garagem": imovel_linha.get("tipo_garagem") or "carro",
+            "area_m2": _decimal(imovel_linha.get("area_m2")),
+            "data_entrega": data_entrega_resolvida.isoformat(),
+            "meses_pre_entrega": meses_pre,
+            "meses_pos_entrega": meses_pos,
+            "meses_pos_entrega_configurado": meses_pos_configurado,
+            "percentual_conclusao_obra": percentual_conclusao_obra,
+            "percentual_fechamento_minimo": percentual_fechamento_minimo,
+            "valor_garantido": valor_garantido,
+            "valor_garantido_planejado": valor_garantido,
+            "valor_garantido_pre_obra_planejado": valor_garantido_pre_obra_planejado,
+            "percentual_captacao_ate_entrega": percentual_captacao_ate_entrega,
+            "valor_parcela_minima_pre_obra": valor_parcela_minima_pre_obra,
+            "valor": _money(imovel_linha.get("valor")),
+            "status": imovel_linha.get("status"),
+            "foto_principal": imovel_linha.get("foto_principal"),
+            "agrupamento": identificacao_imovel["agrupamento"],
+            "detalhes_comerciais": identificacao_imovel["detalhes_comerciais"],
+        },
+        "resumo_operacao": {
+            "renda_total": renda_total,
+            "limite_comprometimento": limite_comprometimento,
+            "percentual_comprometimento": percentual_comprometimento,
+            "parcela_maxima_segura": limite_comprometimento,
+            "parcela_referencia": parcela_referencia,
+            "entrada": parametros["entrada"],
+            "pro_soluto_total": parametros["pro_soluto_total"],
+            "valor_imovel": parametros["valor_imovel"],
+            "valor_total_operacao": parametros["valor_total_operacao"],
+            "financiamento_caixa": parametros["financiamento_caixa"],
+            "parcela_financiamento_banco": parametros["parcela_financiamento_banco"],
+            "parcela_banco_obra_atual": parcela_banco_atual_obra,
+            "parcela_banco_obra_entrega": parametros["parcela_financiamento_banco"],
+            "parcela_7lm_media_pre": mensal_pre,
+            "parcela_7lm_primeira_pre": _money(fluxo_pre_entrega[0].get("parcela_7lm")) if fluxo_pre_entrega else DECIMAL_ZERO,
+            "parcela_7lm_ultima_pre": _money(fluxo_pre_entrega[-1].get("parcela_7lm")) if fluxo_pre_entrega else DECIMAL_ZERO,
+            "valor_parcela_minima_pre_obra": valor_parcela_minima_pre_obra,
+            "parcela_7lm_pos": mensal_pos,
+            "capacidade_pos_obra_7lm": capacidade_pos_7lm,
+            "capacidade_pos_obra_total_7lm": capacidade_pos_total_7lm,
+            "percentual_conclusao_obra": percentual_conclusao_obra,
+            "fgts": parametros["fgts"],
+            "subsidio": parametros["subsidio"],
+            "cheque_moradia": parametros["cheque_moradia"],
+            "sobrepreco": parametros["sobrepreco"],
+            "valor_fechamento_inicial": parametros["valor_captacao_inicial"],
+            "valor_garantido_real": parametros["valor_captacao_inicial"],
+            "percentual_fechamento_inicial": fechamento_percentual,
+            "percentual_fechamento_minimo": percentual_fechamento_minimo,
+            "valor_garantido": valor_garantido,
+            "valor_garantido_planejado": valor_garantido,
+            "valor_garantido_pre_obra_planejado": valor_garantido_pre_obra_planejado,
+            "valor_garantido_pre_obra_real": total_projetado_entrega,
+            "percentual_captacao_ate_entrega": percentual_captacao_ate_entrega,
+            "classificacao_fechamento_inicial": classificacao_fechamento,
+            "valor_projetado_entrega": total_projetado_entrega,
+            "percentual_projetado_entrega": percentual_projetado_entrega,
+            "classificacao_projecao_entrega": classificacao_entrega,
+            "saldo_pos_entrega": saldo_pos_entrega,
+            "meses_pre_entrega": meses_pre,
+            "meses_pos_entrega": meses_pos,
+            "meses_pos_entrega_configurado": meses_pos_configurado,
+            "mensal_pre": mensal_pre,
+            "mensal_pos": mensal_pos,
+            "status_simulacao": status_simulacao,
+            "bloqueios": bloqueios,
+            "atencoes": atencoes,
+            "sugestoes": sugestoes,
+        },
+        "demonstrativo": demonstrativo,
+        "componentes_pre_entrega": {
+            "total_intermediarias": total_intermediarias,
+            "total_anuais": total_anuais,
+            "total_semestrais": total_semestrais,
+            "total_reforcos": total_reforcos,
+            "total_extras_pre": total_extras_pre,
+            "pro_soluto_pre": pro_soluto_pre,
+            "pro_soluto_pos": pro_soluto_pos,
+            "capacidade_pre_total_obra": capacidade_pre_total,
+            "capacidade_pos_obra_7lm": capacidade_pos_7lm,
+            "capacidade_pos_obra_total_7lm": capacidade_pos_total_7lm,
+            "parcela_banco_atual_obra": parcela_banco_atual_obra,
+        },
+    }
+
+
+def _montar_payload_base_sugestao(payload: dict[str, Any] | None) -> dict[str, Any]:
+    dados = dict(payload or {})
+    dados["usar_entrada_padrao"] = False
+    dados["sobrepreco"] = DECIMAL_ZERO
+    dados["parcela_intermediaria_valor"] = DECIMAL_ZERO
+    dados["parcelas_intermediarias_quantidade"] = 0
+    dados["parcela_anual_valor"] = DECIMAL_ZERO
+    dados["parcelas_anuais_quantidade"] = 0
+    dados["parcela_semestral_valor"] = DECIMAL_ZERO
+    dados["parcelas_semestrais_quantidade"] = 0
+    dados["parcela_reforco_valor"] = DECIMAL_ZERO
+    dados["parcelas_reforco_quantidade"] = 0
+    return dados
+
+
+def _percentual_financiamento_sobre_valor(financiamento: Any, valor_total_operacao: Any) -> Decimal:
+    valor_total = _money(valor_total_operacao)
+    valor_financiado = _money(financiamento)
+    if valor_total <= DECIMAL_ZERO or valor_financiado <= DECIMAL_ZERO:
+        return DECIMAL_ZERO
+    return _percent(valor_financiado / valor_total)
+
+
+def _analisar_enquadramento_sugestao(resultado: dict[str, Any]) -> dict[str, Any]:
+    resumo = resultado.get("resumo_operacao") or {}
+
+    valor_total_operacao = _money(resumo.get("valor_total_operacao"))
+    financiamento_caixa = _money(resumo.get("financiamento_caixa"))
+    percentual_financiamento = _percentual_financiamento_sobre_valor(
+        financiamento_caixa,
+        valor_total_operacao,
+    )
+    percentual_fechamento = _decimal(resumo.get("percentual_fechamento_inicial"))
+    status_valido = _status_simulacao_valido(resultado)
+
+    financiamento_enquadrado = (
+        valor_total_operacao > DECIMAL_ZERO
+        and percentual_financiamento <= FINANCIAMENTO_REFERENCIA
+    )
+    fechamento_enquadrado = percentual_fechamento >= FECHAMENTO_REFERENCIA
+
+    valor_imovel_alvo = (
+        _money(financiamento_caixa / FINANCIAMENTO_REFERENCIA)
+        if financiamento_caixa > DECIMAL_ZERO
+        else valor_total_operacao
+    )
+    desvio_valor_alvo = (
+        _percent(abs(valor_total_operacao - valor_imovel_alvo) / valor_imovel_alvo)
+        if valor_imovel_alvo > DECIMAL_ZERO
+        else Decimal("1.0000")
+    )
+    gap_financiamento = (
+        _percent(max(percentual_financiamento - FINANCIAMENTO_REFERENCIA, DECIMAL_ZERO))
+        if valor_total_operacao > DECIMAL_ZERO
+        else Decimal("1.0000")
+    )
+    gap_fechamento = _percent(max(FECHAMENTO_REFERENCIA - percentual_fechamento, DECIMAL_ZERO))
+    faixa_natural = status_valido and financiamento_enquadrado and fechamento_enquadrado
+
+    return {
+        "faixa_natural": faixa_natural,
+        "status_valido": status_valido,
+        "financiamento_enquadrado": financiamento_enquadrado,
+        "fechamento_enquadrado": fechamento_enquadrado,
+        "percentual_financiamento": percentual_financiamento,
+        "percentual_fechamento": percentual_fechamento,
+        "valor_imovel_alvo": valor_imovel_alvo,
+        "desvio_valor_alvo": desvio_valor_alvo,
+        "gap_financiamento": gap_financiamento,
+        "gap_fechamento": gap_fechamento,
+    }
+
+
+def _gerar_justificativa_sugestao(
+    resultado: dict[str, Any],
+    *,
+    analise_comercial: dict[str, Any],
+    faixa_natural: bool,
+    ajuste_entrada: dict[str, Any] | None,
+) -> str:
+    resumo = resultado.get("resumo_operacao") or {}
+    percentual_comprometimento = _decimal(resumo.get("percentual_comprometimento"))
+    percentual_fechamento = _decimal(resumo.get("percentual_fechamento_inicial"))
+    percentual_fechamento_minimo = _percentual_fechamento_minimo_imovel(resumo.get("percentual_fechamento_minimo"))
+    parcela_7lm_media_pre = _money(resumo.get("parcela_7lm_media_pre"))
+    valor_parcela_minima_pre_obra = _money(resumo.get("valor_parcela_minima_pre_obra"))
+    percentual_financiamento = _decimal(analise_comercial.get("percentual_financiamento"))
+
+    if faixa_natural:
+        if valor_parcela_minima_pre_obra > DECIMAL_ZERO and parcela_7lm_media_pre < valor_parcela_minima_pre_obra:
+            return "A renda fecha a operacao, mas a parcela pre-obra ainda fica abaixo do piso exigido para esta unidade."
+        return (
+            "Cabe na faixa comercial do cliente, com financiamento em "
+            f"{_percentual_texto(percentual_financiamento)} do imovel e fechamento inicial acima de 90%."
+        )
+
+    if valor_parcela_minima_pre_obra > DECIMAL_ZERO and parcela_7lm_media_pre < valor_parcela_minima_pre_obra:
+        return "Fora da faixa natural porque a parcela pre-obra da unidade fica abaixo do minimo exigido."
+
+    if not analise_comercial.get("financiamento_enquadrado"):
+        return (
+            "Fora da faixa ideal porque o financiamento representa "
+            f"{_percentual_texto(percentual_financiamento)} do valor do imovel, acima da trava comercial de 70%."
+        )
+
+    if not analise_comercial.get("fechamento_enquadrado") and ajuste_entrada:
+        return (
+            "O financiamento encaixa na regra dos 70%, mas o fechamento inicial ainda fica abaixo de 90%. "
+            "Aplique a entrada sugerida para levar a operacao para a faixa ideal."
+        )
+
+    if not analise_comercial.get("fechamento_enquadrado"):
+        return (
+            "O financiamento respeita a faixa do imovel, mas a soma de entrada, FGTS, subsidio e demais recursos "
+            "ainda nao fecha 90% no inicio."
+        )
+
+    if ajuste_entrada:
+        return "Fora da faixa natural com a estrutura atual. Se quiser esta unidade, aplique a entrada minima sugerida."
+
+    if percentual_comprometimento <= Decimal("0.35") and percentual_fechamento >= Decimal("0.88"):
+        return "Melhor equilibrio entre entrada e parcela com conforto de renda."
+
+    if percentual_fechamento >= FECHAMENTO_REFERENCIA:
+        return "Fechamento proximo da referencia comercial e entrega com quitacao forte."
+
+    if percentual_fechamento >= percentual_fechamento_minimo:
+        return "Fechamento em faixa aceitavel para seguir a negociacao com ajuste fino."
+
+    if percentual_comprometimento <= LIMITE_COMPROMETIMENTO_PADRAO:
+        return "Comprometimento dentro da trava com ajustes simples para otimizar a entrega."
+
+    return "Cenario com potencial, mas exige ajustes de entrada ou fluxo pre-entrega."
+
+
+def _calcular_score_sugestao(resultado: dict[str, Any], status_imovel: str) -> Decimal:
+    resumo = resultado.get("resumo_operacao") or {}
+    analise_comercial = _analisar_enquadramento_sugestao(resultado)
+
+    fechamento = _decimal(resumo.get("percentual_fechamento_inicial"))
+    entrega = _decimal(resumo.get("percentual_projetado_entrega"))
+    comprometimento = _decimal(resumo.get("percentual_comprometimento"))
+    financiamento = _decimal(analise_comercial.get("percentual_financiamento"))
+    desvio_valor_alvo = _decimal(analise_comercial.get("desvio_valor_alvo"))
+
+    score_financiamento = max(Decimal("0"), Decimal("1") - (abs(financiamento - FINANCIAMENTO_REFERENCIA) / Decimal("0.12")))
+    score_fechamento = max(Decimal("0"), Decimal("1") - (max(FECHAMENTO_REFERENCIA - fechamento, DECIMAL_ZERO) / Decimal("0.20")))
+    score_entrega = max(Decimal("0"), Decimal("1") - (abs(entrega - ENTREGA_REFERENCIA) / Decimal("0.20")))
+    score_comprometimento = max(Decimal("0"), Decimal("1") - (comprometimento / LIMITE_COMPROMETIMENTO_PADRAO))
+    score_alvo = max(Decimal("0"), Decimal("1") - (desvio_valor_alvo / Decimal("0.25")))
+
+    bonus_status = Decimal("1") if _normalizar_status_imovel(status_imovel) == "disponivel" else Decimal("0.4")
+
+    score = (
+        (score_financiamento * Decimal("0.30"))
+        + (score_fechamento * Decimal("0.20"))
+        + (score_alvo * Decimal("0.12"))
+        + (score_entrega * Decimal("0.18"))
+        + (score_comprometimento * Decimal("0.10"))
+        + (bonus_status * Decimal("0.10"))
+    ) * DECIMAL_100
+
+    return _percent(score)
+
+
+def _status_simulacao_valido(resultado: dict[str, Any]) -> bool:
+    resumo = resultado.get("resumo_operacao") or {}
+    status = _limpar_texto(resumo.get("status_simulacao")).lower()
+    return status in (STATUS_SIMULACAO_IDEAL, STATUS_SIMULACAO_ATENCAO)
+
+
+def _ordenar_sugestao_imovel(item: dict[str, Any]) -> tuple[Any, ...]:
+    imovel = item.get("imovel") or {}
+    ajuste_entrada = item.get("ajuste_entrada") or {}
+    analise_comercial = item.get("analise_comercial") or {}
+    return (
+        not bool(item.get("faixa_natural")),
+        _normalizar_status_imovel(imovel.get("status")) != "disponivel",
+        item.get("classificacao") == STATUS_SIMULACAO_INVALIDA,
+        not bool(analise_comercial.get("financiamento_enquadrado")),
+        float(_decimal(analise_comercial.get("gap_financiamento"))),
+        not bool(analise_comercial.get("fechamento_enquadrado")),
+        float(_decimal(analise_comercial.get("gap_fechamento"))),
+        float(_decimal(analise_comercial.get("desvio_valor_alvo"))),
+        float(_money(ajuste_entrada.get("entrada_sugerida"))),
+        -float(_decimal(item.get("score"))),
+        float(_decimal(imovel.get("valor"))),
+    )
+
+
+def _sugerir_ajuste_entrada(
+    cliente: dict[str, Any] | Any,
+    complementos: list[dict[str, Any] | Any],
+    imovel: dict[str, Any] | Any,
+    payload: dict[str, Any],
+    resultado_atual: dict[str, Any],
+) -> dict[str, Any] | None:
+    resumo_atual = resultado_atual.get("resumo_operacao") or {}
+    entrada_atual = _money(resumo_atual.get("entrada"))
+    valor_total_operacao = _money(resumo_atual.get("valor_total_operacao"))
+    status_atual = _limpar_texto(resumo_atual.get("status_simulacao")).lower()
+
+    if status_atual == STATUS_SIMULACAO_IDEAL:
+        return None
+
+    if valor_total_operacao <= DECIMAL_ZERO:
+        return None
+
+    financiamento = _money(resumo_atual.get("financiamento_caixa"))
+    fgts = _money(resumo_atual.get("fgts"))
+    subsidio = _money(resumo_atual.get("subsidio"))
+    cheque_moradia = _money(resumo_atual.get("cheque_moradia"))
+    percentual_fechamento_minimo = _percentual_fechamento_minimo_imovel(resumo_atual.get("percentual_fechamento_minimo"))
+    valor_garantido = _money(
+        resumo_atual.get("valor_garantido")
+        or (resultado_atual.get("imovel") or {}).get("valor_garantido")
+    )
+    valor_parcela_minima_pre_obra = _money(
+        resumo_atual.get("valor_parcela_minima_pre_obra")
+        or (resultado_atual.get("imovel") or {}).get("valor_parcela_minima_pre_obra")
+    )
+    parcela_7lm_media_pre = _money(resumo_atual.get("parcela_7lm_media_pre"))
+    if valor_parcela_minima_pre_obra > DECIMAL_ZERO and parcela_7lm_media_pre < valor_parcela_minima_pre_obra:
+        return None
+    limite_entrada = _money(max(valor_total_operacao - financiamento - fgts - subsidio, DECIMAL_ZERO))
+    valor_fechamento_referencia = _money(max(
+        valor_garantido,
+        valor_total_operacao * FECHAMENTO_REFERENCIA,
+    ))
+    entrada_alvo_fechamento = _money(max(
+        valor_fechamento_referencia - financiamento - fgts - subsidio,
+        DECIMAL_ZERO,
+    ))
+
+    renda_total = _money(resumo_atual.get("renda_total"))
+    limite_comprometimento = _money(resumo_atual.get("limite_comprometimento"))
+    parcela_referencia = _money(resumo_atual.get("parcela_referencia"))
+    meses_pre = int(_decimal(resumo_atual.get("meses_pre_entrega"), Decimal("1")) or Decimal("1"))
+    meses_pre = max(meses_pre, 1)
+    excesso_mensal = _money(max(parcela_referencia - limite_comprometimento, DECIMAL_ZERO))
+    entrada_alvo_comprometimento = _money(entrada_atual + (excesso_mensal * Decimal(meses_pre)))
+
+    entrada_sugerida = _money(max(entrada_atual, entrada_alvo_fechamento, entrada_alvo_comprometimento))
+    entrada_sugerida = _money(min(entrada_sugerida, limite_entrada))
+    incremento = _money(max(entrada_sugerida - entrada_atual, DECIMAL_ZERO))
+
+    if incremento <= DECIMAL_ZERO:
+        return None
+
+    fechamento_ajustado = _percent(
+        (entrada_sugerida + financiamento + fgts + subsidio) / valor_total_operacao
+    )
+    valor_entrega_ajustado = _money(_money(resumo_atual.get("valor_projetado_entrega")) + incremento)
+    entrega_ajustada = _percent(valor_entrega_ajustado / valor_total_operacao)
+    parcela_referencia_ajustada = _money(max(parcela_referencia - (incremento / Decimal(meses_pre)), DECIMAL_ZERO))
+    comprometimento_ajustado = _percent(parcela_referencia_ajustada / renda_total) if renda_total > DECIMAL_ZERO else Decimal("1")
+    status_ajustado, _, _ = _avaliar_status_geral(
+        percentual_comprometimento=comprometimento_ajustado,
+        classificacao_fechamento=_classificar_fechamento(fechamento_ajustado, percentual_fechamento_minimo),
+        percentual_fechamento_minimo=percentual_fechamento_minimo,
+        valor_fechamento_inicial=_money(entrada_sugerida + financiamento + fgts + subsidio),
+        valor_garantido=valor_garantido,
+        parcela_7lm_media_pre=parcela_7lm_media_pre,
+        valor_parcela_minima_pre_obra=valor_parcela_minima_pre_obra,
+        classificacao_entrega=_classificar_entrega(entrega_ajustada),
+        status_imovel=(resultado_atual.get("imovel") or {}).get("status") or "",
+        valor_total_operacao=valor_total_operacao,
+    )
+
+    return {
+        "entrada_atual": entrada_atual,
+        "entrada_sugerida": entrada_sugerida,
+        "incremento_necessario": incremento,
+        "status_apos_ajuste": status_ajustado,
+        "percentual_comprometimento_ajustado": comprometimento_ajustado,
+        "parcela_referencia_ajustada": parcela_referencia_ajustada,
+        "fechamento_inicial_ajustado": fechamento_ajustado,
+        "projecao_entrega_ajustada": entrega_ajustada,
+    }
+
+def sugerir_imoveis_inteligentes(
+    cliente: dict[str, Any] | Any,
+    complementos: list[dict[str, Any] | Any],
+    imoveis: list[dict[str, Any] | Any],
+    payload: dict[str, Any],
+    *,
+    limite: int = 12,
+) -> dict[str, Any]:
+    sugestoes = []
+    payload_base = _montar_payload_base_sugestao(payload)
+
+    for item in imoveis or []:
+        resultado = calcular_simulacao_comercial(cliente, complementos, item, payload_base, incluir_demonstrativo=False)
+        resumo = resultado.get("resumo_operacao") or {}
+        analise_comercial = _analisar_enquadramento_sugestao(resultado)
+        faixa_natural = bool(analise_comercial.get("faixa_natural"))
+
+        score = _calcular_score_sugestao(resultado, (resultado.get("imovel") or {}).get("status") or "")
+        ajuste_entrada = None if faixa_natural else _sugerir_ajuste_entrada(cliente, complementos, item, payload_base, resultado)
+        justificativa = _gerar_justificativa_sugestao(
+            resultado,
+            analise_comercial=analise_comercial,
+            faixa_natural=faixa_natural,
+            ajuste_entrada=ajuste_entrada,
+        )
+
+        sugestoes.append(
+            {
+                "imovel": resultado.get("imovel"),
+                "resumo_operacao": resumo,
+                "score": score,
+                "classificacao": resumo.get("status_simulacao"),
+                "faixa_natural": faixa_natural,
+                "analise_comercial": analise_comercial,
+                "justificativa": justificativa,
+                "ajuste_entrada": ajuste_entrada,
+            }
+        )
+
+    sugestoes.sort(key=_ordenar_sugestao_imovel)
+
+    melhores = sugestoes[: max(1, int(limite or 12))]
+    melhor = melhores[0] if melhores else None
+
+    return {
+        "melhor_match": melhor,
+        "alternativas": melhores[1:] if len(melhores) > 1 else [],
+        "items": melhores,
+        "quantidade_avaliada": len(sugestoes),
+    }
+
+
+def validar_operacao_final(simulacao: dict[str, Any] | Any, acao: str) -> tuple[bool, list[str]]:
+    linha = dict(simulacao or {})
+    status = _limpar_texto(linha.get("status_simulacao") or linha.get("resumo_operacao", {}).get("status_simulacao")).lower()
+    percentual_comprometimento = _decimal(
+        linha.get("percentual_comprometimento")
+        or linha.get("resumo_operacao", {}).get("percentual_comprometimento")
+    )
+    percentual_fechamento = _decimal(
+        linha.get("percentual_fechamento_inicial")
+        or linha.get("resumo_operacao", {}).get("percentual_fechamento_inicial")
+    )
+    percentual_entrega = _decimal(
+        linha.get("percentual_projetado_entrega")
+        or linha.get("resumo_operacao", {}).get("percentual_projetado_entrega")
+    )
+    valor_fechamento_inicial = _money(
+        linha.get("valor_fechamento_inicial")
+        or linha.get("resumo_operacao", {}).get("valor_fechamento_inicial")
+    )
+    percentual_fechamento_minimo = _percentual_fechamento_minimo_imovel(
+        linha.get("percentual_fechamento_minimo")
+        or linha.get("resumo_operacao", {}).get("percentual_fechamento_minimo")
+        or linha.get("imovel", {}).get("percentual_fechamento_minimo")
+    )
+    valor_garantido = _money(
+        linha.get("valor_garantido")
+        or linha.get("resumo_operacao", {}).get("valor_garantido")
+        or linha.get("imovel", {}).get("valor_garantido")
+        or calcular_valor_garantido_padrao(
+            linha.get("valor_imovel")
+            or linha.get("resumo_operacao", {}).get("valor_imovel")
+            or linha.get("imovel", {}).get("valor"),
+            percentual_fechamento_minimo,
+        )
+        or DECIMAL_ZERO
+    )
+    parcela_7lm_media_pre = _money(
+        linha.get("parcela_7lm_media_pre")
+        or linha.get("resumo_operacao", {}).get("parcela_7lm_media_pre")
+    )
+    valor_parcela_minima_pre_obra = _money(
+        linha.get("valor_parcela_minima_pre_obra")
+        or linha.get("resumo_operacao", {}).get("valor_parcela_minima_pre_obra")
+        or linha.get("imovel", {}).get("valor_parcela_minima_pre_obra")
+    )
+
+    erros: list[str] = []
+
+    if status == STATUS_SIMULACAO_INVALIDA:
+        erros.append("A simulacao esta invalida para acao final.")
+
+    if percentual_comprometimento > LIMITE_COMPROMETIMENTO_PADRAO:
+        erros.append("Comprometimento de renda acima de 45% bloqueia a operacao.")
+
+    if valor_fechamento_inicial < valor_garantido:
+        erros.append(
+            f"Fechamento inicial abaixo do valor garantido da unidade ({_moeda_texto(valor_garantido)})."
+        )
+
+    if valor_parcela_minima_pre_obra > DECIMAL_ZERO and parcela_7lm_media_pre < valor_parcela_minima_pre_obra:
+        erros.append(
+            f"Parcela media de pre-obra abaixo do minimo exigido para a unidade ({_moeda_texto(valor_parcela_minima_pre_obra)})."
+        )
+
+    if percentual_entrega < ENTREGA_MINIMO:
+        erros.append("Projecao de entrega abaixo do minimo comercial esperado.")
+
+    if _limpar_texto(acao).lower() == "vender" and percentual_entrega < ENTREGA_MINIMO:
+        erros.append("Venda bloqueada: cenarios de entrega fracos nao podem ser concluidos.")
+
+    return len(erros) == 0, erros
+
+
+def serializar_simulacao(registro: dict[str, Any] | Any, parcelas: list[dict[str, Any] | Any] | None = None) -> dict[str, Any]:
+    linha = dict(registro or {})
+
+    parcelas_serializadas = [serializar_parcela(item) for item in (parcelas or [])]
+    payload_snapshot = _json_dict(linha.get("payload_snapshot"))
+    calculo_snapshot = payload_snapshot.get("calculo") if isinstance(payload_snapshot.get("calculo"), dict) else {}
+    resumo_snapshot = calculo_snapshot.get("resumo_operacao") if isinstance(calculo_snapshot.get("resumo_operacao"), dict) else {}
+
+    return {
+        "id": str(linha.get("identificador_simulacao") or ""),
+        "cliente_id": str(linha.get("identificador_cliente") or ""),
+        "imovel_id": str(linha.get("identificador_imovel") or ""),
+        "empreendimento": linha.get("empreendimento"),
+        "corretor_id": str(linha.get("identificador_corretor") or "") or None,
+        "renda_principal": _money(linha.get("renda_principal")),
+        "renda_complementar": _money(linha.get("renda_complementar")),
+        "renda_total": _money(linha.get("renda_total")),
+        "limite_comprometimento": _money(linha.get("limite_comprometimento")),
+        "percentual_comprometimento": _percent(_decimal(linha.get("percentual_comprometimento"))),
+        "valor_imovel": _money(linha.get("valor_imovel")),
+        "valor_total_operacao": _money(linha.get("valor_total_operacao")),
+        "financiamento_caixa": _money(linha.get("financiamento_caixa")),
+        "parcela_financiamento_banco": _money(resumo_snapshot.get("parcela_financiamento_banco")),
+        "capacidade_pos_obra_7lm": _money(resumo_snapshot.get("capacidade_pos_obra_7lm")),
+        "parcela_7lm_pos": _money(resumo_snapshot.get("parcela_7lm_pos")),
+        "fgts": _money(linha.get("fgts")),
+        "subsidio": _money(linha.get("subsidio")),
+        "cheque_moradia": _money(linha.get("cheque_moradia")),
+        "entrada": _money(linha.get("entrada")),
+        "pro_soluto_total": _money(linha.get("pro_soluto_total")),
+        "sobrepreco": _money(linha.get("sobrepreco")),
+        "percentual_fechamento_inicial": _percent(_decimal(linha.get("percentual_fechamento_inicial"))),
+        "percentual_fechamento_minimo": _percent(
+            _decimal(
+                resumo_snapshot.get("percentual_fechamento_minimo")
+                or calculo_snapshot.get("imovel", {}).get("percentual_fechamento_minimo")
+                or FECHAMENTO_MINIMO_PADRAO
+            )
+        ),
+        "valor_garantido": _money(
+            resumo_snapshot.get("valor_garantido")
+            or calculo_snapshot.get("imovel", {}).get("valor_garantido")
+            or calcular_valor_garantido_padrao(
+                linha.get("valor_imovel")
+                or resumo_snapshot.get("valor_imovel")
+                or calculo_snapshot.get("imovel", {}).get("valor"),
+                resumo_snapshot.get("percentual_fechamento_minimo")
+                or calculo_snapshot.get("imovel", {}).get("percentual_fechamento_minimo")
+                or FECHAMENTO_MINIMO_PADRAO,
+            )
+            or DECIMAL_ZERO
+        ),
+        "valor_parcela_minima_pre_obra": _money(
+            resumo_snapshot.get("valor_parcela_minima_pre_obra")
+            or calculo_snapshot.get("imovel", {}).get("valor_parcela_minima_pre_obra")
+            or DECIMAL_ZERO
+        ),
+        "classificacao_fechamento_inicial": linha.get("classificacao_fechamento_inicial"),
+        "percentual_projetado_entrega": _percent(_decimal(linha.get("percentual_projetado_entrega"))),
+        "classificacao_projecao_entrega": linha.get("classificacao_projecao_entrega"),
+        "saldo_pos_entrega": _money(linha.get("saldo_pos_entrega")),
+        "meses_pre_entrega": int(linha.get("meses_pre_entrega") or 0),
+        "meses_pos_entrega": int(linha.get("meses_pos_entrega") or 0),
+        "status_simulacao": linha.get("status_simulacao"),
+        "payload_snapshot": payload_snapshot,
+        "data_hora_criacao": linha.get("data_hora_criacao"),
+        "data_hora_atualizado_em": linha.get("data_hora_atualizado_em"),
+        "demonstrativo": parcelas_serializadas,
+    }
+
+
+def serializar_parcela(registro: dict[str, Any] | Any) -> dict[str, Any]:
+    linha = dict(registro or {})
+    return {
+        "id": str(linha.get("identificador_parcela") or ""),
+        "simulacao_id": str(linha.get("identificador_simulacao") or ""),
+        "fase": linha.get("fase"),
+        "tipo": linha.get("tipo_parcela") or linha.get("tipo"),
+        "parcela": int(linha.get("numero_parcela") or linha.get("parcela") or 1),
+        "vencimento": linha.get("vencimento_previsto") or linha.get("vencimento"),
+        "valor": _money(linha.get("valor_parcela") or linha.get("valor")),
+        "percentual_renda": _percent(_decimal(linha.get("percentual_renda_comprometido") or linha.get("percentual_renda"))),
+        "observacao": linha.get("observacao"),
+        "data_hora_criacao": linha.get("data_hora_criacao"),
+    }
+
+
+def montar_payload_simulacao_persistencia(
+    calculo: dict[str, Any],
+    *,
+    identificador_cliente: str,
+    identificador_imovel: str,
+    identificador_corretor: str,
+    payload_snapshot_extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    resumo = calculo.get("resumo_operacao") or {}
+    cliente = calculo.get("cliente") or {}
+
+    payload_snapshot = {
+        "calculo": calculo,
+        "extra": payload_snapshot_extra or {},
+    }
+
+    return {
+        "identificador_cliente": identificador_cliente,
+        "identificador_imovel": identificador_imovel,
+        "empreendimento": (calculo.get("imovel") or {}).get("empreendimento"),
+        "identificador_corretor": identificador_corretor,
+        "renda_principal": _money(cliente.get("renda_principal")),
+        "renda_complementar": _money(cliente.get("renda_complementar")),
+        "renda_total": _money(cliente.get("renda_total")),
+        "limite_comprometimento": _money(cliente.get("limite_comprometimento")),
+        "percentual_comprometimento": _percent(_decimal(resumo.get("percentual_comprometimento"))),
+        "valor_imovel": _money(resumo.get("valor_imovel")),
+        "valor_total_operacao": _money(resumo.get("valor_total_operacao")),
+        "financiamento_caixa": _money(resumo.get("financiamento_caixa")),
+        "fgts": _money(resumo.get("fgts")),
+        "subsidio": _money(resumo.get("subsidio")),
+        "cheque_moradia": _money(resumo.get("cheque_moradia")),
+        "entrada": _money(resumo.get("entrada")),
+        "pro_soluto_total": _money(resumo.get("pro_soluto_total")),
+        "sobrepreco": _money(resumo.get("sobrepreco")),
+        "percentual_fechamento_inicial": _percent(_decimal(resumo.get("percentual_fechamento_inicial"))),
+        "classificacao_fechamento_inicial": _limpar_texto(resumo.get("classificacao_fechamento_inicial")),
+        "percentual_projetado_entrega": _percent(_decimal(resumo.get("percentual_projetado_entrega"))),
+        "classificacao_projecao_entrega": _limpar_texto(resumo.get("classificacao_projecao_entrega")),
+        "saldo_pos_entrega": _money(resumo.get("saldo_pos_entrega")),
+        "meses_pre_entrega": int(resumo.get("meses_pre_entrega") or 0),
+        "meses_pos_entrega": int(resumo.get("meses_pos_entrega") or 0),
+        "status_simulacao": _limpar_texto(resumo.get("status_simulacao")),
+        "payload_snapshot": payload_snapshot,
+    }
+
+
+def serializar_reserva(registro: dict[str, Any] | Any, *, prefixo: str = "") -> dict[str, Any]:
+    linha = dict(registro or {})
+    payload_snapshot = _json_dict(_valor_prefixado(linha, prefixo, "negociacao_payload_snapshot"))
+    calculo = payload_snapshot.get("calculo") if isinstance(payload_snapshot.get("calculo"), dict) else {}
+    resumo_snapshot = calculo.get("resumo_operacao") if isinstance(calculo.get("resumo_operacao"), dict) else {}
+
+    cliente_nome = _limpar_texto(_valor_prefixado(linha, prefixo, "cliente_nome"))
+    cliente_cpf = _limpar_texto(_valor_prefixado(linha, prefixo, "cliente_cpf"))
+    cliente_cidade = _limpar_texto(_valor_prefixado(linha, prefixo, "cliente_cidade"))
+    cliente_email = _limpar_texto(_valor_prefixado(linha, prefixo, "cliente_email"))
+    cliente_telefone = _limpar_texto(_valor_prefixado(linha, prefixo, "cliente_telefone")) or _limpar_texto(
+        _valor_prefixado(linha, prefixo, "cliente_celular")
+    )
+
+    imovel_titulo = _limpar_texto(_valor_prefixado(linha, prefixo, "imovel_titulo"))
+    imovel_status = _limpar_texto(_valor_prefixado(linha, prefixo, "imovel_status"))
+    imovel_cidade = _limpar_texto(_valor_prefixado(linha, prefixo, "imovel_cidade"))
+    imovel_bairro = _limpar_texto(_valor_prefixado(linha, prefixo, "imovel_bairro"))
+    imovel_estado = _limpar_texto(_valor_prefixado(linha, prefixo, "imovel_estado"))
+    imovel_endereco = _limpar_texto(_valor_prefixado(linha, prefixo, "imovel_endereco"))
+    imovel_tipo = _limpar_texto(_valor_prefixado(linha, prefixo, "imovel_tipo_imovel"))
+    imovel_foto = _limpar_texto(_valor_prefixado(linha, prefixo, "imovel_foto_principal"))
+
+    negociacao = {
+        "valor_imovel": _money(
+            _valor_prefixado(linha, prefixo, "negociacao_valor_imovel") or resumo_snapshot.get("valor_imovel")
+        ),
+        "valor_total_operacao": _money(
+            _valor_prefixado(linha, prefixo, "negociacao_valor_total_operacao") or resumo_snapshot.get("valor_total_operacao")
+        ),
+        "financiamento_caixa": _money(
+            _valor_prefixado(linha, prefixo, "negociacao_financiamento_caixa") or resumo_snapshot.get("financiamento_caixa")
+        ),
+        "parcela_financiamento_banco": _money(resumo_snapshot.get("parcela_financiamento_banco")),
+        "capacidade_pos_obra_7lm": _money(resumo_snapshot.get("capacidade_pos_obra_7lm")),
+        "parcela_7lm_pos": _money(resumo_snapshot.get("parcela_7lm_pos")),
+        "fgts": _money(_valor_prefixado(linha, prefixo, "negociacao_fgts") or resumo_snapshot.get("fgts")),
+        "subsidio": _money(_valor_prefixado(linha, prefixo, "negociacao_subsidio") or resumo_snapshot.get("subsidio")),
+        "cheque_moradia": _money(_valor_prefixado(linha, prefixo, "negociacao_cheque_moradia") or resumo_snapshot.get("cheque_moradia")),
+        "entrada": _money(_valor_prefixado(linha, prefixo, "negociacao_entrada") or resumo_snapshot.get("entrada")),
+        "pro_soluto_total": _money(
+            _valor_prefixado(linha, prefixo, "negociacao_pro_soluto_total") or resumo_snapshot.get("pro_soluto_total")
+        ),
+        "sobrepreco": _money(
+            _valor_prefixado(linha, prefixo, "negociacao_sobrepreco") or resumo_snapshot.get("sobrepreco")
+        ),
+        "percentual_comprometimento": _percent(
+            _decimal(
+                _valor_prefixado(linha, prefixo, "negociacao_percentual_comprometimento")
+                or resumo_snapshot.get("percentual_comprometimento")
+            )
+        ),
+        "percentual_fechamento_inicial": _percent(
+            _decimal(
+                _valor_prefixado(linha, prefixo, "negociacao_percentual_fechamento_inicial")
+                or resumo_snapshot.get("percentual_fechamento_inicial")
+            )
+        ),
+        "percentual_projetado_entrega": _percent(
+            _decimal(
+                _valor_prefixado(linha, prefixo, "negociacao_percentual_projetado_entrega")
+                or resumo_snapshot.get("percentual_projetado_entrega")
+            )
+        ),
+        "saldo_pos_entrega": _money(
+            _valor_prefixado(linha, prefixo, "negociacao_saldo_pos_entrega") or resumo_snapshot.get("saldo_pos_entrega")
+        ),
+        "meses_pre_entrega": int(
+            _valor_prefixado(linha, prefixo, "negociacao_meses_pre_entrega") or resumo_snapshot.get("meses_pre_entrega") or 0
+        ),
+        "meses_pos_entrega": int(
+            _valor_prefixado(linha, prefixo, "negociacao_meses_pos_entrega") or resumo_snapshot.get("meses_pos_entrega") or 0
+        ),
+        "status_simulacao": _limpar_texto(
+            _valor_prefixado(linha, prefixo, "negociacao_status_simulacao") or resumo_snapshot.get("status_simulacao")
+        ),
+        "payload_snapshot": payload_snapshot,
+        "data_hora_criacao": _valor_prefixado(linha, prefixo, "negociacao_data_hora_criacao"),
+        "data_hora_atualizado_em": _valor_prefixado(linha, prefixo, "negociacao_data_hora_atualizado_em"),
+    }
+
+    cliente = {
+        "id": str(_valor_prefixado(linha, prefixo, "identificador_cliente") or "") or None,
+        "nome_completo": cliente_nome or None,
+        "cpf": cliente_cpf or None,
+        "cidade": cliente_cidade or None,
+        "email": cliente_email or None,
+        "telefone": cliente_telefone or None,
+    }
+
+    imovel = {
+        "id": str(_valor_prefixado(linha, prefixo, "identificador_imovel") or "") or None,
+        "titulo": imovel_titulo or None,
+        "status": imovel_status or None,
+        "valor": _money(_valor_prefixado(linha, prefixo, "imovel_valor")),
+        "cidade": imovel_cidade or None,
+        "bairro": imovel_bairro or None,
+        "estado": imovel_estado or None,
+        "endereco": imovel_endereco or None,
+        "tipo_imovel": imovel_tipo or None,
+        "foto_principal": imovel_foto or None,
+    }
+
+    return {
+        "id": str(_valor_prefixado(linha, prefixo, "identificador_reserva") or ""),
+        "imovel_id": str(_valor_prefixado(linha, prefixo, "identificador_imovel") or ""),
+        "cliente_id": str(_valor_prefixado(linha, prefixo, "identificador_cliente") or "") or None,
+        "simulacao_id": str(_valor_prefixado(linha, prefixo, "identificador_simulacao") or "") or None,
+        "status": _valor_prefixado(linha, prefixo, "status"),
+        "reservado_por": str(_valor_prefixado(linha, prefixo, "reservado_por") or "") or None,
+        "reservado_em": _valor_prefixado(linha, prefixo, "reservado_em"),
+        "expiracao_em": _valor_prefixado(linha, prefixo, "expiracao_em"),
+        "observacoes": _valor_prefixado(linha, prefixo, "observacoes"),
+        "data_hora_criacao": _valor_prefixado(linha, prefixo, "data_hora_criacao"),
+        "data_hora_atualizado_em": _valor_prefixado(linha, prefixo, "data_hora_atualizado_em"),
+        "cliente": cliente if any(cliente.values()) else None,
+        "imovel": imovel if any(
+            valor not in (None, "", DECIMAL_ZERO)
+            for valor in imovel.values()
+        ) else None,
+        "negociacao": negociacao,
+    }

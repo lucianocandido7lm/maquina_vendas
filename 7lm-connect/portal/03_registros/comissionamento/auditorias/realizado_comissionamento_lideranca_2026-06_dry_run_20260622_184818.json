@@ -1,0 +1,612 @@
+{
+  "gerado_em": "2026-06-22T18:48:18.790329+00:00",
+  "script": "materializar_realizado_comissionamento_lideranca.py",
+  "relatorio": {
+    "ciclo_id": "2026-06",
+    "modo": "dry-run",
+    "resultados_lideranca": 22,
+    "itens": [
+      {
+        "resultado_id": "prod-2026-06-gestor-818876d7c3331ebd",
+        "nome": "Alana Rabelo Da Costa",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-91ee517baf488572",
+        "nome": "Alba Vieira Da Silva Lopes",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-2fcd4f944360bed3",
+        "nome": "Ana Cleia Nonato",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-337b3654eacef530",
+        "nome": "Bruno Macario",
+        "usuario_id": "94043e5e-0a3c-47d7-840c-8160c546dc96",
+        "indicador": "LEADS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-337b3654eacef530",
+        "nome": "Bruno Macario",
+        "usuario_id": "94043e5e-0a3c-47d7-840c-8160c546dc96",
+        "indicador": "VISITAS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-337b3654eacef530",
+        "nome": "Bruno Macario",
+        "indicador": "propostas_aprovadas",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-337b3654eacef530",
+        "nome": "Bruno Macario",
+        "indicador": "propostas_total",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-337b3654eacef530",
+        "nome": "Bruno Macario",
+        "usuario_id": "94043e5e-0a3c-47d7-840c-8160c546dc96",
+        "indicador": "VENDAS_FINALIZADAS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-337b3654eacef530",
+        "nome": "Bruno Macario",
+        "usuario_id": "94043e5e-0a3c-47d7-840c-8160c546dc96",
+        "indicador": "REPASSES",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-337b3654eacef530",
+        "nome": "Bruno Macario",
+        "usuario_id": "94043e5e-0a3c-47d7-840c-8160c546dc96",
+        "indicador": "CANCELAMENTOS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-337b3654eacef530",
+        "nome": "Bruno Macario",
+        "usuario_id": "94043e5e-0a3c-47d7-840c-8160c546dc96",
+        "indicador": "DISTRATOS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-4436eb715cb4c683",
+        "nome": "Daiana Soares Da Rocha",
+        "usuario_id": "1174deeb-0b47-4389-8fb6-80c71d472db6",
+        "indicador": "LEADS",
+        "valor_realizado": 120.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-4436eb715cb4c683",
+        "nome": "Daiana Soares Da Rocha",
+        "usuario_id": "1174deeb-0b47-4389-8fb6-80c71d472db6",
+        "indicador": "VISITAS",
+        "valor_realizado": 54.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-4436eb715cb4c683",
+        "nome": "Daiana Soares Da Rocha",
+        "indicador": "propostas_aprovadas",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-4436eb715cb4c683",
+        "nome": "Daiana Soares Da Rocha",
+        "indicador": "propostas_total",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-4436eb715cb4c683",
+        "nome": "Daiana Soares Da Rocha",
+        "usuario_id": "1174deeb-0b47-4389-8fb6-80c71d472db6",
+        "indicador": "VENDAS_FINALIZADAS",
+        "valor_realizado": 1.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-4436eb715cb4c683",
+        "nome": "Daiana Soares Da Rocha",
+        "usuario_id": "1174deeb-0b47-4389-8fb6-80c71d472db6",
+        "indicador": "REPASSES",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-4436eb715cb4c683",
+        "nome": "Daiana Soares Da Rocha",
+        "usuario_id": "1174deeb-0b47-4389-8fb6-80c71d472db6",
+        "indicador": "CANCELAMENTOS",
+        "valor_realizado": 3.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-4436eb715cb4c683",
+        "nome": "Daiana Soares Da Rocha",
+        "usuario_id": "1174deeb-0b47-4389-8fb6-80c71d472db6",
+        "indicador": "DISTRATOS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-34c3829d3b8cf051",
+        "nome": "Francisco Lucielio De Queiroz",
+        "usuario_id": "822f0520-cadf-4d0e-bdbc-c62657cbe1a7",
+        "indicador": "LEADS",
+        "valor_realizado": 17.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-34c3829d3b8cf051",
+        "nome": "Francisco Lucielio De Queiroz",
+        "usuario_id": "822f0520-cadf-4d0e-bdbc-c62657cbe1a7",
+        "indicador": "VISITAS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-34c3829d3b8cf051",
+        "nome": "Francisco Lucielio De Queiroz",
+        "indicador": "propostas_aprovadas",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-34c3829d3b8cf051",
+        "nome": "Francisco Lucielio De Queiroz",
+        "indicador": "propostas_total",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-34c3829d3b8cf051",
+        "nome": "Francisco Lucielio De Queiroz",
+        "usuario_id": "822f0520-cadf-4d0e-bdbc-c62657cbe1a7",
+        "indicador": "VENDAS_FINALIZADAS",
+        "valor_realizado": 7.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-34c3829d3b8cf051",
+        "nome": "Francisco Lucielio De Queiroz",
+        "usuario_id": "822f0520-cadf-4d0e-bdbc-c62657cbe1a7",
+        "indicador": "REPASSES",
+        "valor_realizado": 2.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-34c3829d3b8cf051",
+        "nome": "Francisco Lucielio De Queiroz",
+        "usuario_id": "822f0520-cadf-4d0e-bdbc-c62657cbe1a7",
+        "indicador": "CANCELAMENTOS",
+        "valor_realizado": 4.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-34c3829d3b8cf051",
+        "nome": "Francisco Lucielio De Queiroz",
+        "usuario_id": "822f0520-cadf-4d0e-bdbc-c62657cbe1a7",
+        "indicador": "DISTRATOS",
+        "valor_realizado": 1.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-e6d73e6c7749d421",
+        "nome": "Geisiane Gomes Dos Santos",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-8777293d76e30965",
+        "nome": "Hawila Souza Costa",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-b3da3145d00faa1e",
+        "nome": "Jordan Vasconcelos",
+        "usuario_id": "eb304937-3037-4282-99c2-65416ee8b181",
+        "indicador": "LEADS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-b3da3145d00faa1e",
+        "nome": "Jordan Vasconcelos",
+        "usuario_id": "eb304937-3037-4282-99c2-65416ee8b181",
+        "indicador": "VISITAS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-b3da3145d00faa1e",
+        "nome": "Jordan Vasconcelos",
+        "indicador": "propostas_aprovadas",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-b3da3145d00faa1e",
+        "nome": "Jordan Vasconcelos",
+        "indicador": "propostas_total",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-b3da3145d00faa1e",
+        "nome": "Jordan Vasconcelos",
+        "usuario_id": "eb304937-3037-4282-99c2-65416ee8b181",
+        "indicador": "VENDAS_FINALIZADAS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-b3da3145d00faa1e",
+        "nome": "Jordan Vasconcelos",
+        "usuario_id": "eb304937-3037-4282-99c2-65416ee8b181",
+        "indicador": "REPASSES",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-b3da3145d00faa1e",
+        "nome": "Jordan Vasconcelos",
+        "usuario_id": "eb304937-3037-4282-99c2-65416ee8b181",
+        "indicador": "CANCELAMENTOS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-b3da3145d00faa1e",
+        "nome": "Jordan Vasconcelos",
+        "usuario_id": "eb304937-3037-4282-99c2-65416ee8b181",
+        "indicador": "DISTRATOS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-56708c718cfb291d",
+        "nome": "Josué Gomes De Souza",
+        "usuario_id": "76b65307-2e4f-4c8e-aa3d-7cd64eb1eed6",
+        "indicador": "LEADS",
+        "valor_realizado": 265.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-56708c718cfb291d",
+        "nome": "Josué Gomes De Souza",
+        "usuario_id": "76b65307-2e4f-4c8e-aa3d-7cd64eb1eed6",
+        "indicador": "VISITAS",
+        "valor_realizado": 82.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-56708c718cfb291d",
+        "nome": "Josué Gomes De Souza",
+        "indicador": "propostas_aprovadas",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-56708c718cfb291d",
+        "nome": "Josué Gomes De Souza",
+        "indicador": "propostas_total",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-56708c718cfb291d",
+        "nome": "Josué Gomes De Souza",
+        "usuario_id": "76b65307-2e4f-4c8e-aa3d-7cd64eb1eed6",
+        "indicador": "VENDAS_FINALIZADAS",
+        "valor_realizado": 3.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-56708c718cfb291d",
+        "nome": "Josué Gomes De Souza",
+        "usuario_id": "76b65307-2e4f-4c8e-aa3d-7cd64eb1eed6",
+        "indicador": "REPASSES",
+        "valor_realizado": 3.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-56708c718cfb291d",
+        "nome": "Josué Gomes De Souza",
+        "usuario_id": "76b65307-2e4f-4c8e-aa3d-7cd64eb1eed6",
+        "indicador": "CANCELAMENTOS",
+        "valor_realizado": 1.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-56708c718cfb291d",
+        "nome": "Josué Gomes De Souza",
+        "usuario_id": "76b65307-2e4f-4c8e-aa3d-7cd64eb1eed6",
+        "indicador": "DISTRATOS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-3380e61caf49a1a2",
+        "nome": "Leonardo De Azevedo Mariano Silva",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-f22a46adabd2a611",
+        "nome": "Lucas Paulo Marques Pinto",
+        "usuario_id": "6f1b96d1-fe2b-4c4d-89a7-6b8948c399b0",
+        "indicador": "LEADS",
+        "valor_realizado": 215.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-f22a46adabd2a611",
+        "nome": "Lucas Paulo Marques Pinto",
+        "usuario_id": "6f1b96d1-fe2b-4c4d-89a7-6b8948c399b0",
+        "indicador": "VISITAS",
+        "valor_realizado": 78.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-f22a46adabd2a611",
+        "nome": "Lucas Paulo Marques Pinto",
+        "indicador": "propostas_aprovadas",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-f22a46adabd2a611",
+        "nome": "Lucas Paulo Marques Pinto",
+        "indicador": "propostas_total",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-f22a46adabd2a611",
+        "nome": "Lucas Paulo Marques Pinto",
+        "usuario_id": "6f1b96d1-fe2b-4c4d-89a7-6b8948c399b0",
+        "indicador": "VENDAS_FINALIZADAS",
+        "valor_realizado": 1.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-f22a46adabd2a611",
+        "nome": "Lucas Paulo Marques Pinto",
+        "usuario_id": "6f1b96d1-fe2b-4c4d-89a7-6b8948c399b0",
+        "indicador": "REPASSES",
+        "valor_realizado": 2.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-f22a46adabd2a611",
+        "nome": "Lucas Paulo Marques Pinto",
+        "usuario_id": "6f1b96d1-fe2b-4c4d-89a7-6b8948c399b0",
+        "indicador": "CANCELAMENTOS",
+        "valor_realizado": 2.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-f22a46adabd2a611",
+        "nome": "Lucas Paulo Marques Pinto",
+        "usuario_id": "6f1b96d1-fe2b-4c4d-89a7-6b8948c399b0",
+        "indicador": "DISTRATOS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-889424d0812d166b",
+        "nome": "Luiz Aquino",
+        "usuario_id": "03df8110-0ac9-46c3-9f41-71029aa654be",
+        "indicador": "LEADS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-889424d0812d166b",
+        "nome": "Luiz Aquino",
+        "usuario_id": "03df8110-0ac9-46c3-9f41-71029aa654be",
+        "indicador": "VISITAS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-889424d0812d166b",
+        "nome": "Luiz Aquino",
+        "indicador": "propostas_aprovadas",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-889424d0812d166b",
+        "nome": "Luiz Aquino",
+        "indicador": "propostas_total",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-889424d0812d166b",
+        "nome": "Luiz Aquino",
+        "usuario_id": "03df8110-0ac9-46c3-9f41-71029aa654be",
+        "indicador": "VENDAS_FINALIZADAS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-889424d0812d166b",
+        "nome": "Luiz Aquino",
+        "usuario_id": "03df8110-0ac9-46c3-9f41-71029aa654be",
+        "indicador": "REPASSES",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-889424d0812d166b",
+        "nome": "Luiz Aquino",
+        "usuario_id": "03df8110-0ac9-46c3-9f41-71029aa654be",
+        "indicador": "CANCELAMENTOS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-auto-gestor-889424d0812d166b",
+        "nome": "Luiz Aquino",
+        "usuario_id": "03df8110-0ac9-46c3-9f41-71029aa654be",
+        "indicador": "DISTRATOS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.sem_linhas_lideranca",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-b51b950845633b6a",
+        "nome": "Marcelo Paiva",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-31464474e6e9da57",
+        "nome": "Marco Taveira",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-a61b504115996a8f",
+        "nome": "Micael Dos Santos Pires",
+        "usuario_id": "c0ccc1fa-80d7-4fac-8c39-a16e9f022038",
+        "indicador": "LEADS",
+        "valor_realizado": 260.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-a61b504115996a8f",
+        "nome": "Micael Dos Santos Pires",
+        "usuario_id": "c0ccc1fa-80d7-4fac-8c39-a16e9f022038",
+        "indicador": "VISITAS",
+        "valor_realizado": 148.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-a61b504115996a8f",
+        "nome": "Micael Dos Santos Pires",
+        "indicador": "propostas_aprovadas",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-a61b504115996a8f",
+        "nome": "Micael Dos Santos Pires",
+        "indicador": "propostas_total",
+        "status": "indicador_invalido"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-a61b504115996a8f",
+        "nome": "Micael Dos Santos Pires",
+        "usuario_id": "c0ccc1fa-80d7-4fac-8c39-a16e9f022038",
+        "indicador": "VENDAS_FINALIZADAS",
+        "valor_realizado": 5.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-a61b504115996a8f",
+        "nome": "Micael Dos Santos Pires",
+        "usuario_id": "c0ccc1fa-80d7-4fac-8c39-a16e9f022038",
+        "indicador": "REPASSES",
+        "valor_realizado": 2.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-a61b504115996a8f",
+        "nome": "Micael Dos Santos Pires",
+        "usuario_id": "c0ccc1fa-80d7-4fac-8c39-a16e9f022038",
+        "indicador": "CANCELAMENTOS",
+        "valor_realizado": 6.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-a61b504115996a8f",
+        "nome": "Micael Dos Santos Pires",
+        "usuario_id": "c0ccc1fa-80d7-4fac-8c39-a16e9f022038",
+        "indicador": "DISTRATOS",
+        "valor_realizado": 0.0,
+        "fonte": "comercial_kpi_daily.gerencia",
+        "status": "ok"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-2f44d05426f2fe53",
+        "nome": "Pamela Aline Ferreira Barcelos",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-c7d4efa9fa9f9bcc",
+        "nome": "Rafael De Lucena Martins",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-7a263fe163a470bb",
+        "nome": "Renata Bento",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-83cfe9a8a9dbd348",
+        "nome": "Thomaz Moreira Aquino",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-auto-coordenador-620552ed889c8efe",
+        "nome": "Vanessa Rodrigues Valadares",
+        "status": "sem_usuario"
+      },
+      {
+        "resultado_id": "prod-2026-06-gestor-72f5cc0ba6f2ebe5",
+        "nome": "Vivian dos Santos Pereira",
+        "status": "sem_usuario"
+      }
+    ],
+    "ok": 48,
+    "sem_usuario": 14,
+    "indicador_invalido": 16
+  }
+}

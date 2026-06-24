@@ -1,0 +1,436 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Connect Comercial - Simulador</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/inicio.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/operacoes.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/imoveis.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/clientes.css?v=20260407-posobra-banco1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/simulador_comercial.css?v=20260407-filtros-front1" />
+
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <meta name="sevenlm-connect-required-permission" content="imoveis.view" />
+  <meta name="sevenlm-connect-access-fallback" content="/inicio" />
+
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260406-litefx1"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260401-textfix2" defer></script>
+</head>
+<body class="tl-home tl-ops-page tl-sim-page">
+  <div class="tl-atmos-layer">
+    <div class="tl-blob tl-blob--teal"></div>
+    <div class="tl-blob tl-blob--purple"></div>
+    <div id="tl-particles-container"></div>
+    <div class="tl-glass-overlay"></div>
+  </div>
+
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <section class="tl-imoveis-hero-shell anim-stagger-1">
+        <div class="tl-imoveis-hero-compact" aria-label="Cabecalho compacto do modulo">
+          <div class="tl-imoveis-hero-compact__rail">
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/clientes">Clientes</a>
+            <a class="tl-imoveis-hero-compact__tab is-active" href="/comercial/simulador">Simulador</a>
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/imoveis">Imoveis</a>
+          </div>
+          <div class="tl-imoveis-hero-compact__actions">
+            <div class="tl-imoveis-hero-compact__user glass-panel hyper-glass">
+              <span class="tl-imoveis-hero-compact__user-name" id="nomeUsuario">Carregando...</span>
+            </div>
+            <button id="btnTema" class="tl-btn-icon glass-panel hyper-glass" aria-label="Alternar tema">
+              <div class="icon-wrap">
+                <svg class="icon-sun" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="5"></circle>
+                  <line x1="12" y1="1" x2="12" y2="3"></line>
+                  <line x1="12" y1="21" x2="12" y2="23"></line>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                  <line x1="1" y1="12" x2="3" y2="12"></line>
+                  <line x1="21" y1="12" x2="23" y2="12"></line>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <svg class="icon-moon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+              </div>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="simFeedback" class="tl-imoveis-feedback anim-stagger-1" aria-live="polite"></section>
+
+      <section class="tl-sim-shell anim-stagger-2">
+        <div class="tl-sim-shell__head">
+          <div>
+            <span class="tl-imoveis-eyebrow mono-font">SIMULADOR COMERCIAL</span>
+            <h2>Simulador comercial</h2>
+            <p>Selecione o cliente, veja os imoveis sugeridos e monte a proposta com rapidez.</p>
+          </div>
+          <div id="simHeroResumo" class="tl-sim-hero-kpis"></div>
+        </div>
+
+        <div class="tl-sim-stage">
+          <article class="tl-sim-card tl-sim-card--cliente-hub">
+            <div class="tl-sim-card__head tl-sim-card__head--cliente-hub">
+              <div class="tl-sim-card__head-copy">
+                <span class="tl-sim-kicker">Cliente</span>
+                <h3>Cliente e composicao</h3>
+                <p class="tl-sim-card__subcopy">Busque, selecione e ajuste a composicao em uma visao unica, sem repetir os mesmos dados em cards separados.</p>
+              </div>
+              <div class="tl-sim-client-hub__head-actions">
+                <span class="tl-sim-chip" id="simClienteStatus">Nenhum cliente selecionado</span>
+                <button id="btnNovoComplemento" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Adicionar complemento</button>
+              </div>
+            </div>
+
+            <div class="tl-sim-client-hub">
+              <section class="tl-sim-client-hub__selector" aria-label="Busca e selecao do cliente">
+                <label class="tl-clientes-busca" for="simBuscaCliente">
+                  <span class="tl-clientes-busca__icon" aria-hidden="true"></span>
+                  <input id="simBuscaCliente" type="search" placeholder="Buscar cliente por nome, CPF, cidade ou email..." autocomplete="off" />
+                </label>
+                <div id="simClientesLista" class="tl-sim-clientes-grid"></div>
+              </section>
+
+              <section class="tl-sim-client-hub__details" aria-label="Resumo e composicao do cliente">
+                <div id="simClienteSelecionado" class="tl-sim-selected"></div>
+                <div id="simComplementosLista" class="tl-sim-complementos-strip"></div>
+              </section>
+            </div>
+          </article>
+        </div>
+
+        <article class="tl-sim-card tl-sim-card--vitrine">
+          <div class="tl-sim-card__head">
+            <div>
+              <span class="tl-sim-kicker">Sugestoes</span>
+              <h3>Imoveis sugeridos para o perfil</h3>
+            </div>
+            <button id="btnSugerirImoveis" class="tl-imoveis-btn" type="button">Atualizar sugestoes</button>
+          </div>
+          <div class="tl-sim-vitrine__toolbar">
+            <div id="simModoSugestoes" class="tl-sim-mode-switch" role="tablist" aria-label="Filtrar sugestoes">
+              <button class="is-active" type="button" data-mode="all">Todas</button>
+              <button type="button" data-mode="ideal">Ideais</button>
+              <button type="button" data-mode="ajuste">Com ajuste</button>
+              <button type="button" data-mode="stretch">Fora do perfil</button>
+            </div>
+            <label class="tl-clientes-busca tl-sim-vitrine__busca" for="simBuscaImovel">
+              <span class="tl-clientes-busca__icon" aria-hidden="true"></span>
+              <input id="simBuscaImovel" type="search" placeholder="Buscar por empreendimento, cidade, bairro ou tipologia..." autocomplete="off" />
+            </label>
+          </div>
+          <div id="simSugestoesResumo" class="tl-sim-vitrine__summary"></div>
+          <details class="tl-sim-advanced">
+            <summary>Busca manual e filtros</summary>
+            <div class="tl-sim-grid-fields">
+              <div class="tl-imoveis-field">
+                <label for="simFiltroEmpreendimento">Empreendimento</label>
+                <input id="simFiltroEmpreendimento" type="text" placeholder="Nome do empreendimento" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simFiltroCidade">Cidade</label>
+                <input id="simFiltroCidade" type="text" placeholder="Cidade" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simFiltroBairro">Bairro</label>
+                <input id="simFiltroBairro" type="text" placeholder="Bairro" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simFiltroTipologia">Tipologia</label>
+                <input id="simFiltroTipologia" type="text" placeholder="Apartamento, casa, lote..." />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simFiltroDormitorios">Dormitorios</label>
+                <input id="simFiltroDormitorios" type="number" min="0" max="10" placeholder="Ex.: 2" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simFiltroPrecoMin">Faixa de preco (min)</label>
+                <input id="simFiltroPrecoMin" type="text" placeholder="R$ 0,00" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simFiltroPrecoMax">Faixa de preco (max)</label>
+                <input id="simFiltroPrecoMax" type="text" placeholder="R$ 0,00" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simFiltroAreaMin">Area minima (m2)</label>
+                <input id="simFiltroAreaMin" type="number" min="0" step="0.01" placeholder="Ex.: 45" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simFiltroAreaMax">Area maxima (m2)</label>
+                <input id="simFiltroAreaMax" type="number" min="0" step="0.01" placeholder="Ex.: 120" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simFiltroStatus">Status</label>
+                <select id="simFiltroStatus" class="tl-clientes-select">
+                  <option value="" selected>Todos</option>
+                  <option value="Disponivel">Disponivel</option>
+                  <option value="Reservado">Reservado</option>
+                  <option value="Vendido">Vendido</option>
+                  <option value="Inativo">Inativo</option>
+                </select>
+              </div>
+            </div>
+          </details>
+          <div id="simSugestoesLista" class="tl-sim-sugestoes"></div>
+        </article>
+
+        <div class="tl-sim-grid-mid">
+          <article class="tl-sim-card tl-sim-card--imovel">
+            <div class="tl-sim-card__head">
+              <div>
+                <span class="tl-sim-kicker">Imovel</span>
+                <h3>Dados do imovel</h3>
+              </div>
+              <span class="tl-sim-chip" id="simImovelStatus">Sem unidade selecionada</span>
+            </div>
+            <div id="simComparador" class="tl-sim-comparador"></div>
+            <div id="simImovelPreview" class="tl-sim-imovel-preview"></div>
+          </article>
+
+          <article class="tl-sim-card tl-sim-card--proposta">
+            <div class="tl-sim-card__head">
+              <div>
+                <span class="tl-sim-kicker">Simulacao</span>
+                <h3>Parametros da simulacao</h3>
+              </div>
+              <button id="btnCalcularSimulacao" class="tl-imoveis-btn" type="button">Recalcular</button>
+            </div>
+            <div class="tl-sim-grid-fields tl-sim-grid-fields--proposal">
+              <div class="tl-imoveis-field">
+                <label for="simValorImovel">Valor do imovel</label>
+                <input id="simValorImovel" type="text" placeholder="R$ 0,00" readonly aria-readonly="true" title="Valor automatico do imovel selecionado" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simFinanciamento">Valor aprovado / financiamento</label>
+                <input id="simFinanciamento" type="text" placeholder="R$ 0,00" readonly aria-readonly="true" title="Valor vindo do cadastro do cliente" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simParcelaBanco">Parcela banco cheia</label>
+                <input id="simParcelaBanco" type="text" placeholder="R$ 0,00" readonly aria-readonly="true" title="Parcela cheia do banco vinda do cadastro do cliente" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simFgts">FGTS</label>
+                <input id="simFgts" type="text" placeholder="R$ 0,00" readonly aria-readonly="true" title="Valor vindo do cadastro do cliente" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simSubsidio">Subsidio</label>
+                <input id="simSubsidio" type="text" placeholder="R$ 0,00" readonly aria-readonly="true" title="Valor vindo do cadastro do cliente" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simEntrada">Entrada / sinal</label>
+                <input id="simEntrada" type="text" placeholder="R$ 0,00" />
+              </div>
+              <div class="tl-imoveis-field">
+                <label for="simSobrepreco">Sobrepreco</label>
+                <input id="simSobrepreco" type="text" placeholder="R$ 0,00" />
+              </div>
+            </div>
+            <details class="tl-sim-advanced tl-sim-advanced--proposal" open>
+              <summary>Parcelas, reforcos e ajuste fino</summary>
+              <div class="tl-sim-grid-fields tl-sim-grid-fields--parametros">
+                <div class="tl-imoveis-field">
+                  <label for="simMesesPre">Meses ate entrega (imovel)</label>
+                  <input id="simMesesPre" type="number" min="1" max="240" value="36" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simMesesPos">Meses pos-entrega (imovel)</label>
+                  <input id="simMesesPos" type="number" min="0" max="360" value="24" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simIntermediariaValor">Parcela intermediaria (valor)</label>
+                  <input id="simIntermediariaValor" type="text" placeholder="R$ 0,00" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simIntermediariaQtd">Intermediarias (qtd)</label>
+                  <input id="simIntermediariaQtd" type="number" min="0" max="24" value="0" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simAnualValor">Parcela anual (valor)</label>
+                  <input id="simAnualValor" type="text" placeholder="R$ 0,00" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simAnualQtd">Anuais (qtd)</label>
+                  <input id="simAnualQtd" type="number" min="0" max="24" value="0" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simSemestralValor">Parcela semestral (valor)</label>
+                  <input id="simSemestralValor" type="text" placeholder="R$ 0,00" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simSemestralQtd">Semestrais (qtd)</label>
+                  <input id="simSemestralQtd" type="number" min="0" max="24" value="0" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simReforcoValor">Reforco (valor)</label>
+                  <input id="simReforcoValor" type="text" placeholder="R$ 0,00" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simReforcoQtd">Reforcos (qtd)</label>
+                  <input id="simReforcoQtd" type="number" min="0" max="24" value="0" />
+                </div>
+                <div class="tl-imoveis-field tl-sim-field--full">
+                  <label for="simObservacoes">Observacoes comerciais</label>
+                  <textarea id="simObservacoes" rows="4" placeholder="Observacoes internas da proposta."></textarea>
+                </div>
+              </div>
+            </details>
+          </article>
+        </div>
+
+        <article class="tl-sim-card">
+          <div class="tl-sim-card__head">
+            <div>
+              <span class="tl-sim-kicker">Resumo</span>
+              <h3>Indicadores da operacao</h3>
+            </div>
+            <span id="simStatusBadge" class="tl-sim-status tl-sim-status--neutro">Aguardando simulacao</span>
+          </div>
+          <div id="simResumoKpis" class="tl-sim-kpis"></div>
+          <div id="simSugestoesAjuste" class="tl-sim-alertas"></div>
+        </article>
+
+        <article class="tl-sim-card">
+          <div class="tl-sim-card__head">
+            <div>
+              <span class="tl-sim-kicker">Parcelas</span>
+              <h3>Demonstrativo da simulacao</h3>
+            </div>
+          </div>
+          <div class="tl-sim-table-wrap">
+            <table class="tl-sim-table">
+              <thead>
+                <tr>
+                  <th>Fase</th>
+                  <th>Tipo</th>
+                  <th>Parcela</th>
+                  <th>Vencimento</th>
+                  <th>Banco obra</th>
+                  <th>Parcela 7LM</th>
+                  <th>Total cliente</th>
+                  <th>% obra</th>
+                  <th>% renda</th>
+                  <th>Observacao</th>
+                </tr>
+              </thead>
+              <tbody id="simDemonstrativoBody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <section id="simActionsHint" class="tl-sim-actions-hint" aria-live="polite"></section>
+        <section id="simActionsFeedback" class="tl-imoveis-feedback tl-sim-actions-feedback" aria-live="polite"></section>
+
+        <div class="tl-sim-actions-bar">
+          <button id="btnSalvarSimulacao" class="tl-imoveis-btn" type="button">Salvar simulacao</button>
+          <button id="btnEmitirPdf" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Emitir PDF</button>
+          <button id="btnReservarImovel" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Reservar imovel</button>
+          <button id="btnVenderImovel" class="tl-imoveis-btn" type="button">Vender imovel</button>
+          <button id="btnLiberarReserva" class="tl-imoveis-btn tl-imoveis-btn--ghost" type="button">Liberar reserva</button>
+          <button id="btnNovaSimulacao" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Nova simulacao</button>
+        </div>
+      </section>
+
+      <div id="simMapaModal" class="tl-clientes-modal tl-sim-map-modal" hidden aria-hidden="true">
+        <div class="tl-clientes-modal__backdrop" data-action="fechar-mapa"></div>
+        <div class="tl-clientes-modal__dialog tl-sim-map-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="simMapaTitulo">
+          <section class="tl-sim-map-modal__panel">
+            <header class="tl-sim-map-modal__head">
+              <div>
+                <span class="tl-imoveis-eyebrow mono-font">LOCALIZACAO</span>
+                <h3 id="simMapaTitulo">Ver no mapa</h3>
+                <p id="simMapaResumo">Localizacao da unidade para apoiar a apresentacao comercial.</p>
+              </div>
+              <button id="btnFecharMapa" class="tl-imoveis-btn tl-imoveis-btn--secondary tl-sim-map-modal__close" type="button">Fechar</button>
+            </header>
+
+            <div class="tl-sim-map-modal__body">
+              <div class="tl-sim-map-modal__viewer">
+                <iframe
+                  id="simMapaFrame"
+                  class="tl-sim-map-modal__frame"
+                  src="about:blank"
+                  loading="lazy"
+                  referrerpolicy="no-referrer-when-downgrade"
+                  allowfullscreen
+                  title="Mapa do imovel selecionado"
+                ></iframe>
+              </div>
+
+              <aside class="tl-sim-map-modal__aside">
+                <p id="simMapaEndereco" class="tl-sim-map-modal__address"></p>
+                <p id="simMapaCoordenadas" class="tl-sim-map-modal__meta" hidden></p>
+
+                <div class="tl-sim-map-modal__actions">
+                  <button id="btnCopiarEnderecoMapa" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Copiar endereco</button>
+                  <a id="btnAbrirGoogleMaps" class="tl-imoveis-btn" href="#" target="_blank" rel="noopener">Abrir no Google Maps</a>
+                  <a id="btnVerRota" class="tl-imoveis-btn tl-imoveis-btn--ghost" href="#" target="_blank" rel="noopener">Ver rota</a>
+                </div>
+              </aside>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div id="simComplementoModal" class="tl-clientes-modal" hidden aria-hidden="true">
+        <div class="tl-clientes-modal__backdrop" data-action="fechar-complemento"></div>
+        <div class="tl-clientes-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="simComplementoTitulo">
+          <form id="simComplementoForm" class="tl-clientes-form" novalidate>
+            <section class="tl-clientes-form-topbar">
+              <div>
+                <span class="tl-imoveis-eyebrow mono-font">COMPLEMENTO DE RENDA</span>
+                <h3 id="simComplementoTitulo">Novo complemento</h3>
+              </div>
+              <button id="btnFecharComplemento" class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button">Fechar</button>
+            </section>
+            <section class="tl-clientes-card">
+              <div class="tl-clientes-grid">
+                <div class="tl-imoveis-field">
+                  <label for="simComplementoNome">Nome</label>
+                  <input id="simComplementoNome" type="text" placeholder="Nome completo" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simComplementoCpf">CPF</label>
+                  <input id="simComplementoCpf" type="text" placeholder="000.000.000-00" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simComplementoParentesco">Parentesco / vinculo</label>
+                  <input id="simComplementoParentesco" type="text" placeholder="Conjuge, pai, mae, etc." />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simComplementoRenda">Renda</label>
+                  <input id="simComplementoRenda" type="text" placeholder="R$ 0,00" />
+                </div>
+                <div class="tl-imoveis-field">
+                  <label for="simComplementoAtivo">Incluir na analise</label>
+                  <select id="simComplementoAtivo" class="tl-clientes-select">
+                    <option value="true" selected>Sim</option>
+                    <option value="false">Nao</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+            <div id="simComplementoFeedback" class="tl-clientes-feedback" aria-live="polite"></div>
+            <div class="tl-clientes-actions">
+              <button id="btnSalvarComplemento" class="tl-imoveis-btn" type="submit">Salvar complemento</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/02_recursos/02_scripts/operacoes_shared.js?v=20260406-sharederr1"></script>
+  <script src="/02_recursos/02_scripts/simulador_comercial.js?v=20260407-titulo-unidade1"></script>
+</body>
+</html>

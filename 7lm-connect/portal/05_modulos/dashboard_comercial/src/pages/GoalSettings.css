@@ -1,0 +1,516 @@
+/* ── GoalSettings Page ──────────────────────────────────────────────────────── */
+.goal-settings {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.goal-settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.goal-settings-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  color: var(--text-color);
+}
+
+.goal-settings-header-left svg {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.goal-settings-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-color);
+}
+
+.goal-settings-subtitle {
+  font-size: 0.78rem;
+  color: var(--on-surface-variant);
+  margin: 0.2rem 0 0;
+  line-height: 1.4;
+}
+
+.goal-settings-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.goal-section-block {
+  border: 1px solid var(--border-color, #eee);
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: var(--bg-color, #fff);
+}
+
+.goal-section-header h3 {
+  margin: 0;
+  font-size: 0.98rem;
+  color: var(--text-color);
+}
+
+.goal-section-header p {
+  margin: 0.35rem 0 0.75rem;
+  font-size: 0.76rem;
+  color: var(--on-surface-variant);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+.goal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 1rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.goal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.goal-btn-primary {
+  background: var(--primary-color, #0f62fe);
+  color: #fff;
+}
+
+.goal-btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.goal-btn-secondary {
+  background: var(--surface-color-variant, #f0f0f0);
+  color: var(--text-color);
+  border: 1px solid var(--border-color, #ddd);
+}
+
+.goal-btn-secondary:hover:not(:disabled) {
+  background: var(--surface-color, #e8e8e8);
+}
+
+/* ── Alert ─────────────────────────────────────────────────────────────────── */
+.goal-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  margin-bottom: 1rem;
+}
+
+.goal-alert-warning {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: var(--text-color);
+}
+
+/* ── Table Header ──────────────────────────────────────────────────────────── */
+.goal-table-header {
+  display: grid;
+  grid-template-columns: 1.4fr 0.9fr 1.1fr 0.8fr 1fr 1.2fr 2.5rem;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--on-surface-variant);
+  border-bottom: 1px solid var(--border-color, #eee);
+}
+
+/* ── Row ───────────────────────────────────────────────────────────────────── */
+.goal-row {
+  border-bottom: 1px solid var(--border-color, #eee);
+  transition: background 0.15s;
+}
+
+.goal-row:hover {
+  background: rgba(83, 147, 239, 0.03);
+}
+
+.goal-row.is-expanded {
+  background: rgba(83, 147, 239, 0.05);
+}
+
+.goal-row.has-error {
+  border-left: 3px solid #ef4444;
+}
+
+.goal-row-main {
+  display: grid;
+  grid-template-columns: 1.4fr 0.9fr 1.1fr 0.8fr 1fr 1.2fr 2.5rem;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  align-items: center;
+}
+
+.goal-col-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.goal-kpi-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.goal-kpi-unit {
+  font-size: 0.65rem;
+  color: var(--on-surface-variant);
+  opacity: 0.7;
+}
+
+/* ── Inputs / Selects ──────────────────────────────────────────────────────── */
+.goal-input,
+.goal-select {
+  width: 100%;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  background: var(--bg-color, #fff);
+  color: var(--text-color);
+  transition: border-color 0.15s;
+}
+
+.goal-input:focus,
+.goal-select:focus {
+  outline: none;
+  border-color: var(--primary-color, #0f62fe);
+  box-shadow: 0 0 0 2px rgba(15, 98, 254, 0.1);
+}
+
+.goal-input {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-select {
+  cursor: pointer;
+  appearance: auto;
+}
+
+.goal-field-error {
+  font-size: 0.65rem;
+  color: #ef4444;
+  margin-top: 0.1rem;
+}
+
+/* ── Preview / Proration ───────────────────────────────────────────────────── */
+.goal-preview-text {
+  font-size: 0.72rem;
+  color: var(--on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-col-preview {
+  display: flex;
+  align-items: center;
+}
+
+.goal-col-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.goal-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.goal-expand-btn:hover {
+  background: var(--surface-color-variant, #f0f0f0);
+}
+
+/* ── Expanded Detail ───────────────────────────────────────────────────────── */
+.goal-row-detail {
+  padding: 0.75rem 0.75rem 1rem;
+  border-top: 1px dashed var(--border-color, #eee);
+}
+
+.goal-detail-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.goal-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 180px;
+}
+
+.goal-detail-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.goal-checkbox {
+  accent-color: var(--primary-color, #0f62fe);
+}
+
+.goal-detail-proration {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.goal-detail-proration-title {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  margin: 0 0 0.4rem;
+}
+
+.goal-proration-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.goal-proration-item {
+  background: var(--surface-color-variant, #f7f7f7);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.goal-proration-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--on-surface-variant);
+  font-weight: 500;
+}
+
+.goal-proration-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Form Actions Bar ──────────────────────────────────────────────────────── */
+.goal-form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0.75rem 0;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border-color, #eee);
+}
+
+.goal-form-status {
+  font-size: 0.78rem;
+}
+
+.goal-status-text {
+  color: var(--on-surface-variant);
+}
+
+.goal-status-success {
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.goal-status-error {
+  color: #ef4444;
+  font-weight: 500;
+}
+
+/* ── Planning Preview (visual only) ───────────────────────────────────────── */
+.planning-preview {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border-color, #eee);
+  padding-top: 1rem;
+}
+
+.planning-preview-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-color);
+}
+
+.planning-preview-header p {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--on-surface-variant);
+}
+
+.planning-grid {
+  margin-top: 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.planning-card {
+  border: 1px solid var(--border-color, #eee);
+  border-radius: 8px;
+  background: var(--surface-color-variant, #f7f7f7);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.planning-card h4 {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-color);
+}
+
+.planning-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--on-surface-variant);
+}
+
+.planning-card-wide {
+  grid-column: 1 / -1;
+}
+
+.planning-checkbox {
+  display: flex !important;
+  align-items: center;
+  flex-direction: row !important;
+  gap: 0.45rem;
+}
+
+.planning-total {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.planning-total.ok {
+  color: #16a34a;
+}
+
+.planning-total.warn {
+  color: #ef4444;
+}
+
+.planning-kpi-table {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.planning-kpi-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 0.5fr;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.74rem;
+  color: var(--text-color);
+}
+
+.planning-simulation-result {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-color);
+}
+
+.planning-notes {
+  width: 100%;
+  min-height: 74px;
+  resize: vertical;
+  padding: 0.45rem;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  background: var(--bg-color, #fff);
+  color: var(--text-color);
+}
+
+.planning-notes:focus {
+  outline: none;
+  border-color: var(--primary-color, #0f62fe);
+  box-shadow: 0 0 0 2px rgba(15, 98, 254, 0.1);
+}
+
+/* ── Spin animation ────────────────────────────────────────────────────────── */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .goal-table-header {
+    display: none;
+  }
+
+  .goal-row-main {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 0.4rem;
+  }
+
+  .goal-col-kpi {
+    grid-column: 1 / -1;
+  }
+
+  .goal-col-expand {
+    position: absolute;
+    right: 0.5rem;
+    top: 0.65rem;
+  }
+
+  .goal-row-main {
+    position: relative;
+  }
+
+  .planning-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-kpi-row {
+    grid-template-columns: 1fr;
+  }
+}

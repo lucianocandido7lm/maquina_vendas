@@ -1,0 +1,176 @@
+(function () {
+  "use strict";
+
+  const shared = window.SevenLMConnectOperacoes;
+  const LOGIN_AT_KEYS = ["sevenlm_connect_login_at", "sevenlm_connect_login_at"];
+
+  function readSession(key) {
+    const keys = Array.isArray(key) ? key : [key];
+    try {
+      for (const item of keys) {
+        const value = sessionStorage.getItem(item) || "";
+        if (value) return value;
+      }
+    } catch {}
+    return "";
+  }
+
+  const el = {
+    catalogo: document.getElementById("operacoesCatalogo"),
+    summaryPrimary: document.getElementById("opsSummaryPrimary"),
+    summarySecondary: document.getElementById("opsSummarySecondary"),
+    lastAccess: document.getElementById("opsLastAccess"),
+    lastAccessMeta: document.getElementById("opsLastAccessMeta"),
+    kpiClientes: document.getElementById("opsKpiClientes"),
+    kpiDashboards: document.getElementById("opsKpiDashboards"),
+    kpiScenes: document.getElementById("opsKpiScenes"),
+    kpiEscopo: document.getElementById("opsKpiEscopo"),
+    catalogIntro: document.getElementById("opsCatalogIntro"),
+  };
+
+  const ABAS_COMERCIAIS = [
+  {
+    badge: "CLIENTES",
+    titulo: "Gestao de clientes",
+    resumo:
+      "Primeira etapa do fluxo comercial: cadastro, carteira, responsavel pelo cliente e dados para simulacao.",
+    destaque: "1a aba",
+    estatisticas: ["Cadastro", "Carteira", "Responsavel"],
+    acento: "#00B3DE",
+    prioridade: "Inicio do fluxo",
+    href: shared.buildPortalPath("/comercial/clientes"),
+    cta: "Abrir clientes",
+    permission: "imoveis.view",
+  },
+  {
+    badge: "SIMULADOR",
+    titulo: "Simulador comercial",
+    resumo:
+      "Segunda etapa: selecionar o cliente, analisar sugestoes, reservar unidades e seguir ate a venda.",
+    destaque: "2a aba",
+    estatisticas: ["Sugestoes", "Reserva", "Venda"],
+    acento: "#10B981",
+    prioridade: "Analise comercial",
+    href: shared.buildPortalPath("/comercial/simulador"),
+    cta: "Abrir simulador",
+    permission: "imoveis.view",
+  },
+  {
+    badge: "IMOVEIS",
+    titulo: "Cadastro, listagem e midias",
+    resumo:
+      "Terceira etapa: consulta da base ativa, importacao em lote e gerenciamento de fotos e videos.",
+    destaque: "3a aba",
+    estatisticas: ["Cadastro", "Listagem", "Midias"],
+    acento: "#00B3DE",
+    prioridade: "Base de unidades",
+    href: shared.buildPortalPath("/comercial/imoveis"),
+    cta: "Abrir imoveis",
+    permission: "imoveis.view",
+  },
+  ];
+
+  function setText(node, value) {
+    if (node) node.textContent = value;
+  }
+
+  function formatDateTime(value) {
+    if (!value) return "Agora ha pouco";
+    return shared.formatDateTime(value);
+  }
+
+  function mountItem(item) {
+    const permissionAttr = item.permission
+      ? ` data-permission="${shared.escapeHtml(item.permission)}"`
+      : "";
+    const tags = item.estatisticas
+      .map((tag) => `<span class="tl-ops-access-card__chip">${shared.escapeHtml(tag)}</span>`)
+      .join("");
+
+    return `
+      <article class="tl-ops-access-card" style="--access-accent:${shared.escapeHtml(item.acento)};">
+        <div class="tl-ops-access-card__head">
+          <span class="tl-ops-access-card__badge mono-font">${shared.escapeHtml(item.badge)}</span>
+          <span class="tl-ops-access-card__meta mono-font">${shared.escapeHtml(item.prioridade)}</span>
+        </div>
+
+        <div class="tl-ops-access-card__logo tl-ops-access-card__logo--fallback">
+          <span>COM</span>
+        </div>
+
+        <div class="tl-ops-access-card__copy">
+          <h3>${shared.escapeHtml(item.titulo)}</h3>
+          <p>${shared.escapeHtml(item.resumo)}</p>
+        </div>
+
+        <div class="tl-ops-access-card__stats">
+          <div class="tl-ops-access-card__stat">
+            <span>Status</span>
+            <strong>${shared.escapeHtml(item.destaque)}</strong>
+          </div>
+          <div class="tl-ops-access-card__stat">
+            <span>Modulo</span>
+            <strong>Comercial</strong>
+          </div>
+          <div class="tl-ops-access-card__stat">
+            <span>Escopo</span>
+            <strong>Unificado</strong>
+          </div>
+        </div>
+
+        <div class="tl-ops-access-card__chips">
+          ${tags}
+        </div>
+
+        <a class="tl-ops-access-card__cta" href="${shared.escapeHtml(item.href)}"${permissionAttr}>
+          <span>${shared.escapeHtml(item.cta)}</span>
+          <strong>${shared.escapeHtml(item.titulo)}</strong>
+        </a>
+      </article>
+    `;
+  }
+
+  function mountPlaceholder() {
+    return `
+      <article class="tl-ops-empty-state">
+        <span class="tl-ops-empty-state__badge mono-font">EXPANSAO</span>
+        <h3>Fluxo pronto para novas entregas</h3>
+        <p>
+          Clientes, Simulador e Imoveis ficam em uma sequencia unica.
+          As proximas entregas entram aqui sem criar outro modulo paralelo.
+        </p>
+      </article>
+    `;
+  }
+
+  function renderCatalog() {
+    if (!el.catalogo) return;
+    el.catalogo.innerHTML = `${ABAS_COMERCIAIS.map(mountItem).join("")}${mountPlaceholder()}`;
+  }
+
+  function updateHeader() {
+    setText(el.summaryPrimary, "3 abas ativas na M\u00E1quina de Vendas");
+    setText(
+      el.summarySecondary,
+      "Fluxo organizado em Clientes, Simulador e Imoveis."
+    );
+    setText(el.lastAccess, formatDateTime(readSession(LOGIN_AT_KEYS)));
+    setText(el.lastAccessMeta, "O módulo financeiro agora abre o monitor integrado dentro do portal.");
+    setText(el.kpiClientes, "03");
+    setText(el.kpiDashboards, "Clientes");
+    setText(el.kpiScenes, "Simulador");
+    setText(el.kpiEscopo, "Pronto");
+    setText(
+      el.catalogIntro,
+      "As abas abaixo seguem a sequencia operacional: cliente, simulacao e imoveis."
+    );
+  }
+
+  function boot() {
+    shared.initChrome();
+    updateHeader();
+    renderCatalog();
+  }
+
+  document.addEventListener("DOMContentLoaded", boot);
+})();

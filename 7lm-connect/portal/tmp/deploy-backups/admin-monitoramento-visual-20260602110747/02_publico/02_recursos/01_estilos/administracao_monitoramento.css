@@ -1,0 +1,451 @@
+/* Monitoramento administrativo isolado da pagina de acessos. */
+
+[data-admin-tab-panel][hidden] {
+  display: none !important;
+}
+
+.tl-admin-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 24px;
+  padding: 6px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--glass-bg-strong) 72%, transparent);
+  box-shadow: var(--shadow-soft);
+}
+
+.tl-admin-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  color: var(--txt-sec);
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: color 0.2s var(--ease-fluid), background 0.2s var(--ease-fluid), transform 0.2s var(--ease-fluid);
+}
+
+.tl-admin-tab:hover {
+  color: var(--txt-main);
+  transform: translateY(-1px);
+}
+
+.tl-admin-tab.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--c-primary), var(--c-primary-strong));
+  box-shadow: 0 10px 22px rgba(0, 179, 222, 0.24);
+}
+
+.tl-admin-tab__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.58;
+}
+
+.tl-monitor-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: monitorFadeIn 0.28s var(--ease-fluid) both;
+}
+
+.tl-monitor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 24px;
+  border-radius: 18px;
+}
+
+.tl-monitor-title {
+  margin-top: 4px;
+  color: var(--txt-main);
+  font-family: var(--font-brand);
+  font-size: clamp(1.55rem, 2vw, 2.25rem);
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.tl-monitor-copy {
+  max-width: 700px;
+  margin-top: 6px;
+  color: var(--txt-sec);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.tl-monitor-controls {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tl-monitor-select {
+  display: grid;
+  gap: 6px;
+  min-width: 126px;
+  color: var(--txt-sec);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.tl-monitor-select span {
+  text-transform: uppercase;
+}
+
+.tl-monitor-select select {
+  min-height: 40px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 0 36px 0 12px;
+  color: var(--txt-main);
+  background: var(--glass-bg-strong);
+  font: inherit;
+  font-size: 0.86rem;
+  outline: none;
+}
+
+.tl-monitor-status {
+  min-height: 18px;
+  color: var(--txt-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0;
+}
+
+.tl-monitor-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.tl-monitor-metric {
+  position: relative;
+  overflow: hidden;
+  min-height: 132px;
+  padding: 20px;
+  border-radius: 18px;
+}
+
+.tl-monitor-metric::after {
+  content: "";
+  position: absolute;
+  inset: auto 18px 16px auto;
+  width: 54px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--c-primary), #35d39f);
+}
+
+.tl-monitor-metric span,
+.tl-monitor-metric small {
+  display: block;
+  color: var(--txt-sec);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.tl-monitor-metric strong {
+  display: block;
+  margin: 12px 0 4px;
+  color: var(--txt-main);
+  font-family: var(--font-brand);
+  font-size: clamp(2rem, 3vw, 3.2rem);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.tl-monitor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
+  gap: 16px;
+}
+
+.tl-monitor-panel {
+  min-height: 440px;
+  padding: 20px;
+  border-radius: 18px;
+}
+
+.tl-monitor-panel--wide {
+  grid-row: span 2;
+}
+
+.tl-monitor-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.tl-monitor-panel__header h3 {
+  margin-top: 3px;
+  color: var(--txt-main);
+  font-family: var(--font-brand);
+  font-size: 1.12rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.tl-monitor-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--c-primary) 40%, var(--glass-border));
+  border-radius: 999px;
+  color: var(--c-primary);
+  background: color-mix(in srgb, var(--c-primary) 10%, transparent);
+  font-size: 0.75rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.tl-monitor-list,
+.tl-monitor-timeline {
+  display: grid;
+  gap: 10px;
+  max-height: 720px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.tl-monitor-timeline {
+  max-height: 362px;
+}
+
+.tl-monitor-person,
+.tl-monitor-row,
+.tl-monitor-event,
+.tl-monitor-empty,
+.tl-monitor-error {
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--glass-bg-strong) 74%, transparent);
+}
+
+.tl-monitor-person {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 14px;
+}
+
+.tl-monitor-person__main {
+  min-width: 0;
+}
+
+.tl-monitor-person__name,
+.tl-monitor-row__title,
+.tl-monitor-event__title {
+  color: var(--txt-main);
+  font-size: 0.95rem;
+  font-weight: 900;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.tl-monitor-person__meta,
+.tl-monitor-row__meta,
+.tl-monitor-event__meta {
+  margin-top: 4px;
+  color: var(--txt-soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.tl-monitor-person__route {
+  margin-top: 10px;
+  color: var(--txt-sec);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.tl-monitor-person__stats {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tl-monitor-stat {
+  display: grid;
+  place-items: center;
+  min-width: 62px;
+  min-height: 54px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c-primary) 10%, transparent);
+  color: var(--txt-main);
+}
+
+.tl-monitor-stat strong {
+  font-family: var(--font-brand);
+  font-size: 1.22rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.tl-monitor-stat span {
+  color: var(--txt-sec);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.tl-monitor-row {
+  padding: 13px;
+}
+
+.tl-monitor-row__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tl-monitor-row__value {
+  color: var(--c-primary);
+  font-size: 0.82rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.tl-monitor-event {
+  position: relative;
+  padding: 12px 12px 12px 22px;
+}
+
+.tl-monitor-event::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 16px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-primary);
+}
+
+.tl-monitor-event__kind {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin-bottom: 6px;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: var(--txt-sec);
+  background: color-mix(in srgb, var(--txt-soft) 13%, transparent);
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.tl-monitor-empty,
+.tl-monitor-error {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  color: var(--txt-sec);
+}
+
+.tl-monitor-empty strong,
+.tl-monitor-error strong {
+  color: var(--txt-main);
+  font-size: 0.95rem;
+}
+
+.tl-monitor-error {
+  border-color: color-mix(in srgb, var(--c-red) 34%, var(--glass-border));
+  color: var(--c-red);
+}
+
+@keyframes monitorFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1180px) {
+  .tl-monitor-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tl-monitor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .tl-monitor-panel--wide {
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .tl-admin-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  .tl-admin-tab {
+    min-width: 0;
+    padding: 0 12px;
+    border-radius: 12px;
+  }
+
+  .tl-monitor-head,
+  .tl-monitor-person,
+  .tl-monitor-row__line {
+    grid-template-columns: 1fr;
+  }
+
+  .tl-monitor-head {
+    display: grid;
+    padding: 18px;
+  }
+
+  .tl-monitor-controls {
+    align-items: stretch;
+  }
+
+  .tl-monitor-select,
+  .tl-monitor-controls .tl-btn-secondary {
+    width: 100%;
+  }
+
+  .tl-monitor-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .tl-monitor-panel {
+    min-height: auto;
+    padding: 16px;
+  }
+
+  .tl-monitor-person__stats {
+    justify-content: stretch;
+  }
+
+  .tl-monitor-stat {
+    flex: 1 1 92px;
+  }
+}

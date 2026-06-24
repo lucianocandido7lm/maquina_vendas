@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>7LM | Plataforma</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/inicio.css?v=20260402-atmosmotion1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/operacoes.css?v=20260402-atmosmotion1" />
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260401-sidebar-sync1"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260401-textfix2" defer></script>
+</head>
+<body class="tl-home tl-ops-page tl-ops-redesign">
+  <div class="tl-atmos-layer">
+    <div class="tl-blob tl-blob--teal"></div>
+    <div class="tl-blob tl-blob--purple"></div>
+    <div id="tl-particles-container"></div>
+    <div class="tl-glass-overlay"></div>
+  </div>
+
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <header class="tl-topbar tl-ops-topbar anim-stagger-1">
+        <div class="tl-topbar__titles">
+          <div class="tl-overline reveal-text">PLATAFORMA CENTRAL 7LM</div>
+<h1 class="tl-title reveal-text delay-1">7LM</h1>
+          <p class="tl-subtitle reveal-text delay-2">
+            Ambiente central preparado para conectar relacionamento, credito, proposta, operacao, acessos e administracao em uma arquitetura pronta para crescer.
+          </p>
+        </div>
+
+        <div class="tl-topbar__controls">
+          <button id="btnTema" class="tl-btn-icon glass-panel hyper-glass" aria-label="Alternar tema">
+            <div class="icon-wrap">
+              <svg class="icon-sun" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+              <svg class="icon-moon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            </div>
+          </button>
+
+          <div class="tl-userbox glass-panel hyper-glass">
+            <div class="tl-userbox__avatar">
+              <span id="userInitials">7L</span>
+            </div>
+            <div class="tl-userbox__info">
+              <div class="tl-userbox__name" id="nomeUsuario">Carregando...</div>
+              <div class="tl-userbox__meta mono-font" id="metaUsuario">Conectando...</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="tl-ops-access-overview anim-stagger-2">
+        <article class="tl-ops-access-strip">
+          <div class="tl-ops-access-strip__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 5h18"></path>
+              <path d="M3 12h18"></path>
+              <path d="M3 19h18"></path>
+            </svg>
+          </div>
+          <div class="tl-ops-access-strip__copy">
+            <span class="mono-font">PLATAFORMA ATIVA</span>
+            <strong id="opsSummaryPrimary">Carregando estrutura institucional...</strong>
+            <small id="opsSummarySecondary">Sincronizando blocos principais da jornada digital 7LM.</small>
+          </div>
+        </article>
+
+        <article class="tl-ops-access-strip">
+          <div class="tl-ops-access-strip__icon tl-ops-access-strip__icon--secondary" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M12 7v5l3 3"></path>
+            </svg>
+          </div>
+          <div class="tl-ops-access-strip__copy">
+            <span class="mono-font">ULTIMA VALIDACAO</span>
+            <strong id="opsLastAccess">Agora ha pouco</strong>
+            <small id="opsLastAccessMeta">Base pronta para acesso local e evolucao por modulo.</small>
+          </div>
+        </article>
+      </section>
+
+      <section class="tl-ops-search-panel anim-stagger-2">
+        <div class="tl-ops-search-panel__copy">
+          <div class="tl-ops-section-kicker mono-font">ESTRUTURA BASE</div>
+          <h2 id="opsHeroTitle">Localize as frentes preparadas para evolucao.</h2>
+          <p id="opsHeroText">
+Esta tela organiza os pilares institucionais da 7LM sem expandir o escopo da fase atual.
+          </p>
+        </div>
+
+        <label class="tl-ops-search-panel__field" for="opsSearchInput">
+          <span class="tl-ops-search-panel__icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="m20 20-3.5-3.5"></path>
+            </svg>
+          </span>
+          <input id="opsSearchInput" type="search" placeholder="Pesquisar frente, contexto ou descricao" autocomplete="off" />
+        </label>
+      </section>
+
+      <section class="tl-ops-access-metrics anim-stagger-3">
+        <article class="tl-ops-access-metric">
+          <span class="mono-font">BLOCOS</span>
+          <strong id="opsKpiClientes">--</strong>
+        </article>
+        <article class="tl-ops-access-metric">
+          <span class="mono-font">PRIORIDADE</span>
+          <strong id="opsKpiDashboards">--</strong>
+        </article>
+        <article class="tl-ops-access-metric">
+          <span class="mono-font">SEGURANCA</span>
+          <strong id="opsKpiScenes">--</strong>
+        </article>
+        <article class="tl-ops-access-metric">
+          <span class="mono-font">STATUS</span>
+          <strong id="opsKpiEscopo">--</strong>
+        </article>
+      </section>
+
+      <section class="tl-ops-catalog-shell anim-stagger-3">
+        <div class="tl-ops-catalog-shell__head">
+          <div>
+            <div class="tl-ops-section-kicker mono-font">MAPA DA PLATAFORMA</div>
+            <h2>Frentes preparadas para a proxima fase.</h2>
+          </div>
+          <p id="opsCatalogIntro">
+            A estrutura abaixo indica o que esta preservado agora e o que sera conectado passo a passo na evolucao do produto.
+          </p>
+        </div>
+
+        <section class="tl-ops-access-grid" id="operacoesCatalogo">
+          <article class="tl-ops-empty-state">
+            <span class="tl-ops-empty-state__badge mono-font">7LM</span>
+            <h3>Montando mapa institucional</h3>
+            <p>Estamos organizando as frentes da plataforma.</p>
+          </article>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="/02_recursos/02_scripts/operacoes_shared.js?v=20260401-textfix2"></script>
+  <script src="/02_recursos/02_scripts/operacoes_catalogo.js?v=20260401-textfix2"></script>
+</body>
+</html>

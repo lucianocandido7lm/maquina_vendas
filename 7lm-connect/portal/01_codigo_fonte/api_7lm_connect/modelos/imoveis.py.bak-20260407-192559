@@ -1,0 +1,35 @@
+"""
+Esquemas Pydantic do modulo de imoveis.
+"""
+
+from __future__ import annotations
+
+from decimal import Decimal
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class RequisicaoImovelBase(BaseModel):
+    titulo: str = Field(..., min_length=3, max_length=160)
+    descricao: Optional[str] = Field(None, max_length=4000)
+    tipo_imovel: Optional[str] = Field(None, max_length=80)
+    endereco: Optional[str] = Field(None, max_length=255)
+    cidade: str = Field(..., min_length=2, max_length=120)
+    bairro: str = Field(..., min_length=2, max_length=120)
+    estado: Optional[str] = Field(None, max_length=40)
+    cep: Optional[str] = Field(None, max_length=20)
+    valor: Optional[Decimal] = None
+    quartos: Optional[int] = Field(None, ge=0, le=100)
+    banheiros: Optional[int] = Field(None, ge=0, le=100)
+    vagas_garagem: Optional[int] = Field(None, ge=0, le=100)
+    area_m2: Optional[Decimal] = None
+    status: str = Field(..., min_length=2, max_length=60)
+
+
+class RequisicaoCriarImovel(RequisicaoImovelBase):
+    pass
+
+
+class RequisicaoAtualizarImovel(RequisicaoImovelBase):
+    pass

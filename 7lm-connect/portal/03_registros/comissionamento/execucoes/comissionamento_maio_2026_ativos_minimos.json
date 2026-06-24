@@ -1,0 +1,267 @@
+{
+  "ciclo_id": "2026-05",
+  "minimos": 14,
+  "ativos_maio_detectados": 16,
+  "resultados_finais": 21,
+  "importados": [
+    {
+      "resultado_id": "seed-8",
+      "nome": "Alana Rabelo Da Costa",
+      "funcao": "GER II VENDAS",
+      "papel": "gestor",
+      "valor": 8500.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=ALANA"
+      ]
+    },
+    {
+      "resultado_id": "maio-2026-gestor-35859e0b9aeff792",
+      "nome": "Alba Vieira Da Silva Lopes",
+      "funcao": "GER. VENDAS CANAL",
+      "papel": "gestor",
+      "valor": 10750.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=ALBA"
+      ]
+    },
+    {
+      "resultado_id": "seed-4",
+      "nome": "Ana Cleia Nonato",
+      "funcao": "GER VENDAS",
+      "papel": "gestor",
+      "valor": 8750.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=ANA CLEIA"
+      ]
+    },
+    {
+      "resultado_id": "seed-12",
+      "nome": "Bruno Macario",
+      "funcao": "COORD. REPASSE",
+      "papel": "coordenador",
+      "valor": 10600.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=BRUNO"
+      ]
+    },
+    {
+      "resultado_id": "seed-9",
+      "nome": "Daiana Soares Da Rocha",
+      "funcao": "GER VENDAS",
+      "papel": "gestor",
+      "valor": 5750.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=DAIANA"
+      ]
+    },
+    {
+      "resultado_id": "seed-2",
+      "nome": "Francisco Lucielio De Queiroz",
+      "funcao": "GER VENDAS",
+      "papel": "gestor",
+      "valor": 4750.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=FRANCISCO"
+      ]
+    },
+    {
+      "resultado_id": "seed-11",
+      "nome": "Geisiane Gomes Dos Santos",
+      "funcao": "COORD. CANAL",
+      "papel": "coordenador",
+      "valor": 11000.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=GEISI"
+      ]
+    },
+    {
+      "resultado_id": "seed-6",
+      "nome": "Jordan Vasconcelos",
+      "funcao": "COORD VENDAS CAT",
+      "papel": "coordenador",
+      "valor": 9300.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=JORDAN"
+      ]
+    },
+    {
+      "resultado_id": "seed-3",
+      "nome": "Josué Gomes De Souza",
+      "funcao": "GER VENDAS",
+      "papel": "gestor",
+      "valor": 5000.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=JOSUÉ"
+      ]
+    },
+    {
+      "resultado_id": "maio-2026-gestor-280b2b9f06d58468",
+      "nome": "Leonardo De Azevedo Mariano Silva",
+      "funcao": "Gerente De Vendas",
+      "papel": "gestor",
+      "valor": 0.0,
+      "fonte": "ativo_maio_zerado",
+      "origens": [
+        "funcionario_acesso"
+      ]
+    },
+    {
+      "resultado_id": "maio-2026-gestor-bdbcf03324b56790",
+      "nome": "Lucas Paulo Marques Pinto",
+      "funcao": "Gerente De Vendas",
+      "papel": "gestor",
+      "valor": 0.0,
+      "fonte": "ativo_maio_zerado",
+      "origens": [
+        "funcionario_acesso"
+      ]
+    },
+    {
+      "resultado_id": "seed-13",
+      "nome": "Luiz Aquino",
+      "funcao": "GER. IA",
+      "papel": "gestor",
+      "valor": 3950.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=LUIZ"
+      ]
+    },
+    {
+      "resultado_id": "maio-2026-gestor-d7e22a451fd53d8e",
+      "nome": "Marcelo Paiva",
+      "funcao": "Head Comercial",
+      "papel": "gestor",
+      "valor": 0.0,
+      "fonte": "ativo_maio_zerado",
+      "origens": [
+        "funcionario_acesso"
+      ]
+    },
+    {
+      "resultado_id": "seed-10",
+      "nome": "Marco Taveira",
+      "funcao": "COORD GERAL",
+      "papel": "coordenador",
+      "valor": 13800.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=TAVEIRA"
+      ]
+    },
+    {
+      "resultado_id": "maio-2026-gestor-96aa524ab68bfa47",
+      "nome": "Micael Dos Santos Pires",
+      "funcao": "Gerente De Vendas",
+      "papel": "gestor",
+      "valor": 0.0,
+      "fonte": "ativo_maio_zerado",
+      "origens": [
+        "funcionario_acesso"
+      ]
+    },
+    {
+      "resultado_id": "maio-2026-gestor-5845a633a1ae6c11",
+      "nome": "Pamela Aline Ferreira Barcelos",
+      "funcao": "GER VENDAS - CANAL",
+      "papel": "gestor",
+      "valor": 750.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=PAMELA"
+      ]
+    },
+    {
+      "resultado_id": "seed-7",
+      "nome": "Rafael De Lucena Martins",
+      "funcao": "GER VENDAS",
+      "papel": "gestor",
+      "valor": 6250.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=RAFAEL"
+      ]
+    },
+    {
+      "resultado_id": "maio-2026-gestor-3e5aed9cc2432b79",
+      "nome": "Renata Bento",
+      "funcao": "Gerente De Vendas",
+      "papel": "gestor",
+      "valor": 0.0,
+      "fonte": "ativo_maio_zerado",
+      "origens": [
+        "funcionario_acesso"
+      ]
+    },
+    {
+      "resultado_id": "seed-5",
+      "nome": "Thomaz Moreira Aquino",
+      "funcao": "COORD VENDAS FSA",
+      "papel": "coordenador",
+      "valor": 10000.0,
+      "fonte": "minimo_excel",
+      "origens": [
+        "lista_minima_excel",
+        "apelido=THOMAZ"
+      ]
+    },
+    {
+      "resultado_id": "maio-2026-coordenador-620552ed889c8efe",
+      "nome": "Vanessa Rodrigues Valadares",
+      "funcao": "Coordenador de Vendas",
+      "papel": "coordenador",
+      "valor": 0.0,
+      "fonte": "ativo_maio_zerado",
+      "origens": [
+        "funcionario_acesso.coordenador"
+      ]
+    },
+    {
+      "resultado_id": "maio-2026-gestor-fe18fcce0e63d104",
+      "nome": "Vivian dos Santos Pereira",
+      "funcao": "Gerente De Vendas",
+      "papel": "gestor",
+      "valor": 0.0,
+      "fonte": "ativo_maio_zerado",
+      "origens": [
+        "funcionario_acesso"
+      ]
+    }
+  ],
+  "removidos": [
+    {
+      "resultado_id": "maio-2026-gestor-8a0986cae3b95c32",
+      "nome": "Marco Narciso",
+      "cargo": "Diretor Comercial",
+      "valor_bruto": "0.00"
+    }
+  ],
+  "snapshot": {
+    "linhas": 8,
+    "gestores": 3,
+    "coordenadores": 3,
+    "vinculados_distintos": 5
+  }
+}

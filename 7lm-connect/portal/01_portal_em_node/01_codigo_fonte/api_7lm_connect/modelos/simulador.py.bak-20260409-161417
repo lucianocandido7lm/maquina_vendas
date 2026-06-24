@@ -1,0 +1,82 @@
+﻿"""
+Esquemas Pydantic do modulo de simulador comercial.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class RequisicaoFiltroImoveis(BaseModel):
+    empreendimento: Optional[str] = Field(None, max_length=160)
+    cidade: Optional[str] = Field(None, max_length=120)
+    bairro: Optional[str] = Field(None, max_length=120)
+    tipologia: Optional[str] = Field(None, max_length=80)
+    dormitorios: Optional[int] = Field(None, ge=0, le=10)
+    faixa_preco_min: Optional[Decimal] = Field(None, ge=0)
+    faixa_preco_max: Optional[Decimal] = Field(None, ge=0)
+    area_min_m2: Optional[Decimal] = Field(None, ge=0)
+    area_max_m2: Optional[Decimal] = Field(None, ge=0)
+    status: Optional[str] = Field("Disponivel", max_length=40)
+
+
+class RequisicaoBaseSimulacao(BaseModel):
+    cliente_id: str = Field(..., min_length=36, max_length=64)
+    valor_imovel: Optional[Decimal] = Field(None, ge=0)
+    financiamento_caixa: Optional[Decimal] = Field(None, ge=0)
+    parcela_financiamento_banco: Optional[Decimal] = Field(None, ge=0)
+    fgts: Optional[Decimal] = Field(None, ge=0)
+    subsidio: Optional[Decimal] = Field(None, ge=0)
+    entrada: Optional[Decimal] = Field(None, ge=0)
+    sobrepreco: Optional[Decimal] = Field(None, ge=0)
+    meses_pre_entrega: int = Field(36, ge=1, le=240)
+    meses_pos_entrega: int = Field(24, ge=0, le=360)
+    parcela_intermediaria_valor: Optional[Decimal] = Field(None, ge=0)
+    parcelas_intermediarias_quantidade: int = Field(0, ge=0, le=24)
+    parcela_anual_valor: Optional[Decimal] = Field(None, ge=0)
+    parcelas_anuais_quantidade: int = Field(0, ge=0, le=24)
+    parcela_semestral_valor: Optional[Decimal] = Field(None, ge=0)
+    parcelas_semestrais_quantidade: int = Field(0, ge=0, le=24)
+    parcela_reforco_valor: Optional[Decimal] = Field(None, ge=0)
+    parcelas_reforco_quantidade: int = Field(0, ge=0, le=24)
+    observacoes_comerciais: Optional[str] = Field(None, max_length=4000)
+    filtros: RequisicaoFiltroImoveis = Field(default_factory=RequisicaoFiltroImoveis)
+    incluir_indisponiveis: bool = False
+
+
+class RequisicaoSugerirImoveis(RequisicaoBaseSimulacao):
+    limite_sugestoes: int = Field(500, ge=1, le=500)
+
+
+class RequisicaoCalcularSimulacao(RequisicaoBaseSimulacao):
+    imovel_id: str = Field(..., min_length=36, max_length=64)
+
+
+class RequisicaoSalvarSimulacao(RequisicaoCalcularSimulacao):
+    payload_snapshot_extra: Optional[dict] = None
+
+
+class RequisicaoCriarComplementoRenda(BaseModel):
+    nome: str = Field(..., min_length=3, max_length=180)
+    cpf: str = Field(..., min_length=11, max_length=20)
+    parentesco: Optional[str] = Field(None, max_length=80)
+    renda: Decimal = Field(..., ge=0)
+    incluir_na_analise: bool = True
+    compoe_renda: bool = True
+    incluir_na_composicao_financeira: bool = True
+    ativo: bool = True
+
+
+class RequisicaoAtualizarComplementoRenda(RequisicaoCriarComplementoRenda):
+    pass
+
+
+class RequisicaoOperacaoImovel(BaseModel):
+    cliente_id: Optional[str] = Field(None, min_length=36, max_length=64)
+    simulacao_id: Optional[str] = Field(None, min_length=36, max_length=64)
+    observacoes: Optional[str] = Field(None, max_length=2000)
+    expiracao_em: Optional[datetime] = None

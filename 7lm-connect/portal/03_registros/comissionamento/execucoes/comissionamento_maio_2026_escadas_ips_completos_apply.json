@@ -1,0 +1,257 @@
+{
+  "timestamp": "2026-06-16T19:14:56.676274+00:00",
+  "modo": "apply",
+  "ciclo_id": "2026-05",
+  "total_antes": {
+    "resultados": 21,
+    "valor_bruto": 109150.0,
+    "valor_liquido": 109150.0
+  },
+  "total_depois": {
+    "resultados": 21,
+    "valor_bruto": 109150.0,
+    "valor_liquido": 109150.0
+  },
+  "preparados": [
+    {
+      "resultado_id": "seed-8",
+      "nome": "Alana Rabelo Da Costa",
+      "valor_bruto": 8500.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:padrao",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 1000.0,
+      "ips": 3,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "maio-2026-gestor-35859e0b9aeff792",
+      "nome": "Alba Vieira Da Silva Lopes",
+      "valor_bruto": 10750.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:padrao",
+      "faixas": 11,
+      "faixa_aplicada": "95% a 104,99%",
+      "valor_faixa": 3500.0,
+      "ips": 3,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "seed-4",
+      "nome": "Ana Cleia Nonato",
+      "valor_bruto": 8750.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:padrao",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 1000.0,
+      "ips": 3,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "seed-12",
+      "nome": "Bruno Macario",
+      "valor_bruto": 10600.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:especifica",
+      "faixas": 11,
+      "faixa_aplicada": "95% a 104,99%",
+      "valor_faixa": 6000.0,
+      "ips": 3,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "seed-9",
+      "nome": "Daiana Soares Da Rocha",
+      "valor_bruto": 5750.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:padrao",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 1000.0,
+      "ips": 3,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "seed-2",
+      "nome": "Francisco Lucielio De Queiroz",
+      "valor_bruto": 4750.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:padrao",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 1000.0,
+      "ips": 3,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "seed-11",
+      "nome": "Geisiane Gomes Dos Santos",
+      "valor_bruto": 11000.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:especifica",
+      "faixas": 9,
+      "faixa_aplicada": "95% a 104,99%",
+      "valor_faixa": 7000.0,
+      "ips": 2,
+      "ips_atingidos": 1
+    },
+    {
+      "resultado_id": "seed-6",
+      "nome": "Jordan Vasconcelos",
+      "valor_bruto": 9300.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:especifica",
+      "faixas": 9,
+      "faixa_aplicada": "95% a 104,99%",
+      "valor_faixa": 7000.0,
+      "ips": 3,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "seed-3",
+      "nome": "Josué Gomes De Souza",
+      "valor_bruto": 5000.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:padrao",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 1000.0,
+      "ips": 3,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "maio-2026-gestor-280b2b9f06d58468",
+      "nome": "Leonardo De Azevedo Mariano Silva",
+      "valor_bruto": 0.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:zerada",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 0.0,
+      "ips": 1,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "maio-2026-gestor-bdbcf03324b56790",
+      "nome": "Lucas Paulo Marques Pinto",
+      "valor_bruto": 0.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:zerada",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 0.0,
+      "ips": 1,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "seed-13",
+      "nome": "Luiz Aquino",
+      "valor_bruto": 3950.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:padrao",
+      "faixas": 11,
+      "faixa_aplicada": "95% a 104,99%",
+      "valor_faixa": 3500.0,
+      "ips": 3,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "maio-2026-gestor-d7e22a451fd53d8e",
+      "nome": "Marcelo Paiva",
+      "valor_bruto": 0.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:zerada",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 0.0,
+      "ips": 1,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "seed-10",
+      "nome": "Marco Taveira",
+      "valor_bruto": 13800.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:padrao",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 1000.0,
+      "ips": 5,
+      "ips_atingidos": 2
+    },
+    {
+      "resultado_id": "maio-2026-gestor-96aa524ab68bfa47",
+      "nome": "Micael Dos Santos Pires",
+      "valor_bruto": 0.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:zerada",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 0.0,
+      "ips": 1,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "maio-2026-gestor-5845a633a1ae6c11",
+      "nome": "Pamela Aline Ferreira Barcelos",
+      "valor_bruto": 750.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:padrao",
+      "faixas": 11,
+      "faixa_aplicada": "95% a 104,99%",
+      "valor_faixa": 3500.0,
+      "ips": 3,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "seed-7",
+      "nome": "Rafael De Lucena Martins",
+      "valor_bruto": 6250.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:padrao",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 1000.0,
+      "ips": 3,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "maio-2026-gestor-3e5aed9cc2432b79",
+      "nome": "Renata Bento",
+      "valor_bruto": 0.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:zerada",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 0.0,
+      "ips": 1,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "seed-5",
+      "nome": "Thomaz Moreira Aquino",
+      "valor_bruto": 10000.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:especifica",
+      "faixas": 9,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 3000.0,
+      "ips": 2,
+      "ips_atingidos": 1
+    },
+    {
+      "resultado_id": "maio-2026-coordenador-620552ed889c8efe",
+      "nome": "Vanessa Rodrigues Valadares",
+      "valor_bruto": 0.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:zerada",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 0.0,
+      "ips": 1,
+      "ips_atingidos": 0
+    },
+    {
+      "resultado_id": "maio-2026-gestor-fe18fcce0e63d104",
+      "nome": "Vivian dos Santos Pereira",
+      "valor_bruto": 0.0,
+      "fonte_escada": "ajuste_manual_escadas_ips_maio_2026:zerada",
+      "faixas": 11,
+      "faixa_aplicada": "0% a 39,99%",
+      "valor_faixa": 0.0,
+      "ips": 1,
+      "ips_atingidos": 0
+    }
+  ],
+  "resumo": {
+    "resultados": 21,
+    "com_valor": 14,
+    "escadas_especificas": 4,
+    "escadas_padrao": 10,
+    "escadas_zeradas": 7,
+    "valor_bruto_preservado": 109150.0,
+    "valor_liquido_preservado": 109150.0
+  }
+}

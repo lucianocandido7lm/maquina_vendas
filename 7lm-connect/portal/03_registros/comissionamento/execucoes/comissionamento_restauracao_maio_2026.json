@@ -1,0 +1,224 @@
+{
+  "ciclo_id": "2026-05",
+  "rotulo": "Maio/2026",
+  "fonte_backup": "/opt/7lm-connect/portal/03_registros/comissionamento/backups/backup_comissionamento_remocao_ciclos_nao_2026_06_20260615_174304.json",
+  "fonte_planilha": "/root/data-engineering/apps/commercial-dashboard/Comissionamento - COORDENADORES - GERENTES.xlsx",
+  "resultados": [
+    {
+      "resultado_id": "seed-1",
+      "seed_nome": "ROBSON",
+      "nome": "Robson Ferreira Paulo",
+      "email": "robson.paulo@7lm.com.br",
+      "origem_identidade": "maio_2026_usuario",
+      "fonte_valores": "base_consolidada_sem_aba_maio",
+      "aba_excel": "ROBSON",
+      "valor_final": 3400.0,
+      "regra_01": 3400.0,
+      "bonus_ips": 0.0,
+      "ips": 0,
+      "observacoes": [
+        "Aba individual sem bloco Maio/2026; valor importado da base consolidada."
+      ]
+    },
+    {
+      "resultado_id": "seed-10",
+      "seed_nome": "TAVEIRA",
+      "nome": "Marco Taveira",
+      "email": "comercial.regional@7lm.com.br",
+      "origem_identidade": "maio_2026_funcionario_acesso",
+      "fonte_valores": "excel_aba_individual_maio",
+      "aba_excel": "TAVEIRA",
+      "valor_final": 7300.0,
+      "regra_01": 6300.0,
+      "bonus_ips": 1000.0,
+      "ips": 2,
+      "observacoes": [
+        "Regra 01 ajustada para preservar valor final: excel=6000.00 esperado=6300.00."
+      ]
+    },
+    {
+      "resultado_id": "seed-11",
+      "seed_nome": "GEISI",
+      "nome": "Geisiane Gomes Dos Santos",
+      "email": "gestaocanal@7lm.com.br",
+      "origem_identidade": "maio_2026_funcionario_acesso",
+      "fonte_valores": "base_consolidada_sem_aba_maio",
+      "aba_excel": "GEISI",
+      "valor_final": 8500.0,
+      "regra_01": 8500.0,
+      "bonus_ips": 0.0,
+      "ips": 0,
+      "observacoes": [
+        "Aba individual sem bloco Maio/2026; valor importado da base consolidada."
+      ]
+    },
+    {
+      "resultado_id": "seed-12",
+      "seed_nome": "BRUNO",
+      "nome": "Bruno Macario",
+      "email": "gestaocredito@7lm.com.br",
+      "origem_identidade": "maio_2026_usuario",
+      "fonte_valores": "excel_aba_individual_maio",
+      "aba_excel": "MACÁRIO",
+      "valor_final": 10600.0,
+      "regra_01": 8600.0,
+      "bonus_ips": 2000.0,
+      "ips": 2,
+      "observacoes": []
+    },
+    {
+      "resultado_id": "seed-13",
+      "seed_nome": "LUIZ",
+      "nome": "Luiz Aquino",
+      "email": "luiz.aquino@7lm.com.br",
+      "origem_identidade": "maio_2026_usuario",
+      "fonte_valores": "base_consolidada_sem_aba_maio",
+      "aba_excel": "Luiz - Gerente 1",
+      "valor_final": 5342.0,
+      "regra_01": 5342.0,
+      "bonus_ips": 0.0,
+      "ips": 0,
+      "observacoes": [
+        "Aba individual sem bloco Maio/2026; valor importado da base consolidada."
+      ]
+    },
+    {
+      "resultado_id": "seed-2",
+      "seed_nome": "FRANCISCO",
+      "nome": "Francisco Lucielio De Queiroz",
+      "email": "trainee5@7lm.com.br",
+      "origem_identidade": "maio_2026_funcionario_acesso",
+      "fonte_valores": "base_consolidada_sem_aba_maio",
+      "aba_excel": "Francisco - Gerente AGL ",
+      "valor_final": 1250.0,
+      "regra_01": 1250.0,
+      "bonus_ips": 0.0,
+      "ips": 0,
+      "observacoes": [
+        "Aba individual sem bloco Maio/2026; valor importado da base consolidada."
+      ]
+    },
+    {
+      "resultado_id": "seed-3",
+      "seed_nome": "JOSUE",
+      "nome": "Josué Gomes De Souza",
+      "email": "josuegomes7lm@gmail.com",
+      "origem_identidade": "maio_2026_funcionario_acesso",
+      "fonte_valores": "base_consolidada_sem_aba_maio",
+      "aba_excel": "Josué - Gerente AGL",
+      "valor_final": 1000.0,
+      "regra_01": 1000.0,
+      "bonus_ips": 0.0,
+      "ips": 0,
+      "observacoes": [
+        "Aba individual sem bloco Maio/2026; valor importado da base consolidada."
+      ]
+    },
+    {
+      "resultado_id": "seed-4",
+      "seed_nome": "ANA CLEIA",
+      "nome": "Ana Cleia Nonato",
+      "email": null,
+      "origem_identidade": "maio_2026_funcionario_acesso",
+      "fonte_valores": "base_consolidada_sem_aba_maio",
+      "aba_excel": "Ana Cleia - Gerente AGL ",
+      "valor_final": 2850.0,
+      "regra_01": 2850.0,
+      "bonus_ips": 0.0,
+      "ips": 0,
+      "observacoes": [
+        "Aba individual sem bloco Maio/2026; valor importado da base consolidada."
+      ]
+    },
+    {
+      "resultado_id": "seed-5",
+      "seed_nome": "THOMAZ",
+      "nome": "Thomaz Moreira Aquino",
+      "email": "gestaovendasfsa@7lm.com.br",
+      "origem_identidade": "maio_2026_funcionario_acesso",
+      "fonte_valores": "base_consolidada_sem_aba_maio",
+      "aba_excel": "THOMAZ",
+      "valor_final": 4500.0,
+      "regra_01": 4500.0,
+      "bonus_ips": 0.0,
+      "ips": 0,
+      "observacoes": [
+        "Aba individual sem bloco Maio/2026; valor importado da base consolidada."
+      ]
+    },
+    {
+      "resultado_id": "seed-6",
+      "seed_nome": "JORDAN",
+      "nome": "Jordan Vasconcelos",
+      "email": "gestaocatalao@7lm.com.br",
+      "origem_identidade": "maio_2026_funcionario_acesso",
+      "fonte_valores": "base_consolidada_sem_aba_maio",
+      "aba_excel": "JORDAN",
+      "valor_final": 9300.0,
+      "regra_01": 9300.0,
+      "bonus_ips": 0.0,
+      "ips": 0,
+      "observacoes": [
+        "Aba individual sem bloco Maio/2026; valor importado da base consolidada."
+      ]
+    },
+    {
+      "resultado_id": "seed-7",
+      "seed_nome": "RAFAEL",
+      "nome": "Rafael De Lucena Martins",
+      "email": null,
+      "origem_identidade": "maio_2026_funcionario_acesso",
+      "fonte_valores": "base_consolidada_sem_aba_maio",
+      "aba_excel": "Rafael - Gerente IMOB",
+      "valor_final": 4400.0,
+      "regra_01": 4400.0,
+      "bonus_ips": 0.0,
+      "ips": 0,
+      "observacoes": [
+        "Aba individual sem bloco Maio/2026; valor importado da base consolidada."
+      ]
+    },
+    {
+      "resultado_id": "seed-8",
+      "seed_nome": "ALANA",
+      "nome": "Alana Rabelo Da Costa",
+      "email": "trainee4@7lm.com.br",
+      "origem_identidade": "maio_2026_funcionario_acesso",
+      "fonte_valores": "base_consolidada_sem_aba_maio",
+      "aba_excel": "Alana - Gerente FSA",
+      "valor_final": 2750.0,
+      "regra_01": 2750.0,
+      "bonus_ips": 0.0,
+      "ips": 0,
+      "observacoes": [
+        "Aba individual sem bloco Maio/2026; valor importado da base consolidada."
+      ]
+    },
+    {
+      "resultado_id": "seed-9",
+      "seed_nome": "DAIANA",
+      "nome": "Daiana Soares Da Rocha",
+      "email": "daianafsa@gmail.com",
+      "origem_identidade": "maio_2026_funcionario_acesso",
+      "fonte_valores": "base_consolidada_sem_aba_maio",
+      "aba_excel": "Daiana - Gerente FSA",
+      "valor_final": 4250.0,
+      "regra_01": 4250.0,
+      "bonus_ips": 0.0,
+      "ips": 0,
+      "observacoes": [
+        "Aba individual sem bloco Maio/2026; valor importado da base consolidada."
+      ]
+    }
+  ],
+  "snapshot": {
+    "linhas_snapshot": 135,
+    "comissionados_com_snapshot": 8
+  },
+  "totais_raw_banco": {
+    "quantidade": "13",
+    "valor_bruto_raw": 65442.0,
+    "distrato_raw": 0.0,
+    "valor_liquido_raw": 65442.0
+  }
+}

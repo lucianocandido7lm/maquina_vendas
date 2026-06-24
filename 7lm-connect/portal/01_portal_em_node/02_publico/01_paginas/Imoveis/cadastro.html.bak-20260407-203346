@@ -1,0 +1,244 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR" data-preload-root-classes="tl-imoveis-form-gated">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Connect Comercial - Cadastro de Imovel</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/inicio.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/operacoes.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="../../02_recursos/01_estilos/imoveis.css?v=20260406-imoveis-showroom5" />
+
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <meta name="sevenlm-connect-access-fallback" content="/comercial/imoveis" />
+  <meta name="sevenlm-connect-endpoint-imoveis-criar" content="/api/imoveis" />
+  <meta name="sevenlm-connect-endpoint-imoveis-detalhe" content="/api/imoveis/{id}" />
+  <meta name="sevenlm-connect-endpoint-imoveis-atualizar" content="/api/imoveis/{id}" />
+  <meta name="sevenlm-connect-endpoint-imoveis-upload" content="/api/imoveis/{id}/midias" />
+  <meta name="sevenlm-connect-endpoint-imoveis-remover-midia" content="/api/imoveis/{id}/midias/{midia_id}" />
+  <meta name="sevenlm-connect-path-imoveis-listagem" content="/comercial/imoveis" />
+  <meta name="sevenlm-connect-path-imoveis-cadastro" content="/comercial/imoveis/cadastro" />
+
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260406-litefx1"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260401-imoveis" defer></script>
+</head>
+<body class="tl-home tl-ops-page tl-imoveis-page">
+  <div class="tl-atmos-layer">
+    <div class="tl-blob tl-blob--teal"></div>
+    <div class="tl-blob tl-blob--purple"></div>
+    <div id="tl-particles-container"></div>
+    <div class="tl-glass-overlay"></div>
+  </div>
+
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <section class="tl-imoveis-hero-shell anim-stagger-1">
+        <div class="tl-imoveis-hero-compact" aria-label="Cabecalho compacto do modulo">
+          <div class="tl-imoveis-hero-compact__rail">
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/clientes">Clientes</a>
+            <a class="tl-imoveis-hero-compact__tab" href="/comercial/simulador">Simulador</a>
+            <a class="tl-imoveis-hero-compact__tab is-active" href="/comercial/imoveis">Imoveis</a>
+          </div>
+          <div class="tl-imoveis-hero-compact__actions">
+            <div class="tl-imoveis-hero-compact__user glass-panel hyper-glass">
+              <span class="tl-imoveis-hero-compact__user-name" id="nomeUsuario">Carregando...</span>
+            </div>
+            <button id="btnTema" class="tl-btn-icon glass-panel hyper-glass" aria-label="Alternar tema">
+              <div class="icon-wrap">
+                <svg class="icon-sun" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="5"></circle>
+                  <line x1="12" y1="1" x2="12" y2="3"></line>
+                  <line x1="12" y1="21" x2="12" y2="23"></line>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                  <line x1="1" y1="12" x2="3" y2="12"></line>
+                  <line x1="21" y1="12" x2="23" y2="12"></line>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <svg class="icon-moon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+              </div>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="imoveisFeedback" class="tl-imoveis-feedback anim-stagger-2" aria-live="polite"></section>
+
+      <section class="tl-imoveis-form-shell anim-stagger-2">
+        <div class="tl-imoveis-form-shell__head">
+          <div>
+            <span class="tl-imoveis-eyebrow mono-font">DADOS DO IMOVEL</span>
+            <h2>Formulario principal</h2>
+            <p>Cadastre titulo, localizacao, valores, status e os atributos basicos do imovel.</p>
+          </div>
+          <div class="tl-imoveis-actions">
+            <a id="btnVoltarImoveis" class="tl-imoveis-btn tl-imoveis-btn--secondary" href="/comercial/imoveis">Voltar para listagem</a>
+          </div>
+        </div>
+
+        <div id="imovelReadOnlyNote" class="tl-imoveis-readonly-note" hidden>
+          Seu perfil atual permite apenas o gerenciamento de midias. Os campos de dados ficam em modo leitura.
+        </div>
+
+        <form id="formImovel" novalidate>
+          <fieldset id="imovelDadosFieldset">
+            <div class="tl-imoveis-form">
+              <div class="tl-imoveis-field tl-imoveis-field--full">
+                <label for="imovelTitulo">Titulo</label>
+                <input id="imovelTitulo" type="text" required maxlength="160" placeholder="Ex.: Casa terrea 3 quartos no bairro Primavera" />
+              </div>
+
+              <div class="tl-imoveis-field tl-imoveis-field--full">
+                <label for="imovelDescricao">Descricao</label>
+                <textarea id="imovelDescricao" placeholder="Descreva pontos fortes, acabamento, proximidades e observacoes relevantes."></textarea>
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelTipo">Tipo do imovel</label>
+                <select id="imovelTipo">
+                  <option value="">Selecione</option>
+                  <option value="Apartamento">Apartamento</option>
+                  <option value="Casa">Casa</option>
+                  <option value="Lote">Lote</option>
+                  <option value="Comercial">Comercial</option>
+                  <option value="Outro">Outro</option>
+                </select>
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelStatus">Status</label>
+                <select id="imovelStatus" required>
+                  <option value="Disponivel">Disponivel</option>
+                  <option value="Reservado">Reservado</option>
+                  <option value="Vendido">Vendido</option>
+                  <option value="Inativo">Inativo</option>
+                </select>
+              </div>
+
+              <div class="tl-imoveis-field tl-imoveis-field--full">
+                <label for="imovelEndereco">Endereco</label>
+                <input id="imovelEndereco" type="text" maxlength="255" placeholder="Rua, numero, complemento" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelCidade">Cidade</label>
+                <input id="imovelCidade" type="text" required maxlength="120" placeholder="Cidade" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelBairro">Bairro</label>
+                <input id="imovelBairro" type="text" required maxlength="120" placeholder="Bairro" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelEstado">Estado</label>
+                <input id="imovelEstado" type="text" maxlength="40" placeholder="UF ou estado" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelCep">CEP</label>
+                <input id="imovelCep" type="text" maxlength="20" placeholder="00000-000" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelValor">Valor</label>
+                <input id="imovelValor" type="number" step="0.01" min="0" placeholder="0,00" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelArea">Area em m2</label>
+                <input id="imovelArea" type="number" step="0.01" min="0" placeholder="0,00" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelMesesPreEntrega">Meses ate entrega</label>
+                <input id="imovelMesesPreEntrega" type="number" min="1" max="240" step="1" placeholder="36" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelMesesPosEntrega">Meses pos-entrega</label>
+                <input id="imovelMesesPosEntrega" type="number" min="0" max="360" step="1" placeholder="24" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelPercentualConclusaoObra">% conclusao da obra</label>
+                <input id="imovelPercentualConclusaoObra" type="number" min="0" max="100" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelQuartos">Quartos</label>
+                <input id="imovelQuartos" type="number" min="0" step="1" placeholder="0" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelBanheiros">Banheiros</label>
+                <input id="imovelBanheiros" type="number" min="0" step="1" placeholder="0" />
+              </div>
+
+              <div class="tl-imoveis-field">
+                <label for="imovelVagas">Vagas de garagem</label>
+                <input id="imovelVagas" type="number" min="0" step="1" placeholder="0" />
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="tl-imoveis-form__actions">
+            <span class="tl-imoveis-upload-hint">Campos obrigatorios: titulo, cidade, bairro e status.</span>
+            <button id="btnSalvarImovel" class="tl-imoveis-btn" type="submit">Salvar imovel</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="imovelUploadSection" class="tl-imoveis-media-shell anim-stagger-3">
+        <div class="tl-imoveis-media-shell__head">
+          <div>
+            <span class="tl-imoveis-eyebrow mono-font">MIDIAS</span>
+            <h2>Fotos e videos do imovel</h2>
+            <p>Use o armazenamento local do projeto nesta etapa para organizar as midias por imovel.</p>
+          </div>
+        </div>
+
+        <div class="tl-imoveis-field">
+          <label for="imovelMidias">Selecionar arquivos</label>
+          <input id="imovelMidias" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov,.webm" />
+          <p id="imovelUploadHint" class="tl-imoveis-upload-hint">
+            Aceite de imagens: jpg, jpeg, png, webp. Videos: mp4, mov e webm.
+          </p>
+        </div>
+
+        <div id="imovelArquivosSelecionados" class="tl-imoveis-upload-hint"></div>
+
+        <div class="tl-imoveis-media-shell__head" style="margin-top: 24px;">
+          <div>
+            <span class="tl-imoveis-eyebrow mono-font">MIDIAS EXISTENTES</span>
+            <h2>Arquivos vinculados ao imovel</h2>
+            <p>As midias enviadas ficam organizadas por imovel em storage local e listadas abaixo.</p>
+          </div>
+        </div>
+
+        <div id="imovelMidiasExistentes">
+          <div class="tl-imoveis-empty">
+            <strong>Nenhuma midia vinculada</strong>
+            <p>Salve o imovel para comecar a anexar arquivos.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/02_recursos/02_scripts/operacoes_shared.js?v=20260401-imoveis"></script>
+  <script src="/02_recursos/02_scripts/imoveis_shared.js?v=20260401-imoveis"></script>
+  <script src="/02_recursos/02_scripts/imoveis_cadastro.js?v=20260407-obra-caixa1"></script>
+</body>
+</html>
+
+

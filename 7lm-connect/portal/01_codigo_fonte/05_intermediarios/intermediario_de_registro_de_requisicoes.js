@@ -1,0 +1,8 @@
+﻿/**
+ * Autor: Willian Elias Franca
+ * Projeto: 7LM Connect - Plataforma Integrada
+ * ObservaÃ§Ã£o: arquivo criado automaticamente para organizar o projeto.
+ */
+
+// IntermediÃ¡rio de registro de requisiÃ§Ãµes (estrutura inicial).
+

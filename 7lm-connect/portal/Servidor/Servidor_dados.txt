@@ -1,0 +1,6 @@
+# backend/.env
+DB_USER=dviz_comercial
+DB_PASSWORD='k9#Z$p2!mL9Q*vR5^tB8&nJ3'
+DB_HOST=10.108.0.3
+DB_PORT=5432
+DB_NAME=db_app_comercial_dataviz

@@ -1,0 +1,3326 @@
+(function () {
+  "use strict";
+
+  const shared = window.SevenLMConnectOperacoes;
+  const API_BASE = shared?.buildPortalPath ? shared.buildPortalPath("/api") : "/api";
+  const PRESELECTED_PROPERTY_STORAGE_KEY = "7lm-connect-simulador-imovel";
+  const PATH_SIMULADOR = "/comercial/simulador";
+  const ENDPOINTS = {
+    me: `${API_BASE}/me`,
+    clientes: `${API_BASE}/clientes`,
+    clientePorId: `${API_BASE}/clientes/{id}`,
+    clienteFoto: `${API_BASE}/clientes/{id}/foto`,
+    clienteFotoMidia: `${API_BASE}/clientes/{id}/foto/{midiaId}`,
+    clienteDocumentos: `${API_BASE}/clientes/{id}/documentos`,
+    clienteDocumentoMidia: `${API_BASE}/clientes/{id}/documentos/{midiaId}`,
+    composicao: `${API_BASE}/clientes/{id}/composicao-familiar`,
+    composicaoMembro: `${API_BASE}/clientes/{id}/composicao-familiar/{membroId}`,
+    composicaoFlags: `${API_BASE}/clientes/{id}/composicao-familiar/{membroId}/flags`,
+    composicaoStatus: `${API_BASE}/clientes/{id}/composicao-familiar/{membroId}/status`,
+    clienteContextoSimulador: `${API_BASE}/connect-comercial/simulador/clientes/{id}/contexto`,
+    liberarReserva: `${API_BASE}/connect-comercial/imoveis/{id}/liberar-reserva`,
+  };
+
+  const el = {
+    feedback: document.getElementById("clientesFeedback"),
+    btnSalvar: document.getElementById("btnSalvarCliente"),
+    lista: document.getElementById("clientesLista"),
+    btnNovo: document.getElementById("btnMostrarCadastro"),
+    btnVoltarLista: document.getElementById("btnVoltarLista"),
+    busca: document.getElementById("clientesBusca"),
+    resumo: document.getElementById("clientesResumo"),
+    form: document.querySelector(".tl-clientes-form"),
+    modal: document.getElementById("clientesModal"),
+    successModal: document.getElementById("clientesSuccessModal"),
+    successText: document.getElementById("clientesSuccessText"),
+    quantidade: document.getElementById("clientesQuantidade"),
+    composicaoSection: document.getElementById("clienteComposicaoSection"),
+    composicaoResumo: document.getElementById("clientesComposicaoResumo"),
+    composicaoLista: document.getElementById("clientesComposicaoLista"),
+    btnAdicionarComposicao: document.getElementById("btnAdicionarComposicao"),
+    modalComposicao: document.getElementById("clientesComposicaoModal"),
+    formComposicao: document.getElementById("clientesComposicaoForm"),
+    composicaoTitulo: document.getElementById("clientesComposicaoTitulo"),
+    composicaoFeedback: document.getElementById("clientesComposicaoFeedback"),
+    btnFecharComposicao: document.getElementById("btnFecharComposicao"),
+    carteiraComercialSection: document.getElementById("clienteCarteiraComercialSection"),
+    carteiraComercialResumo: document.getElementById("clienteCarteiraComercialResumo"),
+    carteiraComercialLista: document.getElementById("clienteCarteiraComercialLista"),
+    viewModal: document.getElementById("clientesViewModal"),
+    viewContent: document.getElementById("clientesViewConteudo"),
+    btnFecharView: document.getElementById("btnFecharClienteView"),
+    midiasResumo: document.getElementById("clienteMidiasResumo"),
+    fotoInput: document.getElementById("clienteFotoInput"),
+    fotoImage: document.getElementById("clienteFotoAtual"),
+    fotoFallback: document.getElementById("clienteFotoFallback"),
+    fotoMeta: document.getElementById("clienteFotoMeta"),
+    fotoHint: document.getElementById("clienteFotoHint"),
+    btnEnviarFoto: document.getElementById("btnEnviarFotoCliente"),
+    btnRemoverFoto: document.getElementById("btnRemoverFotoCliente"),
+    documentosInput: document.getElementById("clienteDocumentosInput"),
+    documentosLista: document.getElementById("clienteDocumentosLista"),
+    documentosSelecionados: document.getElementById("clienteDocumentosSelecionados"),
+    documentosHint: document.getElementById("clienteDocumentosHint"),
+    btnEnviarDocumentos: document.getElementById("btnEnviarDocumentosCliente"),
+  };
+
+  const state = {
+    edicaoId: "",
+    carregando: false,
+    clientes: [],
+    user: null,
+    ultimoCepBuscado: "",
+    cepLookupController: null,
+    buscaCliente: "",
+    composicaoFamiliar: [],
+    membroEdicaoId: "",
+    ultimoCepMembroBuscado: "",
+    cepLookupMembroController: null,
+    detalheClienteAtual: null,
+    carteiraComercial: null,
+    clienteVisualizacao: null,
+    clienteVisualizacaoComposicao: [],
+    clienteVisualizacaoCarteira: null,
+    pendingFotoArquivo: null,
+    pendingFotoPreviewUrl: "",
+    pendingDocumentosArquivos: [],
+    successTimer: null,
+  };
+
+  const ids = {
+    nome: "clienteNome",
+    nascimento: "clienteNascimento",
+    sexo: "clienteSexo",
+    cpf: "clienteCpf",
+    rg: "clienteRg",
+    estadoCivil: "clienteEstadoCivil",
+    regimeCasamento: "clienteRegimeCasamento",
+    nacionalidade: "clienteNacionalidade",
+    nomeMae: "clienteNomeMae",
+    nomePai: "clienteNomePai",
+    email: "clienteEmail",
+    telefone: "clienteTelefone",
+    celular: "clienteCelular",
+    cep: "clienteCep",
+    logradouro: "clienteEndereco",
+    numero: "clienteNumero",
+    complemento: "clienteComplemento",
+    bairro: "clienteBairro",
+    cidade: "clienteCidade",
+    estado: "clienteEstado",
+    tempoResidencia: "clienteTempoResidencia",
+    situacaoMoradia: "clienteSituaçãoMoradia",
+    rendaPrincipal: "clienteRendaPrincipal",
+    rendaConjuge: "clienteRendaConjuge",
+    outrasRendas: "clienteOutrasRendas",
+    rendaTotal: "clienteRendaTotal",
+    rendaFormal: "clienteRendaFormal",
+    rendaInformal: "clienteRendaInformal",
+    simFinanciamento: "clienteSimFinanciamento",
+    simParcelaBanco: "clienteSimParcelaBanco",
+    simFgts: "clienteSimFgts",
+    simSubsidio: "clienteSimSubsidio",
+    simChequeMoradia: "clienteSimChequeMoradia",
+    simIntermediariaValor: "clienteSimIntermediariaValor",
+    simIntermediariaQtd: "clienteSimIntermediariaQtd",
+    simAnualValor: "clienteSimAnualValor",
+    simAnualQtd: "clienteSimAnualQtd",
+    simSemestralValor: "clienteSimSemestralValor",
+    simSemestralQtd: "clienteSimSemestralQtd",
+    simReforcoValor: "clienteSimReforcoValor",
+    simReforcoQtd: "clienteSimReforcoQtd",
+    simObservacoes: "clienteSimObservacoes",
+    moradores: "clienteMoradores",
+    dependentes: "clienteDependentes",
+    filhos: "clienteFilhos",
+    profissao: "clienteProfissao",
+    empresa: "clienteEmpresa",
+    cargo: "clienteCargo",
+    tempoEmprego: "clienteTempoEmprego",
+    tipoContrato: "clienteTipoContrato",
+    escolaridade: "clienteEscolaridade",
+    imovelProprio: "clienteImovelProprio",
+    veiculo: "clienteVeiculo",
+    financiamentos: "clienteFinanciamentos",
+    cartaoCredito: "clienteCartaoCredito",
+    aluguel: "clienteAluguel",
+    despesasFixas: "clienteDespesasFixas",
+    despesasVariaveis: "clienteDespesasVariaveis",
+    statusDocumental: "clienteStatusDocumental",
+    documentacaoPendente: "clienteDocumentacaoPendente",
+    observacoes: "clienteObservacoes",
+
+    membroNome: "membroNome",
+    membroCpf: "membroCpf",
+    membroRg: "membroRg",
+    membroNascimento: "membroNascimento",
+    membroSexo: "membroSexo",
+    membroParentesco: "membroParentesco",
+    membroEstadoCivil: "membroEstadoCivil",
+    membroNacionalidade: "membroNacionalidade",
+    membroNomeMae: "membroNomeMae",
+    membroNomePai: "membroNomePai",
+    membroTelefone: "membroTelefone",
+    membroCelular: "membroCelular",
+    membroEmail: "membroEmail",
+    membroMoraComCliente: "membroMoraComCliente",
+    membroUsarEnderecoCliente: "membroUsarEnderecoCliente",
+    membroCep: "membroCep",
+    membroLogradouro: "membroLogradouro",
+    membroNumero: "membroNumero",
+    membroComplemento: "membroComplemento",
+    membroBairro: "membroBairro",
+    membroCidade: "membroCidade",
+    membroEstado: "membroEstado",
+    membroRendaMensal: "membroRendaMensal",
+    membroOutrasRendas: "membroOutrasRendas",
+    membroRendaTotal: "membroRendaTotal",
+    membroProfissao: "membroProfissao",
+    membroOcupacao: "membroOcupacao",
+    membroEmpresaAtual: "membroEmpresaAtual",
+    membroCargo: "membroCargo",
+    membroTempoEmprego: "membroTempoEmprego",
+    membroTipoContrato: "membroTipoContrato",
+    membroEscolaridade: "membroEscolaridade",
+    membroSituaçãoMoradia: "membroSituaçãoMoradia",
+    membroCompoeRenda: "membroCompoeRenda",
+    membroIncluirAnalise: "membroIncluirAnalise",
+    membroIncluirFinanceira: "membroIncluirFinanceira",
+    membroIncluirConfissao: "membroIncluirConfissao",
+    membroResponsavelDocumentacao: "membroResponsavelDocumentacao",
+    membroPrincipalComprador: "membroPrincipalComprador",
+    membroAtivo: "membroAtivo",
+    membroStatusDocumental: "membroStatusDocumental",
+    membroDocumentacaoPendente: "membroDocumentacaoPendente",
+    membroObservacoes: "membroObservacoes",
+  };
+
+  const PARAMETROS_SIMULACAO_OBRIGATORIOS = [
+    { id: ids.simFinanciamento, tipo: "moeda", mensagem: "Informe o valor aprovado / financiamento do cliente.", permitirZero: false },
+    { id: ids.simParcelaBanco, tipo: "moeda", mensagem: "Informe a parcela banco cheia do cliente.", permitirZero: true },
+    { id: ids.simFgts, tipo: "moeda", mensagem: "Informe o FGTS do cliente.", permitirZero: true },
+  ];
+
+  const CAMPOS_OBRIGATORIOS_CLIENTE = [
+    ids.nome,
+    ids.cpf,
+    ids.rendaPrincipal,
+    ...PARAMETROS_SIMULACAO_OBRIGATORIOS.map((regra) => regra.id),
+  ];
+
+  function mostrarMensagem(tipo, texto) {
+    if (!el.feedback) return;
+    el.feedback.textContent = texto || "";
+    el.feedback.dataset.variant = tipo || "info";
+  }
+
+  function mensagemErro(erro, fallback) {
+    const texto = String(erro?.message || "").trim();
+    if (!texto) return fallback;
+    if (texto.toLowerCase() === "not found") {
+      return "Recurso não encontrado. Atualize a página e tente novamente.";
+    }
+    return texto;
+  }
+
+  function mensagemIndicaCpfDuplicado(texto) {
+    const normalizado = String(texto || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return normalizado.includes("cpf") && (
+      normalizado.includes("já está cadastrado")
+      || normalizado.includes("não pode cadastrar o mesmo cliente")
+      || normalizado.includes("cliente principal")
+    );
+  }
+
+  function escapeHtml(v) {
+    if (shared?.escapeHtml) return shared.escapeHtml(String(v ?? ""));
+    return String(v ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function normalizarBusca(v) {
+    return String(v || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
+
+  function iniciaisNome(nome) {
+    const partes = String(nome || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!partes.length) return "CL";
+    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+    return `${partes[0][0] || ""}${partes[1][0] || ""}`.toUpperCase();
+  }
+
+  function formatarDataHoraCurta(v) {
+    if (!v) return "";
+    const data = new Date(v);
+    if (Number.isNaN(data.getTime())) return "";
+    return data.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function nomeResponsavelReserva(reserva) {
+    const usuario = reserva?.reservado_por_usuario || {};
+    const reservadoPorId = String(reserva?.reservado_por || "").trim();
+    const usuarioAtualId = String(state.user?.identificador_usuario || state.user?.id || "").trim();
+    return String(
+      usuario.nome_completo
+        || reserva?.reservado_por_nome
+        || usuario.email
+        || reserva?.reservado_por_email
+        || (reservadoPorId && usuarioAtualId && reservadoPorId === usuarioAtualId
+          ? state.user?.nome_completo || state.user?.nome || state.user?.displayName || state.user?.correio_eletronico || state.user?.email
+          : "")
+        || "responsável não identificado"
+    ).trim();
+  }
+
+  function auditoriaReservaTexto(reserva) {
+    if (!reserva) return "";
+    const responsavel = nomeResponsavelReserva(reserva);
+    const data = formatarDataHoraCurta(reserva.reservado_em);
+    if (responsavel && data) return `Reservado por ${responsavel} em ${data}`;
+    if (responsavel) return `Reservado por ${responsavel}`;
+    if (data) return `Reservado em ${data}`;
+    return "";
+  }
+
+  function tamanhoArquivoLegivel(bytes) {
+    const total = Number(bytes || 0);
+    if (!Number.isFinite(total) || total <= 0) return "";
+    if (total < 1024) return `${total} B`;
+    if (total < 1024 * 1024) return `${(total / 1024).toFixed(1).replace(".", ",")} KB`;
+    return `${(total / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
+  }
+
+  function extensaoArquivo(nome) {
+    const texto = String(nome || "").trim();
+    if (!texto.includes(".")) return "";
+    return texto.slice(texto.lastIndexOf(".") + 1).toUpperCase();
+  }
+
+  function documentosDoCliente(item) {
+    if (Array.isArray(item?.documentos) && item.documentos.length) {
+      return item.documentos;
+    }
+    if (Array.isArray(item?.midias)) {
+      return item.midias.filter((midia) => String(midia?.tipo_arquivo || "").toLowerCase() === "documento");
+    }
+    return [];
+  }
+
+  function fotoDoCliente(item) {
+    if (item?.foto_principal) {
+      return {
+        caminho_arquivo: item.foto_principal,
+        nome_arquivo: item.foto_principal_nome || "Foto do cliente",
+        id: item.foto_principal_id || "",
+      };
+    }
+
+    if (Array.isArray(item?.midias)) {
+      const encontrada = item.midias.find((midia) => String(midia?.tipo_arquivo || "").toLowerCase() === "foto");
+      if (encontrada) return encontrada;
+    }
+
+    return null;
+  }
+
+  function revogarPreviewFotoPendente() {
+    if (!state.pendingFotoPreviewUrl) return;
+    try {
+      URL.revokeObjectURL(state.pendingFotoPreviewUrl);
+    } catch (_) {
+      // Mantemos o fluxo mesmo se o navegador não permitir revogar aqui.
+    }
+    state.pendingFotoPreviewUrl = "";
+  }
+
+  function limparPendênciasMidia() {
+    revogarPreviewFotoPendente();
+    state.pendingFotoArquivo = null;
+    state.pendingDocumentosArquivos = [];
+    if (el.fotoInput) el.fotoInput.value = "";
+    if (el.documentosInput) el.documentosInput.value = "";
+  }
+
+  function avatarClienteMarkup(cliente, className) {
+    const nome = cliente?.nome_completo || "Cliente";
+    const foto = cliente?.foto_principal || fotoDoCliente(cliente)?.caminho_arquivo || "";
+    const initials = iniciaisNome(nome);
+    const classes = [className];
+    if (foto) classes.push(`${className}--image`);
+    return foto
+      ? `<span class="${classes.join(" ")}"><img src="${escapeHtml(foto)}" alt="${escapeHtml(nome)}" loading="lazy" /></span>`
+      : `<span class="${classes.join(" ")}">${escapeHtml(initials)}</span>`;
+  }
+
+  function valor(id) {
+    return document.getElementById(id)?.value || "";
+  }
+
+  function setValor(id, v) {
+    const campo = document.getElementById(id);
+    if (!campo) return;
+    const proximoValor = v ?? "";
+    if (campo.tagName === "SELECT" && proximoValor) {
+      const existeOpcao = Array.from(campo.options || []).some((option) => option.value === proximoValor);
+      if (!existeOpcao) {
+        const opcao = document.createElement("option");
+        opcao.value = proximoValor;
+        opcao.textContent = proximoValor;
+        campo.appendChild(opcao);
+      }
+    }
+    campo.value = proximoValor;
+    if (campo.tagName === "SELECT") {
+      campo.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+
+  function apenasDigitos(v) {
+    return String(v || "").replace(/\D/g, "");
+  }
+
+  function textoOuNulo(v) {
+    const texto = String(v || "").trim();
+    return texto || null;
+  }
+
+  function intOuNulo(v) {
+    const digitos = apenasDigitos(v);
+    if (!digitos) return null;
+    const numero = Number(digitos);
+    return Number.isNaN(numero) ? null : numero;
+  }
+
+  function sanitizarEntradaMoeda(v) {
+    const texto = String(v ?? "");
+    if (!texto) return "";
+    const negativo = texto.trim().startsWith("-");
+    const sanitizado = texto.replace(/[^\d,.\-]/g, "").replace(/-/g, "");
+    return `${negativo ? "-" : ""}${sanitizado}`;
+  }
+
+  function moedaParaNumero(v) {
+    if (v === null || v === undefined || v === "") return null;
+    if (typeof v === "number") {
+      return Number.isFinite(v) ? v : null;
+    }
+
+    const textoSanitizado = sanitizarEntradaMoeda(v);
+    if (!textoSanitizado) return null;
+
+    const negativo = textoSanitizado.startsWith("-");
+    const texto = textoSanitizado.replace(/-/g, "");
+    const ultimoSeparador = Math.max(texto.lastIndexOf(","), texto.lastIndexOf("."));
+
+    let inteiro = texto;
+    let decimal = "";
+    if (ultimoSeparador >= 0) {
+      const casasDecimais = texto.length - ultimoSeparador - 1;
+      if (casasDecimais > 0 && casasDecimais <= 2) {
+        inteiro = texto.slice(0, ultimoSeparador);
+        decimal = texto.slice(ultimoSeparador + 1);
+      }
+    }
+
+    inteiro = inteiro.replace(/[.,]/g, "");
+    decimal = decimal.replace(/[^\d]/g, "").slice(0, 2);
+
+    if (!inteiro && !decimal) return null;
+
+    const normalizado = `${negativo ? "-" : ""}${inteiro || "0"}${decimal ? `.${decimal}` : ""}`;
+    const numero = Number(normalizado);
+    return Number.isNaN(numero) ? null : numero;
+  }
+
+  function moedaOuNulo(v) {
+    return moedaParaNumero(v);
+  }
+
+  function parseDataApi(v) {
+    const d = apenasDigitos(v).slice(0, 8);
+    if (d.length !== 8) return null;
+    return `${d.slice(4, 8)}-${d.slice(2, 4)}-${d.slice(0, 2)}`;
+  }
+
+  function formatarData(v) {
+    const d = apenasDigitos(v).slice(0, 8);
+    return d.replace(/(\d{2})(\d)/, "$1/$2").replace(/(\d{2})(\d{1,4})$/, "$1/$2");
+  }
+
+  function formatarDataInput(v) {
+    if (!v) return "";
+    const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return "";
+    return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+
+  function boolOuNulo(v) {
+    const t = String(v || "").trim().toLowerCase();
+    if (!t) return null;
+    if (t === "sim" || t === "true" || t === "1") return true;
+    if (t === "não" || t === "false" || t === "0") return false;
+    return null;
+  }
+
+  function boolTexto(v) {
+    if (v === true) return "Sim";
+    if (v === false) return "Não";
+    return "";
+  }
+
+  function formatarMoeda(v) {
+    const numero = moedaParaNumero(v);
+    if (numero === null) return "";
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(numero);
+  }
+
+  function formatarMoedaEdicao(v) {
+    const texto = String(v ?? "");
+    if (!texto || !possuiDigitosMoeda(texto)) return "";
+
+    const negativo = texto.trim().startsWith("-");
+    const limpo = texto.replace(/[^\d,.\-]/g, "").replace(/-/g, "");
+    const indiceSeparador = Math.max(limpo.lastIndexOf(","), limpo.lastIndexOf("."));
+    const temSeparadorDecimal = indiceSeparador >= 0;
+    const inteiroBruto = temSeparadorDecimal ? limpo.slice(0, indiceSeparador) : limpo;
+    const decimalBruto = temSeparadorDecimal ? limpo.slice(indiceSeparador + 1) : "";
+    const inteiro = inteiroBruto.replace(/\D/g, "");
+    const decimal = decimalBruto.replace(/\D/g, "").slice(0, 2);
+
+    if (!inteiro && !decimal) return "";
+    if (temSeparadorDecimal) {
+      return `${negativo ? "-" : ""}${inteiro || "0"},${decimal}`;
+    }
+    return `${negativo ? "-" : ""}${inteiro}`;
+  }
+
+  function formatarMoedaEditavel(v) {
+    const numero = moedaParaNumero(v);
+    if (numero === null) return "";
+    return new Intl.NumberFormat("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      useGrouping: false,
+    }).format(numero);
+  }
+
+  function possuiDigitosMoeda(v) {
+    return /\d/.test(String(v || ""));
+  }
+
+  function posicionarCursorFim(campo) {
+    if (!(campo instanceof HTMLInputElement)) return;
+    if (document.activeElement !== campo) return;
+
+    window.requestAnimationFrame(() => {
+      if (document.activeElement !== campo) return;
+      const posicaoCursor = String(campo.value || "").length;
+      try {
+        campo.setSelectionRange(posicaoCursor, posicaoCursor);
+      } catch (_) {
+        // Alguns estados de input não aceitam selectionRange; mantemos apenas o valor formatado.
+      }
+    });
+  }
+
+  function selecionarTexto(campo) {
+    if (!(campo instanceof HTMLInputElement)) return;
+    window.requestAnimationFrame(() => {
+      if (document.activeElement !== campo) return;
+      try {
+        campo.setSelectionRange(0, String(campo.value || "").length);
+      } catch (_) {
+        posicionarCursorFim(campo);
+      }
+    });
+  }
+
+  function formatarMoedaEnquantoDigita(campo) {
+    if (!(campo instanceof HTMLInputElement)) return;
+
+    const valorAtual = String(campo.value || "");
+    if (!valorAtual.trim() || !possuiDigitosMoeda(valorAtual)) {
+      campo.value = "";
+      return;
+    }
+
+    campo.value = formatarMoedaEdicao(valorAtual);
+    posicionarCursorFim(campo);
+  }
+
+  function bindCampoMoeda(id) {
+    const campo = document.getElementById(id);
+    if (!campo) return;
+
+    campo.setAttribute("inputmode", "decimal");
+    campo.setAttribute("autocomplete", "off");
+
+    campo.addEventListener("input", (e) => {
+      formatarMoedaEnquantoDigita(e.target);
+      marcarInvalido(id, false);
+    });
+
+    campo.addEventListener("blur", (e) => {
+      e.target.value = formatarMoeda(e.target.value);
+    });
+
+    campo.addEventListener("focus", (e) => {
+      e.target.value = formatarMoedaEditavel(e.target.value);
+      selecionarTexto(e.target);
+    });
+  }
+
+  function bindCampoInteiro(id) {
+    const campo = document.getElementById(id);
+    if (!campo) return;
+
+    campo.setAttribute("inputmode", "numeric");
+    campo.setAttribute("autocomplete", "off");
+    campo.addEventListener("input", (e) => {
+      e.target.value = apenasDigitos(e.target.value);
+      marcarInvalido(id, false);
+    });
+  }
+
+  function formatarTelefone(v, celular) {
+    const d = apenasDigitos(v).slice(0, celular ? 11 : 10);
+    if (d.length <= 10) return d.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d{1,4})$/, "$1-$2");
+    return d.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d{1,4})$/, "$1-$2");
+  }
+
+  function formatarCpf(v) {
+    const d = apenasDigitos(v).slice(0, 11);
+    return d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  }
+
+  function formatarCep(v) {
+    const d = apenasDigitos(v).slice(0, 8);
+    return d.replace(/(\d{5})(\d{1,3})$/, "$1-$2");
+  }
+
+  function marcarInvalido(id, invalido) {
+    const campo = document.getElementById(id);
+    if (!campo) return;
+    campo.classList.toggle("is-invalid", Boolean(invalido));
+    campo.setAttribute("aria-invalid", invalido ? "true" : "false");
+    const wrapper = campo.closest(".tl-imoveis-field");
+    wrapper?.classList.toggle("tl-clientes-field--invalid", Boolean(invalido));
+    if (campo.tagName === "SELECT") {
+      const trigger = campo.closest(".tl-clientes-select-wrap")?.querySelector(".tl-clientes-select-trigger");
+      trigger?.classList.toggle("is-invalid", Boolean(invalido));
+    }
+  }
+
+  function limparCamposInvalidos() {
+    document.querySelectorAll(".is-invalid").forEach((campo) => {
+      campo.classList.remove("is-invalid");
+      campo.setAttribute?.("aria-invalid", "false");
+    });
+    document.querySelectorAll(".tl-clientes-field--invalid").forEach((campo) => {
+      campo.classList.remove("tl-clientes-field--invalid");
+    });
+  }
+
+  function marcarCamposObrigatoriosVisuais() {
+    CAMPOS_OBRIGATORIOS_CLIENTE.forEach((idCampo) => {
+      const campo = document.getElementById(idCampo);
+      if (!campo) return;
+      campo.setAttribute("required", "required");
+      campo.setAttribute("aria-required", "true");
+      campo.closest(".tl-imoveis-field")?.classList.add("tl-clientes-field--required");
+    });
+
+    const labelParcelaBanco = document.querySelector(`label[for="${ids.simParcelaBanco}"]`);
+    if (labelParcelaBanco) {
+      labelParcelaBanco.textContent = labelParcelaBanco.textContent.replace(/\s*\(opcional\)/i, "");
+    }
+  }
+
+  function cpfValido(v) {
+    const cpf = apenasDigitos(v);
+    if (cpf.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+    let soma = 0;
+    for (let i = 0; i < 9; i += 1) {
+      soma += Number(cpf[i]) * (10 - i);
+    }
+    let digito = (soma * 10) % 11;
+    if (digito === 10) digito = 0;
+    if (digito !== Number(cpf[9])) return false;
+
+    soma = 0;
+    for (let i = 0; i < 10; i += 1) {
+      soma += Number(cpf[i]) * (11 - i);
+    }
+    digito = (soma * 10) % 11;
+    if (digito === 10) digito = 0;
+    return digito === Number(cpf[10]);
+  }
+
+  function validarCpfCampo(exibirMensagem = true) {
+    const campo = document.getElementById(ids.cpf);
+    if (!campo) return true;
+
+    const digitos = apenasDigitos(campo.value);
+    if (!digitos) {
+      marcarInvalido(ids.cpf, false);
+      return true;
+    }
+    if (digitos.length < 11) {
+      marcarInvalido(ids.cpf, true);
+      if (exibirMensagem) mostrarMensagem("error", "CPF incompleto. Informe os 11 dígitos.");
+      return false;
+    }
+
+    const valido = cpfValido(digitos);
+    marcarInvalido(ids.cpf, !valido);
+    if (!valido && exibirMensagem) {
+      mostrarMensagem("error", "CPF inválido. Confira os dígitos informados.");
+    }
+    return valido;
+  }
+
+  function validarCampoObrigatorioTexto(id, mensagem, minimo = 1) {
+    const texto = String(valor(id)).trim();
+    const invalido = texto.length < minimo;
+    marcarInvalido(id, invalido);
+    if (invalido) {
+      mostrarMensagem("error", mensagem);
+      document.getElementById(id)?.focus();
+      return false;
+    }
+    return true;
+  }
+
+  function validarCampoObrigatorioMoeda(id, mensagem, { permitirZero = false } = {}) {
+    const numero = moedaParaNumero(valor(id));
+    const invalido = numero === null || numero < 0 || (!permitirZero && numero <= 0);
+    marcarInvalido(id, invalido);
+    if (invalido) {
+      mostrarMensagem("error", mensagem);
+      document.getElementById(id)?.focus();
+      return false;
+    }
+    return true;
+  }
+
+  function parametroSimulacaoInvalido(regra) {
+    if (regra.tipo === "moeda") {
+      const numero = moedaParaNumero(valor(regra.id));
+      return numero === null || numero < 0 || (!regra.permitirZero && numero <= 0);
+    }
+    if (regra.tipo === "inteiro") {
+      const texto = String(valor(regra.id)).trim();
+      const numero = intOuNulo(texto);
+      return !texto || numero === null || (!regra.permitirZero && numero <= 0);
+    }
+    return String(valor(regra.id)).trim().length < (regra.minimo || 1);
+  }
+
+  function validarParametrosSimulacaoObrigatorios() {
+    let primeiraRegraInvalida = null;
+    for (const regra of PARAMETROS_SIMULACAO_OBRIGATORIOS) {
+      const invalido = parametroSimulacaoInvalido(regra);
+      marcarInvalido(regra.id, invalido);
+      if (invalido && !primeiraRegraInvalida) {
+        primeiraRegraInvalida = regra;
+      }
+    }
+    if (primeiraRegraInvalida) {
+      mostrarMensagem("error", primeiraRegraInvalida.mensagem);
+      document.getElementById(primeiraRegraInvalida.id)?.focus();
+      return false;
+    }
+    return true;
+  }
+
+  function validarCamposObrigatoriosCliente(payload) {
+    [
+      ids.nome,
+      ids.cpf,
+      ids.rendaPrincipal,
+      ids.rendaTotal,
+      ...PARAMETROS_SIMULACAO_OBRIGATORIOS.map((regra) => regra.id),
+    ].forEach((idCampo) => marcarInvalido(idCampo, false));
+
+    if (!validarCampoObrigatorioTexto(ids.nome, "Informe o nome completo do cliente.", 3)) return false;
+
+    const cpfInformado = apenasDigitos(valor(ids.cpf));
+    if (!cpfInformado) {
+      marcarInvalido(ids.cpf, true);
+      mostrarMensagem("error", "Informe o CPF do cliente.");
+      document.getElementById(ids.cpf)?.focus();
+      return false;
+    }
+
+    if (!validarCpfCampo(true)) return false;
+    if (!validarCampoObrigatorioMoeda(ids.rendaPrincipal, "Informe a renda principal do cliente.")) return false;
+
+    const rendaTotal = Number(payload?.renda_total ?? 0);
+    const rendaTotalInvalida = !Number.isFinite(rendaTotal) || rendaTotal <= 0;
+    marcarInvalido(ids.rendaTotal, rendaTotalInvalida);
+    if (rendaTotalInvalida) {
+      mostrarMensagem("error", "Informe a renda do cliente para habilitar o simulador.");
+      document.getElementById(ids.rendaPrincipal)?.focus();
+      return false;
+    }
+
+    if (!validarParametrosSimulacaoObrigatorios()) return false;
+    return true;
+  }
+
+  function limparEnderecoPorCep() {
+    setValor(ids.logradouro, "");
+    setValor(ids.bairro, "");
+    setValor(ids.cidade, "");
+    setValor(ids.estado, "");
+  }
+
+  function preencherEnderecoPorCep(dados) {
+    setValor(ids.logradouro, dados?.logradouro || "");
+    setValor(ids.bairro, dados?.bairro || "");
+    setValor(ids.cidade, dados?.localidade || "");
+    setValor(ids.estado, dados?.uf || "");
+  }
+
+  async function consultarCep(cep, exibirMensagemErro = true) {
+    const cepLimpo = apenasDigitos(cep);
+    if (cepLimpo.length !== 8) return false;
+
+    if (state.ultimoCepBuscado === cepLimpo && valor(ids.logradouro)) {
+      marcarInvalido(ids.cep, false);
+      return true;
+    }
+
+    try {
+      if (state.cepLookupController) {
+        state.cepLookupController.abort();
+      }
+      state.cepLookupController = new AbortController();
+
+      const resposta = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: state.cepLookupController.signal,
+      });
+      if (!resposta.ok) throw new Error("Falha ao consultar CEP");
+      const dados = await resposta.json();
+
+      if (dados?.erro) {
+        limparEnderecoPorCep();
+        marcarInvalido(ids.cep, true);
+        if (exibirMensagemErro) mostrarMensagem("error", "CEP não encontrado. Confira o número informado.");
+        return false;
+      }
+
+      preencherEnderecoPorCep(dados);
+      state.ultimoCepBuscado = cepLimpo;
+      marcarInvalido(ids.cep, false);
+      return true;
+    } catch (erro) {
+      if (erro?.name === "AbortError") return false;
+      marcarInvalido(ids.cep, true);
+      if (exibirMensagemErro) mostrarMensagem("error", "Não foi possível consultar o CEP agora.");
+      return false;
+    }
+  }
+
+  function mostrarMensagemComposicao(tipo, texto) {
+    if (!el.composicaoFeedback) return;
+    el.composicaoFeedback.textContent = texto || "";
+    el.composicaoFeedback.dataset.variant = tipo || "info";
+  }
+
+  function limparEnderecoMembro() {
+    setValor(ids.membroLogradouro, "");
+    setValor(ids.membroBairro, "");
+    setValor(ids.membroCidade, "");
+    setValor(ids.membroEstado, "");
+  }
+
+  function preencherEnderecoMembro(dados) {
+    setValor(ids.membroLogradouro, dados?.logradouro || "");
+    setValor(ids.membroBairro, dados?.bairro || "");
+    setValor(ids.membroCidade, dados?.localidade || "");
+    setValor(ids.membroEstado, dados?.uf || "");
+  }
+
+  async function consultarCepMembro(cep, exibirMensagemErro = true) {
+    const cepLimpo = apenasDigitos(cep);
+    if (cepLimpo.length !== 8) return false;
+
+    if (state.ultimoCepMembroBuscado === cepLimpo && valor(ids.membroLogradouro)) {
+      marcarInvalido(ids.membroCep, false);
+      return true;
+    }
+
+    try {
+      if (state.cepLookupMembroController) {
+        state.cepLookupMembroController.abort();
+      }
+      state.cepLookupMembroController = new AbortController();
+
+      const resposta = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: state.cepLookupMembroController.signal,
+      });
+      if (!resposta.ok) throw new Error("Falha ao consultar CEP");
+      const dados = await resposta.json();
+
+      if (dados?.erro) {
+        limparEnderecoMembro();
+        marcarInvalido(ids.membroCep, true);
+        if (exibirMensagemErro) mostrarMensagemComposicao("error", "CEP do membro não encontrado.");
+        return false;
+      }
+
+      preencherEnderecoMembro(dados);
+      state.ultimoCepMembroBuscado = cepLimpo;
+      marcarInvalido(ids.membroCep, false);
+      return true;
+    } catch (erro) {
+      if (erro?.name === "AbortError") return false;
+      marcarInvalido(ids.membroCep, true);
+      if (exibirMensagemErro) mostrarMensagemComposicao("error", "Não foi possível consultar o CEP do membro.");
+      return false;
+    }
+  }
+
+  function fecharListasSelect(ignorarWrap = null) {
+    document.querySelectorAll(".tl-clientes-select-wrap").forEach((wrap) => {
+      if (ignorarWrap && wrap === ignorarWrap) return;
+      wrap.classList.remove("is-open");
+      const painel = wrap.querySelector(".tl-clientes-select-options");
+      const trigger = wrap.querySelector(".tl-clientes-select-trigger");
+      painel?.classList.remove("is-open");
+      trigger?.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function atualizarSelectCustom(select) {
+    const ui = select?._customUi;
+    if (!ui) return;
+
+    const selecionado =
+      select.options[select.selectedIndex] ||
+      Array.from(select.options).find((option) => !option.disabled) ||
+      null;
+    const texto = selecionado?.textContent?.trim() || "Selecione";
+    ui.trigger.textContent = texto;
+
+    ui.options.querySelectorAll(".tl-clientes-select-option").forEach((botao) => {
+      const ativo = botao.dataset.value === String(select.value ?? "");
+      botao.classList.toggle("is-selected", ativo);
+      botao.setAttribute("aria-selected", ativo ? "true" : "false");
+    });
+  }
+
+  function montarOpcoesSelect(select) {
+    const ui = select?._customUi;
+    if (!ui) return;
+    ui.options.innerHTML = "";
+
+    Array.from(select.options).forEach((option) => {
+      const botao = document.createElement("button");
+      botao.type = "button";
+      botao.className = "tl-clientes-select-option";
+      botao.dataset.value = option.value;
+      botao.textContent = option.textContent?.trim() || "";
+      botao.setAttribute("role", "option");
+      if (option.disabled) {
+        botao.disabled = true;
+      }
+      botao.addEventListener("click", () => {
+        if (option.disabled) return;
+        select.value = option.value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        fecharListasSelect();
+        ui.trigger.focus();
+      });
+      ui.options.appendChild(botao);
+    });
+  }
+
+  function transformarSelect(select) {
+    if (!select || select.dataset.customizado === "true") return;
+    const parent = select.parentElement;
+    if (!parent) return;
+
+    const wrap = document.createElement("div");
+    wrap.className = "tl-clientes-select-wrap";
+    parent.insertBefore(wrap, select);
+    wrap.appendChild(select);
+
+    select.classList.add("tl-clientes-select--native");
+    select.dataset.customizado = "true";
+
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "tl-clientes-select-trigger";
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+
+    const options = document.createElement("div");
+    options.className = "tl-clientes-select-options";
+    options.setAttribute("role", "listbox");
+
+    wrap.appendChild(trigger);
+    wrap.appendChild(options);
+
+    select._customUi = { wrap, trigger, options };
+    montarOpcoesSelect(select);
+    atualizarSelectCustom(select);
+
+    trigger.addEventListener("click", () => {
+      const estaAberto = options.classList.contains("is-open");
+      fecharListasSelect(estaAberto ? null : wrap);
+      if (!estaAberto) {
+        wrap.classList.add("is-open");
+        options.classList.add("is-open");
+        trigger.setAttribute("aria-expanded", "true");
+      }
+    });
+
+    select.addEventListener("change", () => {
+      atualizarSelectCustom(select);
+    });
+  }
+
+  function enhanceSelects() {
+    document.querySelectorAll("select.tl-clientes-select").forEach((select) => {
+      transformarSelect(select);
+      atualizarSelectCustom(select);
+    });
+
+    if (document.body.dataset.clientesSelectsBind === "true") return;
+    document.body.dataset.clientesSelectsBind = "true";
+
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      if (event.target.closest(".tl-clientes-select-wrap")) return;
+      fecharListasSelect();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        fecharListasSelect();
+      }
+    });
+  }
+
+  function payloadCliente() {
+    const rendaTotalCalculada = atualizarRendaFamiliarTotal();
+    return {
+      nome_completo: String(valor(ids.nome)).trim(),
+      data_nascimento: parseDataApi(valor(ids.nascimento)),
+      sexo: textoOuNulo(valor(ids.sexo)),
+      cpf: textoOuNulo(valor(ids.cpf)),
+      rg: textoOuNulo(valor(ids.rg)),
+      estado_civil: textoOuNulo(valor(ids.estadoCivil)),
+      regime_casamento: textoOuNulo(valor(ids.regimeCasamento)),
+      nacionalidade: textoOuNulo(valor(ids.nacionalidade)),
+      nome_mae: textoOuNulo(valor(ids.nomeMae)),
+      nome_pai: textoOuNulo(valor(ids.nomePai)),
+      email: textoOuNulo(valor(ids.email)),
+      telefone: textoOuNulo(valor(ids.telefone)),
+      celular: textoOuNulo(valor(ids.celular)),
+      cep: textoOuNulo(valor(ids.cep)),
+      logradouro: textoOuNulo(valor(ids.logradouro)),
+      numero: textoOuNulo(valor(ids.numero)),
+      complemento: textoOuNulo(valor(ids.complemento)),
+      bairro: textoOuNulo(valor(ids.bairro)),
+      cidade: textoOuNulo(valor(ids.cidade)),
+      estado: textoOuNulo(valor(ids.estado)),
+      tempo_residencia_anos: intOuNulo(valor(ids.tempoResidencia)),
+      situacao_moradia: textoOuNulo(valor(ids.situacaoMoradia)),
+      renda_principal: moedaOuNulo(valor(ids.rendaPrincipal)),
+      renda_conjuge: null,
+      outras_rendas: null,
+      renda_total: rendaTotalCalculada,
+      renda_formal: null,
+      renda_informal: moedaOuNulo(valor(ids.rendaInformal)),
+      moradores: intOuNulo(valor(ids.moradores)),
+      dependentes: intOuNulo(valor(ids.dependentes)),
+      filhos: intOuNulo(valor(ids.filhos)),
+      profissao: textoOuNulo(valor(ids.profissao)),
+      empresa: textoOuNulo(valor(ids.empresa)),
+      cargo: textoOuNulo(valor(ids.cargo)),
+      tempo_emprego_anos: intOuNulo(valor(ids.tempoEmprego)),
+      tipo_contrato: textoOuNulo(valor(ids.tipoContrato)),
+      escolaridade: textoOuNulo(valor(ids.escolaridade)),
+      imovel_proprio: boolOuNulo(valor(ids.imovelProprio)),
+      veiculo: boolOuNulo(valor(ids.veiculo)),
+      financiamentos: textoOuNulo(valor(ids.financiamentos)),
+      cartao_credito: moedaOuNulo(valor(ids.cartaoCredito)),
+      aluguel_financiamento: moedaOuNulo(valor(ids.aluguel)),
+      despesas_fixas: moedaOuNulo(valor(ids.despesasFixas)),
+      despesas_variaveis: moedaOuNulo(valor(ids.despesasVariaveis)),
+      status_documental: textoOuNulo(valor(ids.statusDocumental)),
+      documentacao_pendente: textoOuNulo(valor(ids.documentacaoPendente)),
+      observacoes: textoOuNulo(valor(ids.observacoes)),
+      parametros_simulacao: {
+        financiamento_caixa: moedaOuNulo(valor(ids.simFinanciamento)),
+        parcela_financiamento_banco: moedaOuNulo(valor(ids.simParcelaBanco)),
+        fgts: moedaOuNulo(valor(ids.simFgts)),
+        subsidio: moedaOuNulo(valor(ids.simSubsidio)),
+        cheque_moradia: moedaOuNulo(valor(ids.simChequeMoradia)),
+        parcela_intermediaria_valor: moedaOuNulo(valor(ids.simIntermediariaValor)),
+        parcelas_intermediarias_quantidade: intOuNulo(valor(ids.simIntermediariaQtd)),
+        parcela_anual_valor: moedaOuNulo(valor(ids.simAnualValor)),
+        parcelas_anuais_quantidade: intOuNulo(valor(ids.simAnualQtd)),
+        parcela_semestral_valor: moedaOuNulo(valor(ids.simSemestralValor)),
+        parcelas_semestrais_quantidade: intOuNulo(valor(ids.simSemestralQtd)),
+        parcela_reforco_valor: moedaOuNulo(valor(ids.simReforcoValor)),
+        parcelas_reforco_quantidade: intOuNulo(valor(ids.simReforcoQtd)),
+        observacoes_comerciais: textoOuNulo(valor(ids.simObservacoes)),
+      },
+    };
+  }
+
+  function lerTokenAcesso() {
+    try {
+      return sessionStorage.getItem("sevenlm_connect_token_de_acesso") || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  async function lerPayloadResposta(response) {
+    try {
+      const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+      const texto = await response.text();
+      if (!texto) return {};
+      if (contentType.includes("application/json")) {
+        return JSON.parse(texto);
+      }
+      return { detail: texto };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function extrairErroApi(payload) {
+    if (!payload || typeof payload !== "object") return "Falha ao carregar dados da API.";
+    if (typeof payload.detail === "string" && payload.detail.trim()) {
+      return payload.detail.trim();
+    }
+    if (payload.detail && typeof payload.detail === "object") {
+      if (typeof payload.detail.mensagem === "string" && payload.detail.mensagem.trim()) {
+        return payload.detail.mensagem.trim();
+      }
+      if (Array.isArray(payload.detail.erros) && payload.detail.erros.length) {
+        return payload.detail.erros.map((item) => String(item || "").trim()).filter(Boolean).join(" ");
+      }
+    }
+    return "Falha ao carregar dados da API.";
+  }
+
+  async function apiMultipart(url, method, formData) {
+    const headers = { Accept: "application/json" };
+    const token = lerTokenAcesso();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+      method,
+      body: formData,
+      cache: "no-store",
+      credentials: "same-origin",
+      headers,
+    });
+
+    const payload = await lerPayloadResposta(response);
+    if (response.status === 401) {
+      const destino = shared?.buildPortalPath ? shared.buildPortalPath("/acesso") : "/acesso";
+      window.location.replace(destino);
+      throw new Error(payload?.detail || "Sessão expirada.");
+    }
+    if (!response.ok) {
+      throw new Error(extrairErroApi(payload));
+    }
+    return payload;
+  }
+
+  async function api(url, method, body) {
+    const req = { method };
+    if (body) {
+      if (body instanceof FormData) {
+        return apiMultipart(url, method, body);
+      }
+      req.body = JSON.stringify(body);
+      req.headers = { "Content-Type": "application/json" };
+    }
+    return shared.fetchJson(url, req);
+  }
+
+  function endpoint(template, id) {
+    return String(template || "").replace("{id}", encodeURIComponent(id || ""));
+  }
+
+  function endpointComMembro(template, clienteId, membroId) {
+    return endpoint(template, clienteId).replace("{membroId}", encodeURIComponent(membroId || ""));
+  }
+
+  function endpointComMidia(template, clienteId, midiaId) {
+    return endpoint(template, clienteId).replace("{midiaId}", encodeURIComponent(midiaId || ""));
+  }
+
+  function normalizarIdentificador(valor) {
+    const texto = String(valor ?? "").trim();
+    if (!texto || texto === "undefined" || texto === "null") return "";
+    return texto;
+  }
+
+  function setIdentificadorEdicao(valor) {
+    const identificador = normalizarIdentificador(valor);
+    state.edicaoId = identificador;
+    if (el.modal) el.modal.dataset.clienteId = identificador;
+    if (el.form) el.form.dataset.clienteId = identificador;
+    return identificador;
+  }
+
+  function resolverIdentificadorCliente() {
+    const idState = normalizarIdentificador(state.edicaoId);
+    if (idState) return idState;
+
+    const idDetalhe = normalizarIdentificador(
+      state.detalheClienteAtual?.id || state.detalheClienteAtual?.identificador_cliente
+    );
+    if (idDetalhe) {
+      setIdentificadorEdicao(idDetalhe);
+      return idDetalhe;
+    }
+
+    const idModal = normalizarIdentificador(el.modal?.dataset?.clienteId || el.form?.dataset?.clienteId);
+    if (idModal) {
+      setIdentificadorEdicao(idModal);
+      return idModal;
+    }
+
+    return "";
+  }
+
+  function atualizarClienteDetalheLocal(item) {
+    if (!item || typeof item !== "object") return;
+    state.detalheClienteAtual = item;
+    const identificador = normalizarIdentificador(item.id || item.identificador_cliente);
+    if (identificador) {
+      setIdentificadorEdicao(identificador);
+    }
+  }
+
+  function renderSecaoMidiasCliente() {
+    const clienteId = resolverIdentificadorCliente();
+    const cliente = state.detalheClienteAtual || {};
+    const fotoAtual = fotoDoCliente(cliente);
+    const documentos = documentosDoCliente(cliente);
+    const fotoPendente = state.pendingFotoArquivo;
+    const previewFoto = state.pendingFotoPreviewUrl || fotoAtual?.caminho_arquivo || "";
+    const nomeCliente = valor(ids.nome) || cliente?.nome_completo || "Cliente";
+    const iniciais = iniciaisNome(nomeCliente);
+
+    if (el.midiasResumo) {
+      el.midiasResumo.textContent = clienteId
+        ? `${documentos.length} documento(s) vinculados ao cadastro.`
+        : "Salve o cliente para habilitar uploads permanentes.";
+    }
+
+    if (el.fotoImage) {
+      if (previewFoto) {
+        el.fotoImage.src = previewFoto;
+        el.fotoImage.hidden = false;
+      } else {
+        el.fotoImage.hidden = true;
+        el.fotoImage.removeAttribute("src");
+      }
+    }
+
+    if (el.fotoFallback) {
+      el.fotoFallback.hidden = Boolean(previewFoto);
+      el.fotoFallback.textContent = iniciais;
+    }
+
+    if (el.fotoMeta) {
+      if (fotoPendente) {
+        el.fotoMeta.textContent = `Selecionada: ${fotoPendente.name}`;
+      } else if (fotoAtual?.nome_arquivo) {
+        el.fotoMeta.textContent = `Foto atual: ${fotoAtual.nome_arquivo}`;
+      } else {
+        el.fotoMeta.textContent = "Nenhuma foto cadastrada.";
+      }
+    }
+
+    if (el.fotoHint) {
+      el.fotoHint.textContent = clienteId
+        ? "Use JPG, PNG ou WEBP com até 10 MB."
+        : "Você pode escolher a foto agora. O envio será liberado assim que o cliente for salvo.";
+    }
+
+    if (el.btnEnviarFoto) {
+      el.btnEnviarFoto.disabled = !clienteId || !fotoPendente || state.carregando;
+    }
+
+    if (el.btnRemoverFoto) {
+      const possuiAlgoParaLimpar = Boolean(fotoPendente || fotoAtual?.id);
+      const podeRemover = Boolean((fotoPendente || (clienteId && fotoAtual?.id)) && !state.carregando);
+      el.btnRemoverFoto.disabled = !podeRemover;
+      el.btnRemoverFoto.hidden = !possuiAlgoParaLimpar;
+      el.btnRemoverFoto.textContent = fotoPendente ? "Limpar selecao" : "Remover foto";
+    }
+
+    if (el.documentosHint) {
+      el.documentosHint.textContent = clienteId
+        ? "Aceita PDF, DOC, DOCX, JPG, PNG e WEBP. Até 12 arquivos por envio e 20 MB por documento."
+        : "Você pode selecionar os arquivos agora. Eles poderão ser enviados assim que o cliente for salvo.";
+    }
+
+    if (el.btnEnviarDocumentos) {
+      el.btnEnviarDocumentos.disabled = !clienteId || !state.pendingDocumentosArquivos.length || state.carregando;
+    }
+
+    if (el.documentosSelecionados) {
+      el.documentosSelecionados.innerHTML = state.pendingDocumentosArquivos.length
+        ? state.pendingDocumentosArquivos.map((arquivo, index) => `
+            <div class="tl-clientes-docs-pending-item">
+              <div class="tl-clientes-docs-main">
+                <strong class="tl-clientes-docs-name">${escapeHtml(arquivo.name)}</strong>
+                <div class="tl-clientes-docs-meta">
+                  <span>Pendente para envio</span>
+                  <span>${escapeHtml(tamanhoArquivoLegivel(arquivo.size) || "Arquivo selecionado")}</span>
+                </div>
+              </div>
+              <button class="tl-imoveis-btn tl-imoveis-btn--secondary tl-clientes-docs-remove" type="button" data-action="remover-documento-pendente" data-index="${index}">Remover</button>
+            </div>
+          `).join("")
+        : "";
+    }
+
+    if (el.documentosLista) {
+      el.documentosLista.innerHTML = documentos.length
+        ? documentos.map((documento) => `
+            <article class="tl-clientes-docs-item">
+              <div class="tl-clientes-docs-main">
+                <strong class="tl-clientes-docs-name">${escapeHtml(documento?.nome_arquivo || "Documento")}</strong>
+                <div class="tl-clientes-docs-meta">
+                  <span>${escapeHtml(extensaoArquivo(documento?.nome_arquivo) || "ARQ")}</span>
+                  <span>${escapeHtml(tamanhoArquivoLegivel(documento?.tamanho_bytes) || "Tamanho não informado")}</span>
+                  <span>${escapeHtml(formatarDataHoraCurta(documento?.data_hora_criacao) || "Data não informada")}</span>
+                </div>
+                ${documento?.caminho_arquivo ? `<a class="tl-clientes-docs-link" href="${escapeHtml(documento.caminho_arquivo)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>` : ""}
+              </div>
+              <button class="tl-imoveis-btn tl-imoveis-btn--secondary tl-clientes-docs-remove" type="button" data-action="remover-documento" data-id="${escapeHtml(documento?.id || "")}">Excluir</button>
+            </article>
+          `).join("")
+        : '<div class="tl-clientes-docs-empty">Nenhum documento anexado ainda.</div>';
+    }
+  }
+
+  function definirFotoPendente(arquivo) {
+    revogarPreviewFotoPendente();
+    state.pendingFotoArquivo = arquivo || null;
+    if (state.pendingFotoArquivo) {
+      state.pendingFotoPreviewUrl = URL.createObjectURL(state.pendingFotoArquivo);
+    }
+    if (el.fotoInput && !arquivo) {
+      el.fotoInput.value = "";
+    }
+    renderSecaoMidiasCliente();
+  }
+
+  function adicionarDocumentosPendentes(arquivos = []) {
+    const atuais = Array.isArray(state.pendingDocumentosArquivos) ? state.pendingDocumentosArquivos.slice() : [];
+    arquivos.forEach((arquivo) => {
+      const duplicado = atuais.some((item) => (
+        item.name === arquivo.name
+        && item.size === arquivo.size
+        && item.lastModified === arquivo.lastModified
+      ));
+      if (!duplicado) {
+        atuais.push(arquivo);
+      }
+    });
+    state.pendingDocumentosArquivos = atuais;
+    if (el.documentosInput) {
+      el.documentosInput.value = "";
+    }
+    renderSecaoMidiasCliente();
+  }
+
+  function removerDocumentoPendente(index) {
+    state.pendingDocumentosArquivos = state.pendingDocumentosArquivos.filter((_, itemIndex) => itemIndex !== index);
+    renderSecaoMidiasCliente();
+  }
+
+  async function enviarFotoCliente() {
+    const clienteId = resolverIdentificadorCliente();
+    if (!clienteId) {
+      mostrarMensagem("error", "Salve o cliente antes de enviar a foto.");
+      return null;
+    }
+    if (!state.pendingFotoArquivo) {
+      mostrarMensagem("error", "Selecione uma foto antes de enviar.");
+      return null;
+    }
+
+    const formData = new FormData();
+    formData.append("arquivo", state.pendingFotoArquivo);
+    const resposta = await api(endpoint(ENDPOINTS.clienteFoto, clienteId), "POST", formData);
+    definirFotoPendente(null);
+    atualizarClienteDetalheLocal(resposta?.item || {});
+    renderSecaoMidiasCliente();
+    return resposta;
+  }
+
+  async function removerFotoClienteAtual() {
+    const clienteId = resolverIdentificadorCliente();
+    const fotoAtual = fotoDoCliente(state.detalheClienteAtual || {});
+    if (!clienteId || !fotoAtual?.id) {
+      mostrarMensagem("error", "Não ha foto cadastrada para remover.");
+      return null;
+    }
+    const resposta = await api(endpointComMidia(ENDPOINTS.clienteFotoMidia, clienteId, fotoAtual.id), "DELETE");
+    atualizarClienteDetalheLocal(resposta?.item || {});
+    renderSecaoMidiasCliente();
+    return resposta;
+  }
+
+  async function enviarDocumentosCliente() {
+    const clienteId = resolverIdentificadorCliente();
+    if (!clienteId) {
+      mostrarMensagem("error", "Salve o cliente antes de enviar documentos.");
+      return null;
+    }
+    if (!state.pendingDocumentosArquivos.length) {
+      mostrarMensagem("error", "Selecione ao menos um documento para enviar.");
+      return null;
+    }
+
+    const formData = new FormData();
+    state.pendingDocumentosArquivos.forEach((arquivo) => {
+      formData.append("arquivos", arquivo);
+    });
+    const resposta = await api(endpoint(ENDPOINTS.clienteDocumentos, clienteId), "POST", formData);
+    state.pendingDocumentosArquivos = [];
+    if (el.documentosInput) {
+      el.documentosInput.value = "";
+    }
+    atualizarClienteDetalheLocal(resposta?.item || {});
+    renderSecaoMidiasCliente();
+    return resposta;
+  }
+
+  async function removerDocumentoClienteAtual(identificadorMidia) {
+    const clienteId = resolverIdentificadorCliente();
+    if (!clienteId || !identificadorMidia) {
+      mostrarMensagem("error", "Documento não encontrado para exclusão.");
+      return null;
+    }
+    const resposta = await api(endpointComMidia(ENDPOINTS.clienteDocumentoMidia, clienteId, identificadorMidia), "DELETE");
+    atualizarClienteDetalheLocal(resposta?.item || {});
+    renderSecaoMidiasCliente();
+    return resposta;
+  }
+
+  async function processarUploadsPendentesCliente() {
+    const clienteId = resolverIdentificadorCliente();
+    if (!clienteId) return;
+
+    let houveUpload = false;
+    if (state.pendingFotoArquivo) {
+      await enviarFotoCliente();
+      houveUpload = true;
+    }
+    if (state.pendingDocumentosArquivos.length) {
+      await enviarDocumentosCliente();
+      houveUpload = true;
+    }
+    if (houveUpload) {
+      await carregarLista();
+    }
+  }
+
+  function esconderFormulario() {
+    if (!el.modal) return;
+    fecharListasSelect();
+    fecharModalComposicao();
+    el.modal.hidden = true;
+    el.modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("tl-modal-open");
+  }
+
+  function esconderConfirmacaoCadastro() {
+    if (state.successTimer) {
+      window.clearTimeout(state.successTimer);
+      state.successTimer = null;
+    }
+    if (el.successModal) {
+      el.successModal.hidden = true;
+      el.successModal.setAttribute("aria-hidden", "true");
+    }
+    if ((!el.modal || el.modal.hidden) && (!el.modalComposicao || el.modalComposicao.hidden) && (!el.viewModal || el.viewModal.hidden)) {
+      document.body.classList.remove("tl-modal-open");
+    }
+  }
+
+  function focarBaseClientes() {
+    document.querySelector(".tl-clientes-lista")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => {
+      if (el.busca) el.busca.focus();
+    }, 250);
+  }
+
+  function mostrarConfirmacaoCadastro(nomeCliente = "") {
+    esconderFormulario();
+    if (!el.successModal) {
+      mostrarMensagem("success", "Cliente cadastrado com sucesso.");
+      focarBaseClientes();
+      return;
+    }
+
+    if (el.successText) {
+      const nome = String(nomeCliente || "").trim();
+      el.successText.textContent = nome
+        ? `${nome} foi cadastrado com sucesso.`
+        : "Cadastro salvo com sucesso.";
+    }
+
+    el.successModal.hidden = false;
+    el.successModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("tl-modal-open");
+    state.successTimer = window.setTimeout(() => {
+      esconderConfirmacaoCadastro();
+      focarBaseClientes();
+    }, 3000);
+  }
+
+  function mostrarFormulario() {
+    if (!el.modal) return;
+    esconderConfirmacaoCadastro();
+    el.modal.hidden = false;
+    el.modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("tl-modal-open");
+    renderComposicaoFamiliar();
+    renderCarteiraComercial();
+    renderSecaoMidiasCliente();
+    window.setTimeout(() => {
+      document.getElementById(ids.nome)?.focus();
+    }, 0);
+  }
+
+  function limparFormulario() {
+    el.form?.reset();
+    document.querySelectorAll("select.tl-clientes-select").forEach((select) => {
+      atualizarSelectCustom(select);
+    });
+    limparCamposInvalidos();
+    limparPendênciasMidia();
+    state.ultimoCepBuscado = "";
+    setIdentificadorEdicao("");
+    state.detalheClienteAtual = null;
+    state.composicaoFamiliar = [];
+    state.carteiraComercial = null;
+    state.membroEdicaoId = "";
+    state.ultimoCepMembroBuscado = "";
+    if (el.btnSalvar) el.btnSalvar.textContent = "Salvar cadastro";
+    renderComposicaoFamiliar();
+    renderCarteiraComercial();
+    atualizarRendaFamiliarTotal();
+    renderSecaoMidiasCliente();
+  }
+
+  function preencher(item) {
+    atualizarClienteDetalheLocal(item);
+    setValor(ids.nome, item.nome_completo || "");
+    setValor(ids.nascimento, formatarDataInput(item.data_nascimento));
+    setValor(ids.sexo, item.sexo || "");
+    setValor(ids.cpf, formatarCpf(item.cpf || ""));
+    setValor(ids.rg, item.rg || "");
+    setValor(ids.estadoCivil, item.estado_civil || "");
+    setValor(ids.regimeCasamento, item.regime_casamento || "");
+    setValor(ids.nacionalidade, item.nacionalidade || "");
+    setValor(ids.nomeMae, item.nome_mae || "");
+    setValor(ids.nomePai, item.nome_pai || "");
+    setValor(ids.email, item.email || "");
+    setValor(ids.telefone, item.telefone || "");
+    setValor(ids.celular, item.celular || "");
+    setValor(ids.cep, item.cep || "");
+    setValor(ids.logradouro, item.logradouro || "");
+    setValor(ids.numero, item.numero || "");
+    setValor(ids.complemento, item.complemento || "");
+    setValor(ids.bairro, item.bairro || "");
+    setValor(ids.cidade, item.cidade || "");
+    setValor(ids.estado, item.estado || "");
+    setValor(ids.tempoResidencia, item.tempo_residencia_anos ?? "");
+    setValor(ids.situacaoMoradia, item.situacao_moradia || "");
+    setValor(ids.rendaPrincipal, formatarMoeda(item.renda_principal));
+    setValor(ids.rendaInformal, formatarMoeda(item.renda_informal));
+    const parametrosSimulacao = item.parametros_simulacao || {};
+    setValor(ids.simFinanciamento, formatarMoeda(parametrosSimulacao.financiamento_caixa));
+    setValor(ids.simParcelaBanco, formatarMoeda(parametrosSimulacao.parcela_financiamento_banco));
+    setValor(ids.simFgts, formatarMoeda(parametrosSimulacao.fgts));
+    setValor(ids.simSubsidio, formatarMoeda(parametrosSimulacao.subsidio));
+    setValor(ids.simChequeMoradia, formatarMoeda(parametrosSimulacao.cheque_moradia));
+    setValor(ids.simIntermediariaValor, formatarMoeda(parametrosSimulacao.parcela_intermediaria_valor));
+    setValor(ids.simIntermediariaQtd, parametrosSimulacao.parcelas_intermediarias_quantidade ?? "");
+    setValor(ids.simAnualValor, formatarMoeda(parametrosSimulacao.parcela_anual_valor));
+    setValor(ids.simAnualQtd, parametrosSimulacao.parcelas_anuais_quantidade ?? "");
+    setValor(ids.simSemestralValor, formatarMoeda(parametrosSimulacao.parcela_semestral_valor));
+    setValor(ids.simSemestralQtd, parametrosSimulacao.parcelas_semestrais_quantidade ?? "");
+    setValor(ids.simReforcoValor, formatarMoeda(parametrosSimulacao.parcela_reforco_valor));
+    setValor(ids.simReforcoQtd, parametrosSimulacao.parcelas_reforco_quantidade ?? "");
+    setValor(ids.simObservacoes, parametrosSimulacao.observacoes_comerciais || "");
+    setValor(ids.moradores, item.moradores ?? "");
+    setValor(ids.dependentes, item.dependentes ?? "");
+    setValor(ids.filhos, item.filhos ?? "");
+    setValor(ids.profissao, item.profissao || "");
+    setValor(ids.empresa, item.empresa || "");
+    setValor(ids.cargo, item.cargo || "");
+    setValor(ids.tempoEmprego, item.tempo_emprego_anos ?? "");
+    setValor(ids.tipoContrato, item.tipo_contrato || "");
+    setValor(ids.escolaridade, item.escolaridade || "");
+    setValor(ids.imovelProprio, boolTexto(item.imovel_proprio));
+    setValor(ids.veiculo, boolTexto(item.veiculo));
+    setValor(ids.financiamentos, item.financiamentos || "");
+    setValor(ids.cartaoCredito, formatarMoeda(item.cartao_credito));
+    setValor(ids.aluguel, formatarMoeda(item.aluguel_financiamento));
+    setValor(ids.despesasFixas, formatarMoeda(item.despesas_fixas));
+    setValor(ids.despesasVariaveis, formatarMoeda(item.despesas_variaveis));
+    setValor(ids.statusDocumental, item.status_documental || "");
+    setValor(ids.documentacaoPendente, item.documentacao_pendente || "");
+    setValor(ids.observacoes, item.observacoes || "");
+    atualizarRendaFamiliarTotal();
+    renderSecaoMidiasCliente();
+  }
+
+  function boolTextoTrueFalse(v, padrao = "false") {
+    if (v === true) return "true";
+    if (v === false) return "false";
+    return padrao;
+  }
+
+  function membroAtivo(item) {
+    return item?.ativo !== false;
+  }
+
+  function membroContaNaRendaTotal(item) {
+    return (
+      membroAtivo(item)
+      && item?.compoe_renda !== false
+      && item?.incluir_na_analise !== false
+      && item?.incluir_na_composicao_financeira !== false
+    );
+  }
+
+  function obterRendaMembro(item) {
+    const rendaTotal = moedaParaNumero(item?.renda_total);
+    if (rendaTotal !== null) return rendaTotal;
+
+    const rendaMensal = moedaParaNumero(item?.renda_mensal) ?? 0;
+    const outrasRendas = moedaParaNumero(item?.outras_rendas) ?? 0;
+    if (!rendaMensal && !outrasRendas) return null;
+
+    return rendaMensal + outrasRendas;
+  }
+
+  function atualizarRendaFamiliarTotal() {
+    const campo = document.getElementById(ids.rendaTotal);
+    if (!campo) return null;
+
+    const rendaBase = [
+      ids.rendaPrincipal,
+      ids.rendaInformal,
+    ].reduce((total, idCampo) => total + (moedaParaNumero(valor(idCampo)) ?? 0), 0);
+
+    const rendaComposicao = state.composicaoFamiliar
+      .filter((item) => membroContaNaRendaTotal(item))
+      .reduce((total, item) => total + (obterRendaMembro(item) ?? 0), 0);
+
+    const rendaTotal = rendaBase + rendaComposicao;
+    campo.value = formatarMoeda(rendaTotal);
+    return rendaTotal;
+  }
+
+  function renderComposicaoFamiliar() {
+    if (!el.composicaoLista || !el.composicaoResumo || !el.btnAdicionarComposicao) return;
+    const clienteId = resolverIdentificadorCliente();
+    el.btnAdicionarComposicao.disabled = false;
+    atualizarRendaFamiliarTotal();
+
+    if (!clienteId) {
+      el.composicaoResumo.textContent = "Salve o cliente para habilitar a composição familiar vinculada.";
+      el.composicaoLista.innerHTML = '<div class=\"tl-clientes-lista__empty\">Nenhum membro vinculado. Salve o cliente principal para adicionar membros.</div>';
+      return;
+    }
+
+    if (!state.composicaoFamiliar.length) {
+      el.composicaoResumo.textContent = "Nenhum membro vinculado ainda para este cliente.";
+      el.composicaoLista.innerHTML = '<div class=\"tl-clientes-lista__empty\">Clique em \"Adicionar composição familiar\" para incluir o primeiro membro.</div>';
+      return;
+    }
+
+    const ativos = state.composicaoFamiliar.filter((item) => membroAtivo(item));
+    const compoeRenda = ativos.filter((item) => membroContaNaRendaTotal(item));
+    el.composicaoResumo.textContent = `${state.composicaoFamiliar.length} membro(s) vinculados, ${ativos.length} ativo(s), ${compoeRenda.length} compondo renda na análise.`;
+
+    el.composicaoLista.innerHTML = state.composicaoFamiliar
+      .map((item) => {
+        const ativo = membroAtivo(item);
+        const tags = [
+          ativo ? "Ativo" : "Inativo",
+          item.compoe_renda ? "Compõe renda" : "Não compõe renda",
+          item.incluir_na_analise ? "Na análise" : "Fora da análise",
+          item.incluir_na_composicao_financeira ? "Na composição financeira" : "Fora da composição financeira",
+        ];
+
+        return `
+          <article class=\"tl-clientes-item tl-clientes-item--composicao ${ativo ? "" : "is-inativo"}\">
+            <div class=\"tl-clientes-item__profile\">
+              <div class=\"tl-clientes-item__avatar\">${escapeHtml(iniciaisNome(item.nome_completo || "MB"))}</div>
+              <div class=\"tl-clientes-item__main\">
+                <div class=\"tl-clientes-item__title\">${escapeHtml(item.nome_completo || "Membro sem nome")}</div>
+                <div class=\"tl-clientes-item__sub\">CPF: ${escapeHtml(item.cpf || "--")} | Parentesco: ${escapeHtml(item.parentesco || "Não informado")}</div>
+                <div class=\"tl-clientes-item__meta\">
+                  ${tags.map((tag) => `<span class=\"tl-clientes-item__chip\">${escapeHtml(tag)}</span>`).join("")}
+                </div>
+              </div>
+            </div>
+            <div class=\"tl-clientes-item__aside\">
+              <div class=\"tl-clientes-item__actions\">
+                <button class=\"tl-imoveis-btn tl-imoveis-btn--secondary\" type=\"button\" data-action=\"editar-membro\" data-id=\"${escapeHtml(item.id)}\">Editar</button>
+                <button class=\"tl-imoveis-btn tl-imoveis-btn--ghost\" type=\"button\" data-action=\"toggle-analise\" data-id=\"${escapeHtml(item.id)}\">${item.incluir_na_analise ? "Desativar Análise" : "Ativar Análise"}</button>
+                <button class=\"tl-imoveis-btn tl-imoveis-btn--ghost\" type=\"button\" data-action=\"toggle-renda\" data-id=\"${escapeHtml(item.id)}\">${item.compoe_renda ? "Não Compor Renda" : "Compor Renda"}</button>
+                <button class=\"tl-imoveis-btn tl-imoveis-btn--ghost\" type=\"button\" data-action=\"toggle-status\" data-id=\"${escapeHtml(item.id)}\">${ativo ? "Desativar" : "Ativar"}</button>
+                <button class=\"tl-imoveis-btn tl-imoveis-btn--danger\" type=\"button\" data-action=\"remover-membro\" data-id=\"${escapeHtml(item.id)}\">Desvincular</button>
+              </div>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  function obterReservaCarteiraPorImovelId(identificadorImovel) {
+    const alvo = normalizarIdentificador(identificadorImovel);
+    if (!alvo) return null;
+    return (Array.isArray(state.carteiraComercial?.reservasAtivas) ? state.carteiraComercial.reservasAtivas : []).find(
+      (item) => normalizarIdentificador(obterImovelIdReserva(item)) === alvo
+    ) || null;
+  }
+
+  function obterImovelIdReserva(reserva) {
+    return normalizarIdentificador(reserva?.imovel_id || reserva?.imovel?.id || reserva?.identificador_imovel);
+  }
+
+  function abrirReservaNoSimulador(identificadorImovel) {
+    const reserva = obterReservaCarteiraPorImovelId(identificadorImovel);
+    const imovelId = obterImovelIdReserva(reserva);
+    if (!imovelId) return;
+
+    try {
+      window.sessionStorage.setItem(
+        PRESELECTED_PROPERTY_STORAGE_KEY,
+        JSON.stringify({
+          id: imovelId,
+          titulo: reserva.imovel?.titulo || "Imóvel reservado",
+          tipologia: reserva.imovel?.tipo_imovel || "",
+          cidade: reserva.imovel?.cidade || "",
+          bairro: reserva.imovel?.bairro || "",
+          valor: reserva.imovel?.valor || 0,
+          status: reserva.imovel?.status || "Reservado",
+          foto_principal: reserva.imovel?.foto_principal || "",
+          cliente_id: reserva.cliente_id || "",
+          cliente_nome: reserva.cliente?.nome_completo || state.detalheClienteAtual?.nome_completo || "",
+          simulacao_id: reserva.simulacao_id || "",
+          reserva_ativa: reserva,
+        })
+      );
+    } catch (_) {
+      // segue para o simulador mesmo sem persistir o contexto localmente.
+    }
+
+    window.location.href = shared?.buildPortalPath ? shared.buildPortalPath(PATH_SIMULADOR) : PATH_SIMULADOR;
+  }
+
+  async function cancelarReservaCarteira(identificadorImovel) {
+    const reserva = obterReservaCarteiraPorImovelId(identificadorImovel);
+    const imovelId = obterImovelIdReserva(reserva);
+    if (!imovelId) return;
+
+    const titulo = reserva?.imovel?.titulo || "esta unidade";
+    const confirmado = window.confirm(`Liberar a reserva de ${titulo}?`);
+    if (!confirmado) return;
+
+    await api(endpoint(ENDPOINTS.liberarReserva, imovelId), "POST", {
+      observacoes: reserva?.observacoes || null,
+    });
+
+    await carregarCarteiraComercial();
+    mostrarMensagem("success", `Reserva de ${titulo} liberada com sucesso.`);
+  }
+
+  function renderCarteiraComercial() {
+    if (!el.carteiraComercialLista || !el.carteiraComercialResumo) return;
+    const clienteId = resolverIdentificadorCliente();
+    const reservas = Array.isArray(state.carteiraComercial?.reservasAtivas)
+      ? [...state.carteiraComercial.reservasAtivas].sort((a, b) => {
+          const dataA = Date.parse(a?.reservado_em || "") || 0;
+          const dataB = Date.parse(b?.reservado_em || "") || 0;
+          return dataB - dataA;
+        })
+      : [];
+
+    if (!clienteId) {
+      el.carteiraComercialResumo.textContent = "Salve o cliente para acompanhar simulações reservadas e negociações ligadas a ele.";
+      el.carteiraComercialLista.innerHTML = '<div class="tl-clientes-lista__empty">Nenhuma simulação reservada disponível enquanto o cliente ainda não foi salvo.</div>';
+      return;
+    }
+
+    if (!reservas.length) {
+      el.carteiraComercialResumo.textContent = "Nenhuma simulação reservada ativa encontrada para este cliente.";
+      el.carteiraComercialLista.innerHTML = '<div class="tl-clientes-lista__empty">Quando um imóvel for reservado para este cliente, a simulação reservada aparecerá aqui com rastreio completo.</div>';
+      return;
+    }
+
+    const totalNegociado = reservas.reduce((total, item) => total + (moedaParaNumero(item?.negociacao?.valor_total_operacao) ?? 0), 0);
+    el.carteiraComercialResumo.textContent = `${reservas.length} simulação(ões) reservada(s) ativa(s) encontrada(s), total negociado de ${formatarMoeda(totalNegociado)}.`;
+    el.carteiraComercialLista.innerHTML = `
+      <div class="tl-clientes-carteira-grid">
+        ${reservas.map((reserva) => {
+          const titulo = escapeHtml(reserva?.imovel?.titulo || "Imóvel reservado");
+          const local = escapeHtml([reserva?.imovel?.bairro, reserva?.imovel?.cidade, reserva?.imovel?.estado].filter(Boolean).join(" • ") || "Localização não informada");
+          const negociacao = reserva?.negociacao || {};
+          const chips = [
+            reserva?.status ? `Reserva ${reserva.status}` : "",
+            auditoriaReservaTexto(reserva),
+            negociacao?.status_simulacao ? `Status ${negociacao.status_simulacao}` : "",
+          ].filter(Boolean);
+          const metricas = [
+            ["Valor negociado", formatarMoeda(negociacao.valor_total_operacao)],
+            ["Entrada", formatarMoeda(negociacao.entrada)],
+            ["Financiamento", formatarMoeda(negociacao.financiamento_caixa)],
+            ["Saldo pós-entrega", formatarMoeda(negociacao.saldo_pos_entrega)],
+          ].filter(([, valorMetric]) => String(valorMetric || "").trim());
+          const labelAcao = reserva?.simulacao_id ? "Continuar Negociação" : "Abrir no simulador";
+          const imovelId = obterImovelIdReserva(reserva);
+
+          return `
+            <article class="tl-clientes-carteira-card">
+              <div class="tl-clientes-carteira-card__head">
+                <div>
+                  <span class="tl-imoveis-eyebrow mono-font">RESERVA Ativa</span>
+                  <h4>${titulo}</h4>
+                </div>
+                <span class="tl-clientes-item__chip">${escapeHtml(reserva?.simulacao_id ? "Atendimento salvo" : "Reserva manual")}</span>
+              </div>
+              <p class="tl-clientes-carteira-card__location">${local}</p>
+              <div class="tl-clientes-carteira-card__chips">
+                ${chips.map((item) => `<span class="tl-clientes-item__chip">${escapeHtml(item)}</span>`).join("")}
+              </div>
+              <div class="tl-clientes-carteira-card__metrics">
+                ${metricas.map(([label, valorMetric]) => `
+                  <article>
+                    <span>${escapeHtml(label)}</span>
+                    <strong>${escapeHtml(valorMetric)}</strong>
+                  </article>`).join("")}
+              </div>
+              ${reserva?.observacoes ? `<small class="tl-clientes-carteira-card__note">${escapeHtml(reserva.observações)}</small>` : ""}
+              <div class="tl-clientes-item__actions">
+                <button class="tl-imoveis-btn" type="button" data-action="abrir-reserva-simulador" data-id="${escapeHtml(imovelId)}">${escapeHtml(labelAcao)}</button>
+                <button class="tl-imoveis-btn tl-imoveis-btn--ghost" type="button" data-action="cancelar-reserva-cliente" data-id="${escapeHtml(imovelId)}">Liberar reserva</button>
+              </div>
+            </article>`;
+        }).join("")}
+      </div>`;
+  }
+
+  function textoVisual(valor, fallback = "--") {
+    const texto = String(valor ?? "").trim();
+    return texto || fallback;
+  }
+
+  function moedaVisual(valor, fallback = "--") {
+    const numero = moedaParaNumero(valor);
+    if (numero === null) return fallback;
+    return formatarMoeda(numero);
+  }
+
+  function dataVisual(valor) {
+    if (!valor) return "--";
+    const dataInput = formatarDataInput(valor);
+    if (dataInput) return dataInput;
+    const data = new Date(valor);
+    if (!Number.isNaN(data.getTime())) {
+      return data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    }
+    return textoVisual(valor);
+  }
+
+  function boolVisual(valor) {
+    if (valor === true) return "Sim";
+    if (valor === false) return "Não";
+    return "--";
+  }
+
+  function calcularRendaTotalVisual(cliente, composicao = []) {
+    const rendaTotal = moedaParaNumero(cliente?.renda_total);
+    if (rendaTotal !== null) return rendaTotal;
+
+    const rendaBase = [
+      cliente?.renda_principal,
+      cliente?.renda_conjuge,
+      cliente?.outras_rendas,
+    ].reduce((total, item) => total + (moedaParaNumero(item) ?? 0), 0);
+
+    const rendaComposicao = (Array.isArray(composicao) ? composicao : [])
+      .filter((item) => membroContaNaRendaTotal(item))
+      .reduce((total, item) => total + (obterRendaMembro(item) ?? 0), 0);
+
+    return rendaBase + rendaComposicao;
+  }
+
+  function renderViewInfo(label, valor, opcoes = {}) {
+    const classes = ["tl-clientes-view-info"];
+    if (opcoes.className) classes.push(opcoes.className);
+    return `
+      <article class="${classes.join(" ")}">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(textoVisual(valor))}</strong>
+        ${opcoes.detalhe ? `<small>${escapeHtml(opcoes.detalhe)}</small>` : ""}
+      </article>`;
+  }
+
+  function renderViewProfileCard(titulo, itens = [], opcoes = {}) {
+    const classes = ["tl-clientes-view-profile-card"];
+    if (opcoes.className) classes.push(opcoes.className);
+    const conteudo = Array.isArray(itens)
+      ? itens.map(([label, valor, detalhe]) => `
+          <div class="tl-clientes-view-profile-card__row">
+            <span>${escapeHtml(label)}</span>
+            <strong>${escapeHtml(textoVisual(valor))}</strong>
+            ${detalhe ? `<small>${escapeHtml(detalhe)}</small>` : ""}
+          </div>
+        `).join("")
+      : "";
+    return `
+      <article class="${classes.join(" ")}">
+        <span class="tl-clientes-view-profile-card__title">${escapeHtml(titulo)}</span>
+        <div class="tl-clientes-view-profile-card__grid">
+          ${conteudo}
+        </div>
+      </article>
+    `;
+  }
+
+  function renderViewMetric(label, valor, detalhe = "") {
+    return `
+      <article class="tl-clientes-view-metric">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(textoVisual(valor))}</strong>
+        ${detalhe ? `<small>${escapeHtml(detalhe)}</small>` : ""}
+      </article>`;
+  }
+
+  function renderViewChip(valor) {
+    const texto = textoVisual(valor, "");
+    if (!texto) return "";
+    return `<span class="tl-clientes-view-chip">${escapeHtml(texto)}</span>`;
+  }
+
+  function renderViewEmpty(texto) {
+    return `<div class="tl-clientes-view-empty">${escapeHtml(texto)}</div>`;
+  }
+
+  function renderViewComposition(composicao = []) {
+    if (!Array.isArray(composicao) || !composicao.length) {
+      return renderViewEmpty("Nenhum membro de composição familiar vinculado a este cadastro.");
+    }
+
+    return `
+      <div class="tl-clientes-view-list tl-clientes-view-list--family">
+        ${composicao.map((item) => {
+          const renda = moedaVisual(obterRendaMembro(item), "Renda não informada");
+          const chips = [
+            item.parentesco || "Parentesco não informado",
+            membroAtivo(item) ? "Ativo" : "Inativo",
+            item.compoe_renda ? "Compõe renda" : "Não compõe renda",
+            item.incluir_na_analise ? "Na análise" : "Fora da análise",
+          ];
+          return `
+            <article class="tl-clientes-view-row">
+              <div class="tl-clientes-view-row__avatar">${escapeHtml(iniciaisNome(item.nome_completo || "MB"))}</div>
+              <div>
+                <strong>${escapeHtml(textoVisual(item.nome_completo, "Membro sem nome"))}</strong>
+                <small>${escapeHtml([textoVisual(item.cpf, ""), textoVisual(item.telefone || item.celular, ""), renda].filter(Boolean).join(" • "))}</small>
+                <div class="tl-clientes-view-chips">${chips.map(renderViewChip).join("")}</div>
+              </div>
+            </article>`;
+        }).join("")}
+      </div>`;
+  }
+
+  function reservaViewPorImovelId(identificadorImovel) {
+    const alvo = normalizarIdentificador(identificadorImovel);
+    if (!alvo) return null;
+    const reservas = Array.isArray(state.clienteVisualizacaoCarteira?.reservasAtivas)
+      ? state.clienteVisualizacaoCarteira.reservasAtivas
+      : [];
+    return reservas.find((item) => obterImovelIdReserva(item) === alvo) || null;
+  }
+
+  function abrirReservaVisualizacaoNoSimulador(identificadorImovel) {
+    const reserva = reservaViewPorImovelId(identificadorImovel);
+    const imovelId = obterImovelIdReserva(reserva);
+    if (!imovelId) return;
+
+    try {
+      window.sessionStorage.setItem(
+        PRESELECTED_PROPERTY_STORAGE_KEY,
+        JSON.stringify({
+          id: imovelId,
+          titulo: reserva.imovel?.titulo || "Imóvel reservado",
+          tipologia: reserva.imovel?.tipo_imovel || "",
+          cidade: reserva.imovel?.cidade || "",
+          bairro: reserva.imovel?.bairro || "",
+          valor: reserva.imovel?.valor || 0,
+          status: reserva.imovel?.status || "Reservado",
+          foto_principal: reserva.imovel?.foto_principal || "",
+          cliente_id: reserva.cliente_id || state.clienteVisualizacao?.id || "",
+          cliente_nome: reserva.cliente?.nome_completo || state.clienteVisualizacao?.nome_completo || "",
+          simulacao_id: reserva.simulacao_id || "",
+          reserva_ativa: reserva,
+        })
+      );
+    } catch (_) {
+      // Mantem o atalho para o simulador mesmo sem persistir contexto localmente.
+    }
+
+    window.location.href = shared?.buildPortalPath ? shared.buildPortalPath(PATH_SIMULADOR) : PATH_SIMULADOR;
+  }
+
+  async function cancelarReservaVisualizacao(identificadorImovel) {
+    const reserva = reservaViewPorImovelId(identificadorImovel);
+    const imovelId = obterImovelIdReserva(reserva);
+    if (!imovelId) return;
+
+    const titulo = reserva?.imovel?.titulo || "esta unidade";
+    const confirmado = window.confirm(`Liberar a reserva de ${titulo}?`);
+    if (!confirmado) return;
+
+    await api(endpoint(ENDPOINTS.liberarReserva, imovelId), "POST", {
+      observacoes: reserva?.observacoes || null,
+    });
+
+    const clienteId = state.clienteVisualizacao?.id || reserva?.cliente_id || "";
+    if (clienteId) {
+      await abrirVisualizacaoCliente(clienteId);
+    }
+    mostrarMensagem("success", `Reserva de ${titulo} liberada com sucesso.`);
+  }
+
+  function renderViewReservations(reservas = []) {
+    if (!Array.isArray(reservas) || !reservas.length) {
+      return renderViewEmpty("Este cliente ainda não possui simulações reservadas de imóveis.");
+    }
+
+    return `
+      <div class="tl-clientes-view-reservas">
+        ${reservas.map((reserva) => {
+          const imovelId = obterImovelIdReserva(reserva);
+          const negociacao = reserva?.negociacao || {};
+          const metricas = [
+            ["Valor negociado", moedaVisual(negociacao.valor_total_operacao)],
+            ["Entrada", moedaVisual(negociacao.entrada)],
+            ["Financiamento", moedaVisual(negociacao.financiamento_caixa)],
+            ["Saldo pós-entrega", moedaVisual(negociacao.saldo_pos_entrega)],
+          ].filter(([, valor]) => valor !== "--");
+          const local = [reserva?.imovel?.bairro, reserva?.imovel?.cidade, reserva?.imovel?.estado].filter(Boolean).join(" • ");
+          const chips = [
+            reserva?.status ? `Reserva ${reserva.status}` : "Reserva ativa",
+            auditoriaReservaTexto(reserva),
+            reserva?.simulacao_id ? "Simulação salva" : "Sem simulação salva",
+          ];
+          return `
+            <article class="tl-clientes-view-reserva">
+              <div class="tl-clientes-view-reserva__head">
+                <div>
+                  <span class="tl-imoveis-eyebrow mono-font">RESERVA</span>
+                  <h4>${escapeHtml(textoVisual(reserva?.imovel?.titulo, "Imóvel reservado"))}</h4>
+                  <p>${escapeHtml(textoVisual(local, "Localização não informada"))}</p>
+                </div>
+                <div class="tl-clientes-item__actions">
+                  <button class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button" data-action="view-abrir-reserva" data-id="${escapeHtml(imovelId)}">Continuar no simulador</button>
+                  <button class="tl-imoveis-btn tl-imoveis-btn--ghost" type="button" data-action="view-cancelar-reserva" data-id="${escapeHtml(imovelId)}">Liberar reserva</button>
+                </div>
+              </div>
+              <div class="tl-clientes-view-chips">${chips.map(renderViewChip).join("")}</div>
+              ${metricas.length ? `<div class="tl-clientes-view-reserva__metrics">${metricas.map(([label, valor]) => renderViewMetric(label, valor)).join("")}</div>` : ""}
+              ${reserva?.observacoes ? `<small class="tl-clientes-view-reserva__note">${escapeHtml(reserva.observações)}</small>` : ""}
+            </article>`;
+        }).join("")}
+      </div>`;
+  }
+
+  function renderVisualizacaoMidiasCliente(cliente) {
+    const foto = fotoDoCliente(cliente);
+    const documentos = documentosDoCliente(cliente);
+    const nomeCliente = textoVisual(cliente?.nome_completo, "Cliente");
+    const previewFoto = foto?.caminho_arquivo
+      ? `<img src="${escapeHtml(foto.caminho_arquivo)}" alt="${escapeHtml(nomeCliente)}" loading="lazy" />`
+      : `<span>${escapeHtml(iniciaisNome(nomeCliente))}</span>`;
+
+    return `
+      <section class="tl-clientes-view-panel tl-clientes-view-panel--wide">
+        <div class="tl-clientes-view-panel__head">
+          <span class="tl-imoveis-eyebrow mono-font">Foto E Documentos</span>
+          <strong>${escapeHtml(String(documentos.length))} arquivo(s) vinculado(s)</strong>
+        </div>
+        <div class="tl-clientes-view-media-grid">
+          <article class="tl-clientes-view-photo-card">
+            <div class="tl-clientes-view-photo-preview">
+              ${previewFoto}
+            </div>
+            <p class="tl-clientes-view-note">${escapeHtml(foto?.nome_arquivo || "Nenhuma foto cadastrada para este cliente.")}</p>
+          </article>
+          <article class="tl-clientes-view-docs">
+            ${documentos.length
+              ? documentos.map((documento) => `
+                  <div class="tl-clientes-view-doc-item">
+                    <strong>${escapeHtml(documento?.nome_arquivo || "Documento")}</strong>
+                    <small>${escapeHtml([extensaoArquivo(documento?.nome_arquivo) || "ARQ", tamanhoArquivoLegivel(documento?.tamanho_bytes) || "Tamanho não informado", formatarDataHoraCurta(documento?.data_hora_criacao) || "Data não informada"].join(" • "))}</small>
+                    ${documento?.caminho_arquivo ? `<a href="${escapeHtml(documento.caminho_arquivo)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>` : ""}
+                  </div>
+                `).join("")
+              : renderViewEmpty("Nenhum documento anexado ainda.")}
+          </article>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderVisualizacaoCliente(cliente, composicao = [], carteira = null) {
+    if (!el.viewContent) return;
+    const reservas = Array.isArray(carteira?.reservasAtivas) ? carteira.reservasAtivas : [];
+    const parametros = cliente?.parametros_simulacao || {};
+    const rendaTotal = calcularRendaTotalVisual(cliente, composicao);
+    const ativos = (Array.isArray(composicao) ? composicao : []).filter((item) => membroAtivo(item));
+    const compoeRenda = ativos.filter((item) => membroContaNaRendaTotal(item));
+    const endereco = [
+      cliente?.logradouro,
+      cliente?.numero,
+      cliente?.complemento,
+      cliente?.bairro,
+      cliente?.cidade,
+      cliente?.estado,
+      cliente?.cep,
+    ].filter(Boolean).join(", ");
+    const responsavel = cliente?.usuario_cadastro_nome || cliente?.usuario_cadastro_email || "Responsável não registrado";
+    const limite = carteira?.consolidacao?.limite_comprometimento;
+    const rendaComposicao = compoeRenda.reduce((total, item) => total + (obterRendaMembro(item) ?? 0), 0);
+    const rendaComplementarLegado = (moedaParaNumero(cliente?.renda_conjuge) ?? 0) + (moedaParaNumero(cliente?.outras_rendas) ?? 0);
+    const rendaComplementar = rendaComposicao || rendaComplementarLegado;
+    const contatoPrincipal = cliente?.celular || cliente?.telefone;
+    const localidade = [cliente?.cidade, cliente?.estado].filter(Boolean).join(" - ");
+
+    el.viewContent.innerHTML = `
+      <header class="tl-clientes-view-hero">
+        <div class="tl-clientes-view-hero__identity">
+          ${avatarClienteMarkup(cliente, "tl-clientes-view-hero__avatar")}
+          <div>
+            <span class="tl-imoveis-eyebrow mono-font">Cadastro DO CLIENTE</span>
+            <h3 id="clientesViewTitulo">${escapeHtml(textoVisual(cliente?.nome_completo, "Cliente sem nome"))}</h3>
+            <p>${escapeHtml([textoVisual(cliente?.cpf, ""), textoVisual(cliente?.celular || cliente?.telefone, ""), textoVisual(cliente?.email, "")].filter(Boolean).join(" • "))}</p>
+          </div>
+        </div>
+        <div class="tl-clientes-view-hero__actions">
+          <span class="tl-clientes-view-status">${escapeHtml(textoVisual(cliente?.status_documental, "Status não informado"))}</span>
+          <button class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button" data-action="view-editar" data-id="${escapeHtml(cliente?.id || "")}">Editar cadastro</button>
+        </div>
+      </header>
+
+      <section class="tl-clientes-view-metrics" aria-label="Resumo do cliente">
+        ${renderViewMetric("Renda total", moedaVisual(rendaTotal), "base + composição")}
+        ${renderViewMetric("Capacidade mensal", moedaVisual(limite), "margem usada no simulador")}
+        ${renderViewMetric("Reservas ativas", String(reservas.length), "rastreadas no comercial")}
+        ${renderViewMetric("Compondo renda", String(compoeRenda.length), `${ativos.length} membro(s) ativo(s)`)}
+      </section>
+
+      <section class="tl-clientes-view-panel tl-clientes-view-panel--identity tl-clientes-view-panel--wide">
+        <div class="tl-clientes-view-panel__head">
+          <span class="tl-imoveis-eyebrow mono-font">PERFIL</span>
+          <strong>Cadastrado por ${escapeHtml(responsavel)}</strong>
+        </div>
+        <div class="tl-clientes-view-profile-grid">
+          ${renderViewProfileCard("Documentos e identidade", [
+            ["CPF", cliente?.cpf],
+            ["Nascimento", dataVisual(cliente?.data_nascimento)],
+            ["Sexo", cliente?.sexo],
+            ["Nacionalidade", cliente?.nacionalidade],
+          ])}
+          ${renderViewProfileCard("Contato", [
+            ["Telefone", contatoPrincipal],
+            ["E-mail", cliente?.email],
+            ["Cidade", localidade],
+            ["Moradia", cliente?.situacao_moradia],
+          ], { className: "tl-clientes-view-profile-card--wide" })}
+          ${renderViewProfileCard("Estado civil", [
+            ["Estado civil", cliente?.estado_civil],
+            ["Regime", cliente?.regime_casamento],
+          ])}
+          ${renderViewProfileCard("Vida profissional", [
+            ["Profissão", cliente?.profissao],
+            ["Empresa", cliente?.empresa],
+            ["Cargo", cliente?.cargo],
+            ["Contrato", cliente?.tipo_contrato],
+            ["Tempo no emprego", cliente?.tempo_emprego_anos ? `${cliente.tempo_emprego_anos} ano(s)` : "--"],
+            ["Escolaridade", cliente?.escolaridade],
+          ], { className: "tl-clientes-view-profile-card--wide" })}
+          ${renderViewProfileCard("Endereço", [
+            ["Local completo", endereco],
+          ], { className: "tl-clientes-view-profile-card--full" })}
+        </div>
+      </section>
+
+      <section class="tl-clientes-view-panel tl-clientes-view-panel--finance tl-clientes-view-panel--wide">
+        <div class="tl-clientes-view-panel__head">
+          <span class="tl-imoveis-eyebrow mono-font">RENDA E CRÉDITO</span>
+          <strong>Leitura da capacidade</strong>
+        </div>
+        <div class="tl-clientes-view-info-grid tl-clientes-view-info-grid--simulation tl-clientes-view-info-grid--finance-wide">
+          ${renderViewInfo("Renda principal", moedaVisual(cliente?.renda_principal), { className: "tl-clientes-view-info--amount" })}
+          ${renderViewInfo("Renda informal", moedaVisual(cliente?.renda_informal), { className: "tl-clientes-view-info--amount" })}
+          ${renderViewInfo("Composição / complementar", moedaVisual(rendaComplementar), { className: "tl-clientes-view-info--amount" })}
+          ${renderViewInfo("Renda total", moedaVisual(rendaTotal), { className: "tl-clientes-view-info--amount tl-clientes-view-info--highlight" })}
+          ${renderViewInfo("Capacidade mensal", moedaVisual(limite), { className: "tl-clientes-view-info--amount tl-clientes-view-info--highlight" })}
+          ${renderViewInfo("Cartão", moedaVisual(cliente?.cartao_credito), { className: "tl-clientes-view-info--amount" })}
+          ${renderViewInfo("Aluguel / financiamento", moedaVisual(cliente?.aluguel_financiamento), { className: "tl-clientes-view-info--amount" })}
+          ${renderViewInfo("Despesas fixas", moedaVisual(cliente?.despesas_fixas), { className: "tl-clientes-view-info--amount" })}
+          ${renderViewInfo("Despesas variáveis", moedaVisual(cliente?.despesas_variaveis), { className: "tl-clientes-view-info--amount" })}
+          ${renderViewInfo("Dependentes", textoVisual(cliente?.dependentes, "0"), { detalhe: `${textoVisual(cliente?.filhos, "0")} filho(s)` })}
+          ${renderViewInfo("Moradores", textoVisual(cliente?.moradores, "0"), { detalhe: cliente?.veiculo === null || cliente?.veiculo === undefined ? "Veículo não informado" : `Veículo: ${boolVisual(cliente?.veiculo)}` })}
+          ${renderViewInfo("Imóvel próprio", boolVisual(cliente?.imovel_proprio), { detalhe: cliente?.financiamentos || "Sem financiamento informado" })}
+        </div>
+      </section>
+
+      ${renderVisualizacaoMidiasCliente(cliente)}
+
+      <section class="tl-clientes-view-panel tl-clientes-view-panel--wide">
+        <div class="tl-clientes-view-panel__head">
+          <span class="tl-imoveis-eyebrow mono-font">Parâmetros da Simulação</span>
+          <strong>Preenchimento automático no simulador</strong>
+        </div>
+        <div class="tl-clientes-view-info-grid tl-clientes-view-info-grid--simulation">
+          ${renderViewInfo("Financiamento", moedaVisual(parametros.financiamento_caixa))}
+          ${renderViewInfo("Parcela banco", moedaVisual(parametros.parcela_financiamento_banco))}
+          ${renderViewInfo("FGTS", moedaVisual(parametros.fgts))}
+          ${renderViewInfo("Subsídio", moedaVisual(parametros.subsidio))}
+          ${renderViewInfo("Cheque moradia", moedaVisual(parametros.cheque_moradia))}
+          ${renderViewInfo("Intermediária", `${moedaVisual(parametros.parcela_intermediaria_valor)} • ${textoVisual(parametros.parcelas_intermediarias_quantidade, "0")}x`)}
+          ${renderViewInfo("Anual", `${moedaVisual(parametros.parcela_anual_valor)} • ${textoVisual(parametros.parcelas_anuais_quantidade, "0")}x`)}
+          ${renderViewInfo("Semestral", `${moedaVisual(parametros.parcela_semestral_valor)} • ${textoVisual(parametros.parcelas_semestrais_quantidade, "0")}x`)}
+          ${renderViewInfo("Reforço", `${moedaVisual(parametros.parcela_reforco_valor)} • ${textoVisual(parametros.parcelas_reforco_quantidade, "0")}x`)}
+        </div>
+        ${parametros.observacoes_comerciais ? `<p class="tl-clientes-view-note">${escapeHtml(parametros.observacoes_comerciais)}</p>` : ""}
+      </section>
+
+      <section class="tl-clientes-view-grid tl-clientes-view-grid--lower">
+        <article class="tl-clientes-view-panel">
+          <div class="tl-clientes-view-panel__head">
+            <span class="tl-imoveis-eyebrow mono-font">Composição Familiar</span>
+            <strong>${escapeHtml(String(composicao.length))} vínculo(s)</strong>
+          </div>
+          ${renderViewComposition(composicao)}
+        </article>
+
+        <article class="tl-clientes-view-panel">
+          <div class="tl-clientes-view-panel__head">
+            <span class="tl-imoveis-eyebrow mono-font">Simulação Reservada</span>
+            <strong>${escapeHtml(String(reservas.length))} simulação(ões)</strong>
+          </div>
+          ${renderViewReservations(reservas)}
+        </article>
+      </section>
+
+            ${(cliente?.documentacao_pendente || cliente?.observacoes) ? `
+        <section class="tl-clientes-view-panel tl-clientes-view-panel--wide">
+          <div class="tl-clientes-view-panel__head">
+            <span class="tl-imoveis-eyebrow mono-font">ANOTAÇÕES</span>
+            <strong>Leitura interna</strong>
+          </div>
+          ${cliente?.documentacao_pendente ? `<p class="tl-clientes-view-note"><strong>Documentação pendente:</strong> ${escapeHtml(cliente.documentacao_pendente)}</p>` : ""}
+          ${cliente?.observacoes ? `<p class="tl-clientes-view-note"><strong>Notas:</strong> ${escapeHtml(cliente.observacoes)}</p>` : ""}
+        </section>` : ""}
+    `;
+  }
+
+  function abrirViewModal() {
+    if (!el.viewModal) return;
+    el.viewModal.hidden = false;
+    el.viewModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("tl-modal-open");
+  }
+
+  function fecharViewModal() {
+    if (!el.viewModal) return;
+    el.viewModal.hidden = true;
+    el.viewModal.setAttribute("aria-hidden", "true");
+    state.clienteVisualizacao = null;
+    state.clienteVisualizacaoComposicao = [];
+    state.clienteVisualizacaoCarteira = null;
+  }
+
+  async function abrirVisualizacaoCliente(id) {
+    if (!id || !el.viewContent) return;
+    abrirViewModal();
+    el.viewContent.innerHTML = '<div class="tl-clientes-view-loading">Carregando cadastro do cliente...</div>';
+
+    try {
+      const detalhe = await api(endpoint(ENDPOINTS.clientePorId, id), "GET");
+      const cliente = detalhe?.item;
+      if (!cliente) throw new Error("Cliente não encontrado.");
+
+      const [composicaoPayload, carteiraPayload] = await Promise.allSettled([
+        api(endpoint(ENDPOINTS.composicao, cliente.id || id), "GET"),
+        api(endpoint(ENDPOINTS.clienteContextoSimulador, cliente.id || id), "GET"),
+      ]);
+
+      const composicao = composicaoPayload.status === "fulfilled" && Array.isArray(composicaoPayload.value?.items)
+        ? composicaoPayload.value.items
+        : [];
+      const carteira = carteiraPayload.status === "fulfilled"
+        ? {
+            cliente: carteiraPayload.value?.cliente || null,
+            consolidacao: carteiraPayload.value?.consolidacao || null,
+            reservasAtivas: Array.isArray(carteiraPayload.value?.reservas_ativas) ? carteiraPayload.value.reservas_ativas : [],
+          }
+        : { reservasAtivas: [] };
+
+      state.clienteVisualizacao = cliente;
+      state.clienteVisualizacaoComposicao = composicao;
+      state.clienteVisualizacaoCarteira = carteira;
+      renderVisualizacaoCliente(cliente, composicao, carteira);
+    } catch (erro) {
+      el.viewContent.innerHTML = `<div class="tl-clientes-view-empty">${escapeHtml(mensagemErro(erro, "Não foi possível carregar a visualização do cliente."))}</div>`;
+      mostrarMensagem("error", mensagemErro(erro, "Não foi possível carregar a visualização do cliente."));
+    }
+  }
+
+  async function carregarComposicaoFamiliar() {
+    const clienteId = resolverIdentificadorCliente();
+    if (!clienteId) {
+      state.composicaoFamiliar = [];
+      renderComposicaoFamiliar();
+      return;
+    }
+
+    try {
+      const payload = await api(endpoint(ENDPOINTS.composicao, clienteId), "GET");
+      state.composicaoFamiliar = Array.isArray(payload?.items) ? payload.items : [];
+      renderComposicaoFamiliar();
+    } catch (erro) {
+      renderComposicaoFamiliar();
+      mostrarMensagem("error", mensagemErro(erro, "Não foi possível carregar a composição familiar."));
+    }
+  }
+
+  async function carregarCarteiraComercial() {
+    const clienteId = resolverIdentificadorCliente();
+    if (!clienteId) {
+      state.carteiraComercial = null;
+      renderCarteiraComercial();
+      return;
+    }
+
+    try {
+      const payload = await api(endpoint(ENDPOINTS.clienteContextoSimulador, clienteId), "GET");
+      state.carteiraComercial = {
+        cliente: payload?.cliente || null,
+        consolidacao: payload?.consolidacao || null,
+        reservasAtivas: Array.isArray(payload?.reservas_ativas) ? payload.reservas_ativas : [],
+      };
+      renderCarteiraComercial();
+    } catch (erro) {
+      state.carteiraComercial = { reservasAtivas: [] };
+      renderCarteiraComercial();
+      mostrarMensagem("error", mensagemErro(erro, "Não foi possível carregar as simulações reservadas do cliente."));
+    }
+  }
+
+  function limparFormularioComposicao() {
+    el.formComposicao?.reset();
+    state.membroEdicaoId = "";
+    state.ultimoCepMembroBuscado = "";
+    limparCamposInvalidos();
+    setValor(ids.membroMoraComCliente, "false");
+    setValor(ids.membroUsarEnderecoCliente, "false");
+    setValor(ids.membroCompoeRenda, "true");
+    setValor(ids.membroIncluirAnalise, "true");
+    setValor(ids.membroIncluirFinanceira, "true");
+    setValor(ids.membroIncluirConfissao, "false");
+    setValor(ids.membroResponsavelDocumentacao, "false");
+    setValor(ids.membroPrincipalComprador, "false");
+    setValor(ids.membroAtivo, "true");
+    mostrarMensagemComposicao("info", "");
+    atualizarEstadoEnderecoMembro();
+    document.querySelectorAll("select.tl-clientes-select").forEach((select) => atualizarSelectCustom(select));
+  }
+
+  function preencherFormularioComposicao(item) {
+    setValor(ids.membroNome, item.nome_completo || "");
+    setValor(ids.membroCpf, formatarCpf(item.cpf || ""));
+    setValor(ids.membroRg, item.rg || "");
+    setValor(ids.membroNascimento, formatarDataInput(item.data_nascimento));
+    setValor(ids.membroSexo, item.sexo || "");
+    setValor(ids.membroParentesco, item.parentesco || "");
+    setValor(ids.membroEstadoCivil, item.estado_civil || "");
+    setValor(ids.membroNacionalidade, item.nacionalidade || "");
+    setValor(ids.membroNomeMae, item.nome_mae || "");
+    setValor(ids.membroNomePai, item.nome_pai || "");
+    setValor(ids.membroTelefone, item.telefone || "");
+    setValor(ids.membroCelular, item.celular || "");
+    setValor(ids.membroEmail, item.email || "");
+    setValor(ids.membroMoraComCliente, boolTextoTrueFalse(item.mora_com_cliente_principal, "false"));
+    setValor(ids.membroUsarEnderecoCliente, boolTextoTrueFalse(item.usar_endereco_cliente_principal, "false"));
+    setValor(ids.membroCep, item.cep || "");
+    setValor(ids.membroLogradouro, item.logradouro || "");
+    setValor(ids.membroNumero, item.numero || "");
+    setValor(ids.membroComplemento, item.complemento || "");
+    setValor(ids.membroBairro, item.bairro || "");
+    setValor(ids.membroCidade, item.cidade || "");
+    setValor(ids.membroEstado, item.estado || "");
+    setValor(ids.membroRendaMensal, formatarMoeda(item.renda_mensal));
+    setValor(ids.membroOutrasRendas, formatarMoeda(item.outras_rendas));
+    setValor(ids.membroRendaTotal, formatarMoeda(item.renda_total));
+    setValor(ids.membroProfissao, item.profissao || "");
+    setValor(ids.membroOcupacao, item.ocupacao || "");
+    setValor(ids.membroEmpresaAtual, item.empresa_atual || "");
+    setValor(ids.membroCargo, item.cargo || "");
+    setValor(ids.membroTempoEmprego, item.tempo_emprego_anos ?? "");
+    setValor(ids.membroTipoContrato, item.tipo_contrato || "");
+    setValor(ids.membroEscolaridade, item.escolaridade || "");
+    setValor(ids.membroSituaçãoMoradia, item.situacao_moradia || "");
+    setValor(ids.membroCompoeRenda, boolTextoTrueFalse(item.compoe_renda, "true"));
+    setValor(ids.membroIncluirAnalise, boolTextoTrueFalse(item.incluir_na_analise, "true"));
+    setValor(ids.membroIncluirFinanceira, boolTextoTrueFalse(item.incluir_na_composicao_financeira, "true"));
+    setValor(ids.membroIncluirConfissao, boolTextoTrueFalse(item.incluir_na_confissao_divida, "false"));
+    setValor(ids.membroResponsavelDocumentacao, boolTextoTrueFalse(item.responsavel_documentacao, "false"));
+    setValor(ids.membroPrincipalComprador, boolTextoTrueFalse(item.principal_comprador, "false"));
+    setValor(ids.membroAtivo, boolTextoTrueFalse(item.ativo, "true"));
+    setValor(ids.membroStatusDocumental, item.status_documental || "");
+    setValor(ids.membroDocumentacaoPendente, item.documentacao_pendente || "");
+    setValor(ids.membroObservacoes, item.observacoes || "");
+    atualizarEstadoEnderecoMembro();
+  }
+
+  function abrirModalComposicao(identificadorMembro = "") {
+    const clienteId = resolverIdentificadorCliente();
+    if (!clienteId) {
+      mostrarMensagem("warning", "Salve o cliente principal antes de adicionar composição familiar.");
+      el.btnSalvar?.focus();
+      return;
+    }
+    if (clienteId !== state.edicaoId) {
+      setIdentificadorEdicao(clienteId);
+    }
+    if (!el.modalComposicao) return;
+
+    limparFormularioComposicao();
+    state.membroEdicaoId = identificadorMembro || "";
+
+    if (state.membroEdicaoId) {
+      const membro = state.composicaoFamiliar.find((item) => String(item.id) === String(state.membroEdicaoId));
+      if (membro) {
+        preencherFormularioComposicao(membro);
+      }
+      if (el.composicaoTitulo) el.composicaoTitulo.textContent = "Editar membro vinculado";
+    } else if (el.composicaoTitulo) {
+      el.composicaoTitulo.textContent = "Novo membro vinculado";
+    }
+
+    el.modalComposicao.hidden = false;
+    el.modalComposicao.setAttribute("aria-hidden", "false");
+    document.body.classList.add("tl-modal-open");
+    window.setTimeout(() => document.getElementById(ids.membroNome)?.focus(), 0);
+  }
+
+  function fecharModalComposicao() {
+    if (!el.modalComposicao) return;
+    fecharListasSelect();
+    el.modalComposicao.hidden = true;
+    el.modalComposicao.setAttribute("aria-hidden", "true");
+    if (!el.modal || el.modal.hidden) {
+      document.body.classList.remove("tl-modal-open");
+    }
+    state.membroEdicaoId = "";
+    state.ultimoCepMembroBuscado = "";
+  }
+
+  function atualizarEstadoEnderecoMembro() {
+    const usarEnderecoCliente = valor(ids.membroUsarEnderecoCliente) === "true";
+    const camposEndereco = [
+      ids.membroCep,
+      ids.membroLogradouro,
+      ids.membroNumero,
+      ids.membroComplemento,
+      ids.membroBairro,
+      ids.membroCidade,
+      ids.membroEstado,
+    ];
+    camposEndereco.forEach((idCampo) => {
+      const campo = document.getElementById(idCampo);
+      if (!campo) return;
+      campo.readOnly = usarEnderecoCliente && idCampo !== ids.membroNumero && idCampo !== ids.membroComplemento;
+      if (idCampo === ids.membroCep) {
+        campo.readOnly = usarEnderecoCliente;
+      }
+    });
+
+    if (usarEnderecoCliente) {
+      setValor(ids.membroCep, valor(ids.cep));
+      setValor(ids.membroLogradouro, valor(ids.logradouro));
+      setValor(ids.membroNumero, valor(ids.numero));
+      setValor(ids.membroComplemento, valor(ids.complemento));
+      setValor(ids.membroBairro, valor(ids.bairro));
+      setValor(ids.membroCidade, valor(ids.cidade));
+      setValor(ids.membroEstado, valor(ids.estado));
+      marcarInvalido(ids.membroCep, false);
+    }
+  }
+
+  function payloadComposicao() {
+    return {
+      nome_completo: String(valor(ids.membroNome)).trim(),
+      cpf: textoOuNulo(valor(ids.membroCpf)),
+      rg: textoOuNulo(valor(ids.membroRg)),
+      data_nascimento: parseDataApi(valor(ids.membroNascimento)),
+      sexo: textoOuNulo(valor(ids.membroSexo)),
+      parentesco: textoOuNulo(valor(ids.membroParentesco)),
+      estado_civil: textoOuNulo(valor(ids.membroEstadoCivil)),
+      nacionalidade: textoOuNulo(valor(ids.membroNacionalidade)),
+      nome_mae: textoOuNulo(valor(ids.membroNomeMae)),
+      nome_pai: textoOuNulo(valor(ids.membroNomePai)),
+      telefone: textoOuNulo(valor(ids.membroTelefone)),
+      celular: textoOuNulo(valor(ids.membroCelular)),
+      email: textoOuNulo(valor(ids.membroEmail)),
+      mora_com_cliente_principal: boolOuNulo(valor(ids.membroMoraComCliente)),
+      usar_endereco_cliente_principal: boolOuNulo(valor(ids.membroUsarEnderecoCliente)),
+      cep: textoOuNulo(valor(ids.membroCep)),
+      logradouro: textoOuNulo(valor(ids.membroLogradouro)),
+      numero: textoOuNulo(valor(ids.membroNumero)),
+      complemento: textoOuNulo(valor(ids.membroComplemento)),
+      bairro: textoOuNulo(valor(ids.membroBairro)),
+      cidade: textoOuNulo(valor(ids.membroCidade)),
+      estado: textoOuNulo(valor(ids.membroEstado)),
+      renda_mensal: moedaOuNulo(valor(ids.membroRendaMensal)),
+      outras_rendas: moedaOuNulo(valor(ids.membroOutrasRendas)),
+      renda_total: moedaOuNulo(valor(ids.membroRendaTotal)),
+      profissao: textoOuNulo(valor(ids.membroProfissao)),
+      ocupacao: textoOuNulo(valor(ids.membroOcupacao)),
+      empresa_atual: textoOuNulo(valor(ids.membroEmpresaAtual)),
+      cargo: textoOuNulo(valor(ids.membroCargo)),
+      tempo_emprego_anos: intOuNulo(valor(ids.membroTempoEmprego)),
+      tipo_contrato: textoOuNulo(valor(ids.membroTipoContrato)),
+      escolaridade: textoOuNulo(valor(ids.membroEscolaridade)),
+      situacao_moradia: textoOuNulo(valor(ids.membroSituaçãoMoradia)),
+      compoe_renda: boolOuNulo(valor(ids.membroCompoeRenda)),
+      incluir_na_analise: boolOuNulo(valor(ids.membroIncluirAnalise)),
+      incluir_na_composicao_financeira: boolOuNulo(valor(ids.membroIncluirFinanceira)),
+      incluir_na_confissao_divida: boolOuNulo(valor(ids.membroIncluirConfissao)),
+      responsavel_documentacao: boolOuNulo(valor(ids.membroResponsavelDocumentacao)),
+      principal_comprador: boolOuNulo(valor(ids.membroPrincipalComprador)),
+      ativo: boolOuNulo(valor(ids.membroAtivo)),
+      status_documental: textoOuNulo(valor(ids.membroStatusDocumental)),
+      documentacao_pendente: textoOuNulo(valor(ids.membroDocumentacaoPendente)),
+      observacoes: textoOuNulo(valor(ids.membroObservacoes)),
+    };
+  }
+
+  function validarMembro() {
+    const nome = String(valor(ids.membroNome)).trim();
+    const cpf = apenasDigitos(valor(ids.membroCpf));
+    const parentesco = String(valor(ids.membroParentesco)).trim();
+
+    if (nome.length < 3) {
+      mostrarMensagemComposicao("error", "Informe o nome completo do membro.");
+      return false;
+    }
+    if (cpf.length !== 11 || !cpfValido(cpf)) {
+      marcarInvalido(ids.membroCpf, true);
+      mostrarMensagemComposicao("error", "CPF invalido para composição familiar.");
+      return false;
+    }
+    if (!parentesco) {
+      mostrarMensagemComposicao("error", "Informe o parentesco do membro com o cliente principal.");
+      return false;
+    }
+    marcarInvalido(ids.membroCpf, false);
+    return true;
+  }
+
+  async function salvarComposicao(event) {
+    event.preventDefault();
+    const clienteId = resolverIdentificadorCliente();
+    if (!clienteId || state.carregando) return;
+    if (!validarMembro()) return;
+
+    const cepMembro = apenasDigitos(valor(ids.membroCep));
+    const usarEnderecoCliente = valor(ids.membroUsarEnderecoCliente) === "true";
+    if (!usarEnderecoCliente && cepMembro && cepMembro.length < 8) {
+      marcarInvalido(ids.membroCep, true);
+      mostrarMensagemComposicao("error", "CEP do membro incompleto.");
+      return;
+    }
+    if (!usarEnderecoCliente && cepMembro && (!valor(ids.membroLogradouro) || !valor(ids.membroCidade) || !valor(ids.membroEstado))) {
+      const ok = await consultarCepMembro(cepMembro, true);
+      if (!ok) return;
+    }
+
+    const payload = payloadComposicao();
+    const url = state.membroEdicaoId
+      ? endpointComMembro(ENDPOINTS.composicaoMembro, clienteId, state.membroEdicaoId)
+      : endpoint(ENDPOINTS.composicao, clienteId);
+    const method = state.membroEdicaoId ? "PUT" : "POST";
+
+    state.carregando = true;
+    try {
+      await api(url, method, payload);
+      mostrarMensagem("success", state.membroEdicaoId ? "Membro atualizado com sucesso." : "Membro adicionado com sucesso.");
+      fecharModalComposicao();
+      await carregarComposicaoFamiliar();
+    } catch (erro) {
+      mostrarMensagemComposicao("error", mensagemErro(erro, "Não foi possível salvar o membro."));
+    } finally {
+      state.carregando = false;
+    }
+  }
+
+  async function atualizarFlagMembro(identificadorMembro, payloadFlags) {
+    const clienteId = resolverIdentificadorCliente();
+    if (!clienteId) return;
+    const url = endpointComMembro(ENDPOINTS.composicaoFlags, clienteId, identificadorMembro);
+    await api(url, "PATCH", payloadFlags);
+    await carregarComposicaoFamiliar();
+  }
+
+  async function atualizarStatusMembro(identificadorMembro, ativo) {
+    const clienteId = resolverIdentificadorCliente();
+    if (!clienteId) return;
+    const url = endpointComMembro(ENDPOINTS.composicaoStatus, clienteId, identificadorMembro);
+    await api(url, "PATCH", { ativo });
+    await carregarComposicaoFamiliar();
+  }
+
+  async function removerMembro(identificadorMembro) {
+    if (!window.confirm("Deseja desvincular este membro da composição familiar?")) return;
+    const clienteId = resolverIdentificadorCliente();
+    if (!clienteId) return;
+    const url = endpointComMembro(ENDPOINTS.composicaoMembro, clienteId, identificadorMembro);
+    await api(url, "DELETE");
+    await carregarComposicaoFamiliar();
+    mostrarMensagem("success", "Membro desvinculado com sucesso.");
+  }
+
+  function clientesFiltrados() {
+    const termo = normalizarBusca(state.buscaCliente);
+    if (!termo) return state.clientes;
+
+    return state.clientes.filter((cliente) => {
+      const alvo = normalizarBusca([
+        cliente.nome_completo,
+        cliente.cpf,
+        cliente.cidade,
+        cliente.email,
+        cliente.telefone,
+        cliente.celular,
+      ].filter(Boolean).join(" "));
+      return alvo.includes(termo);
+    });
+  }
+
+  function renderLista() {
+    if (!el.lista) return;
+    el.lista.innerHTML = "";
+    const filtrados = clientesFiltrados();
+    if (el.quantidade) el.quantidade.textContent = String(state.clientes.length);
+
+    if (el.resumo) {
+      if (!state.clientes.length) {
+        el.resumo.textContent = "Nenhum cliente cadastrado ainda.";
+      } else if (!state.buscaCliente) {
+        el.resumo.textContent = `${state.clientes.length} cliente(s) na base comercial.`;
+      } else {
+        el.resumo.textContent = `${filtrados.length} resultado(s) para "${state.buscaCliente}".`;
+      }
+    }
+
+    if (!state.clientes.length) {
+      const empty = document.createElement("div");
+      empty.className = "tl-clientes-lista__empty";
+      empty.textContent = "Nenhum cliente cadastrado ainda.";
+      el.lista.appendChild(empty);
+      return;
+    }
+
+    if (!filtrados.length) {
+      const empty = document.createElement("div");
+      empty.className = "tl-clientes-lista__empty";
+      empty.textContent = "Nenhum cliente encontrado com esse filtro.";
+      el.lista.appendChild(empty);
+      return;
+    }
+
+    filtrados.forEach((c) => {
+      const nome = escapeHtml(c.nome_completo || "Cliente");
+      const cpf = escapeHtml(c.cpf || "--");
+      const cidade = escapeHtml(c.cidade || "Cidade não informada");
+      const email = escapeHtml(c.email || "E-mail não informado");
+      const telefone = escapeHtml(c.celular || c.telefone || "Telefone não informado");
+      const cadastradoPor = escapeHtml(c.usuario_cadastro_nome || c.usuario_cadastro_email || "Responsável não registrado");
+      const avatar = avatarClienteMarkup(c, "tl-clientes-item__avatar");
+      const documentosQuantidade = Number(c.quantidade_documentos || 0);
+      const item = document.createElement("article");
+      item.className = "tl-clientes-item";
+      item.innerHTML = `
+        <div class="tl-clientes-item__head">
+          <div class="tl-clientes-item__profile">
+            ${avatar}
+            <div class="tl-clientes-item__main">
+              <div class="tl-clientes-item__title" title="${nome}">${nome}</div>
+              <div class="tl-clientes-item__sub" title="CPF: ${cpf}">CPF: ${cpf}</div>
+              <div class="tl-clientes-item__owner" title="Cadastrado por ${cadastradoPor}">Cadastrado por ${cadastradoPor}</div>
+            </div>
+          </div>
+          <div class="tl-clientes-item__actions">
+            <button class="tl-imoveis-btn" type="button" data-action="ver" data-id="${c.id}">Ver</button>
+            <button class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button" data-action="carregar" data-id="${c.id}">Editar</button>
+            <button class="tl-imoveis-btn tl-imoveis-btn--danger" type="button" data-action="excluir" data-id="${c.id}">Excluir</button>
+          </div>
+        </div>
+        <div class="tl-clientes-item__meta">
+          <div class="tl-clientes-item__info" title="${cidade}">
+            <span class="tl-clientes-item__label">Cidade</span>
+            <strong>${cidade}</strong>
+          </div>
+          <div class="tl-clientes-item__info" title="${email}">
+            <span class="tl-clientes-item__label">E-mail</span>
+            <strong>${email}</strong>
+          </div>
+          <div class="tl-clientes-item__info" title="${telefone}">
+            <span class="tl-clientes-item__label">Contato</span>
+            <strong>${telefone}</strong>
+          </div>
+          <div class="tl-clientes-item__info" title="${escapeHtml(String(documentosQuantidade))} documento(s)">
+            <span class="tl-clientes-item__label">Documentos</span>
+            <strong>${escapeHtml(String(documentosQuantidade))} arquivo(s)</strong>
+          </div>
+        </div>`;
+      el.lista.appendChild(item);
+    });
+  }
+
+  async function carregarLista() {
+    let pagina = 1;
+    const limite = 200;
+    const itens = [];
+    let temProxima = true;
+
+    while (temProxima && pagina <= 50) {
+      const payload = await api(`${ENDPOINTS.clientes}?pagina=${pagina}&limite=${limite}&q=`, "GET");
+      if (Array.isArray(payload.items)) itens.push(...payload.items);
+      temProxima = Boolean(payload?.paginacao?.tem_proxima);
+      pagina += 1;
+    }
+
+    state.clientes = itens;
+    renderLista();
+  }
+
+  async function abrirEdicaoCliente(id) {
+    const detalhe = await api(endpoint(ENDPOINTS.clientePorId, id), "GET");
+    const item = detalhe?.item;
+    if (!item) return;
+    limparPendênciasMidia();
+    preencher(item);
+    setIdentificadorEdicao(item.id || item.identificador_cliente || id);
+    state.detalheClienteAtual = item;
+    if (el.btnSalvar) el.btnSalvar.textContent = "Atualizar cadastro";
+    await carregarComposicaoFamiliar();
+    await carregarCarteiraComercial();
+    mostrarFormulario();
+  }
+
+  async function salvar() {
+    if (state.carregando) return;
+
+    const cep = apenasDigitos(valor(ids.cep));
+    if (cep && cep.length < 8) {
+      marcarInvalido(ids.cep, true);
+      mostrarMensagem("error", "CEP incompleto. Informe os 8 dígitos.");
+      return;
+    }
+    if (cep && (!valor(ids.logradouro) || !valor(ids.cidade) || !valor(ids.estado))) {
+      const cepOk = await consultarCep(cep, true);
+      if (!cepOk) return;
+    }
+
+    const payload = payloadCliente();
+    if (!validarCamposObrigatoriosCliente(payload)) return;
+
+    state.carregando = true;
+    if (el.btnSalvar) el.btnSalvar.disabled = true;
+    try {
+      const eraEdicao = Boolean(state.edicaoId);
+      let resposta = null;
+      if (state.edicaoId) {
+        resposta = await api(endpoint(ENDPOINTS.clientePorId, state.edicaoId), "PUT", payload);
+      } else {
+        resposta = await api(ENDPOINTS.clientes, "POST", payload);
+      }
+
+      if (resposta?.item) {
+        atualizarClienteDetalheLocal(resposta.item);
+        preencher(resposta.item);
+      }
+
+      await carregarLista();
+      await carregarComposicaoFamiliar();
+      await carregarCarteiraComercial();
+
+      try {
+        await processarUploadsPendentesCliente();
+      } catch (erroUpload) {
+        const textoUpload = mensagemErro(erroUpload, "Não foi possível enviar a foto ou os documentos.");
+        mostrarMensagem("error", `Cadastro salvo, mas houve falha no upload: ${textoUpload}`);
+        renderSecaoMidiasCliente();
+        return;
+      }
+
+      const clienteIdAtual = resolverIdentificadorCliente();
+      if (clienteIdAtual) {
+        const detalheAtualizado = await api(endpoint(ENDPOINTS.clientePorId, clienteIdAtual), "GET");
+        if (detalheAtualizado?.item) {
+          atualizarClienteDetalheLocal(detalheAtualizado.item);
+          preencher(detalheAtualizado.item);
+        }
+      }
+
+      if (eraEdicao) {
+        if (el.btnSalvar) el.btnSalvar.textContent = "Atualizar cadastro";
+        mostrarMensagem("success", "Cliente atualizado com sucesso.");
+        mostrarFormulario();
+      } else {
+        const nomeCliente = resposta?.item?.nome_completo || payload?.nome_completo || "";
+        limparFormulario();
+        mostrarMensagem("success", "");
+        mostrarConfirmacaoCadastro(nomeCliente);
+      }
+    } catch (e) {
+      const textoErro = mensagemErro(e, "Não foi possível salvar o cliente.");
+      if (mensagemIndicaCpfDuplicado(textoErro)) {
+        marcarInvalido(ids.cpf, true);
+        document.getElementById(ids.cpf)?.focus();
+      }
+      mostrarMensagem("error", textoErro);
+    } finally {
+      state.carregando = false;
+      if (el.btnSalvar) el.btnSalvar.disabled = false;
+      renderSecaoMidiasCliente();
+    }
+  }
+
+  async function excluir(id) {
+    if (!window.confirm("Deseja excluir este cliente?")) return;
+    try {
+      await api(endpoint(ENDPOINTS.clientePorId, id), "DELETE");
+      await carregarLista();
+      mostrarMensagem("success", "Cliente removido com sucesso.");
+    } catch (e) {
+      mostrarMensagem("error", mensagemErro(e, "Não foi possível excluir o cliente."));
+    }
+  }
+
+  function bindAcoes() {
+    const campoCpf = document.getElementById(ids.cpf);
+    campoCpf?.setAttribute("inputmode", "numeric");
+    campoCpf?.setAttribute("autocomplete", "off");
+
+    const campoCep = document.getElementById(ids.cep);
+    campoCep?.setAttribute("inputmode", "numeric");
+    campoCep?.setAttribute("autocomplete", "off");
+
+    const campoTelefone = document.getElementById(ids.telefone);
+    campoTelefone?.setAttribute("inputmode", "tel");
+    campoTelefone?.setAttribute("autocomplete", "tel");
+
+    const campoCelular = document.getElementById(ids.celular);
+    campoCelular?.setAttribute("inputmode", "tel");
+    campoCelular?.setAttribute("autocomplete", "tel-national");
+
+    const campoCpfMembro = document.getElementById(ids.membroCpf);
+    campoCpfMembro?.setAttribute("inputmode", "numeric");
+    campoCpfMembro?.setAttribute("autocomplete", "off");
+
+    const campoCepMembro = document.getElementById(ids.membroCep);
+    campoCepMembro?.setAttribute("inputmode", "numeric");
+    campoCepMembro?.setAttribute("autocomplete", "off");
+
+    const campoTelefoneMembro = document.getElementById(ids.membroTelefone);
+    campoTelefoneMembro?.setAttribute("inputmode", "tel");
+    campoTelefoneMembro?.setAttribute("autocomplete", "tel");
+
+    const campoCelularMembro = document.getElementById(ids.membroCelular);
+    campoCelularMembro?.setAttribute("inputmode", "tel");
+    campoCelularMembro?.setAttribute("autocomplete", "tel-national");
+
+    el.busca?.addEventListener("input", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      state.buscaCliente = target.value || "";
+      renderLista();
+    });
+    el.busca?.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (el.busca) el.busca.value = "";
+        state.buscaCliente = "";
+        renderLista();
+      }
+    });
+
+    document.getElementById(ids.cpf)?.addEventListener("input", (e) => {
+      e.target.value = formatarCpf(e.target.value);
+      const digitos = apenasDigitos(e.target.value);
+      if (!digitos) {
+        marcarInvalido(ids.cpf, false);
+        return;
+      }
+      if (digitos.length === 11) {
+        validarCpfCampo(true);
+      } else {
+        marcarInvalido(ids.cpf, false);
+      }
+    });
+    document.getElementById(ids.cpf)?.addEventListener("blur", () => {
+      validarCpfCampo(true);
+    });
+    document.getElementById(ids.nome)?.addEventListener("input", () => {
+      renderSecaoMidiasCliente();
+    });
+    document.getElementById(ids.nascimento)?.addEventListener("input", (e) => { e.target.value = formatarData(e.target.value); });
+    document.getElementById(ids.cep)?.addEventListener("input", (e) => {
+      e.target.value = formatarCep(e.target.value);
+      const cep = apenasDigitos(e.target.value);
+      if (!cep) {
+        state.ultimoCepBuscado = "";
+        marcarInvalido(ids.cep, false);
+        limparEnderecoPorCep();
+        return;
+      }
+      if (cep.length < 8) {
+        state.ultimoCepBuscado = "";
+        marcarInvalido(ids.cep, false);
+        limparEnderecoPorCep();
+        return;
+      }
+      void consultarCep(cep, true);
+    });
+    document.getElementById(ids.cep)?.addEventListener("blur", (e) => {
+      const cep = apenasDigitos(e.target.value);
+      if (!cep) {
+        marcarInvalido(ids.cep, false);
+        return;
+      }
+      if (cep.length < 8) {
+        marcarInvalido(ids.cep, true);
+        mostrarMensagem("error", "CEP incompleto. Informe os 8 dígitos.");
+        return;
+      }
+      void consultarCep(cep, true);
+    });
+    document.getElementById(ids.telefone)?.addEventListener("input", (e) => { e.target.value = formatarTelefone(e.target.value, false); });
+    document.getElementById(ids.celular)?.addEventListener("input", (e) => { e.target.value = formatarTelefone(e.target.value, true); });
+    document.getElementById(ids.nome)?.addEventListener("input", () => { marcarInvalido(ids.nome, false); });
+    [
+      ids.rendaPrincipal,
+      ids.rendaInformal,
+      ids.simFinanciamento,
+      ids.simParcelaBanco,
+      ids.simFgts,
+      ids.simSubsidio,
+      ids.simChequeMoradia,
+      ids.simIntermediariaValor,
+      ids.simAnualValor,
+      ids.simSemestralValor,
+      ids.simReforcoValor,
+      ids.cartaoCredito,
+      ids.aluguel,
+      ids.despesasFixas,
+      ids.despesasVariaveis,
+      ids.membroRendaMensal,
+      ids.membroOutrasRendas,
+      ids.membroRendaTotal,
+    ].forEach(bindCampoMoeda);
+
+    [
+      ids.simIntermediariaQtd,
+      ids.simAnualQtd,
+      ids.simSemestralQtd,
+      ids.simReforcoQtd,
+    ].forEach(bindCampoInteiro);
+
+    document.getElementById(ids.simObservacoes)?.addEventListener("input", () => {
+      marcarInvalido(ids.simObservacoes, false);
+    });
+
+    [
+      ids.rendaPrincipal,
+      ids.rendaInformal,
+    ].forEach((idCampo) => {
+      document.getElementById(idCampo)?.addEventListener("input", () => {
+        atualizarRendaFamiliarTotal();
+      });
+      document.getElementById(idCampo)?.addEventListener("blur", () => {
+        atualizarRendaFamiliarTotal();
+      });
+    });
+
+    const campoRendaTotal = document.getElementById(ids.rendaTotal);
+    if (campoRendaTotal) {
+      campoRendaTotal.readOnly = true;
+      campoRendaTotal.setAttribute("aria-readonly", "true");
+      atualizarRendaFamiliarTotal();
+    }
+
+    document.getElementById(ids.membroCpf)?.addEventListener("input", (e) => {
+      e.target.value = formatarCpf(e.target.value);
+      const digitos = apenasDigitos(e.target.value);
+      if (!digitos) {
+        marcarInvalido(ids.membroCpf, false);
+        return;
+      }
+      if (digitos.length === 11) {
+        marcarInvalido(ids.membroCpf, !cpfValido(digitos));
+      } else {
+        marcarInvalido(ids.membroCpf, false);
+      }
+    });
+    document.getElementById(ids.membroNascimento)?.addEventListener("input", (e) => { e.target.value = formatarData(e.target.value); });
+    document.getElementById(ids.membroTelefone)?.addEventListener("input", (e) => { e.target.value = formatarTelefone(e.target.value, false); });
+    document.getElementById(ids.membroCelular)?.addEventListener("input", (e) => { e.target.value = formatarTelefone(e.target.value, true); });
+    document.getElementById(ids.membroCep)?.addEventListener("input", (e) => {
+      e.target.value = formatarCep(e.target.value);
+      const cep = apenasDigitos(e.target.value);
+      if (!cep) {
+        state.ultimoCepMembroBuscado = "";
+        marcarInvalido(ids.membroCep, false);
+        limparEnderecoMembro();
+        return;
+      }
+      if (cep.length < 8) {
+        state.ultimoCepMembroBuscado = "";
+        marcarInvalido(ids.membroCep, false);
+        limparEnderecoMembro();
+        return;
+      }
+      if (valor(ids.membroUsarEnderecoCliente) === "true") return;
+      void consultarCepMembro(cep, true);
+    });
+    document.getElementById(ids.membroCep)?.addEventListener("blur", (e) => {
+      const cep = apenasDigitos(e.target.value);
+      if (!cep || valor(ids.membroUsarEnderecoCliente) === "true") return;
+      if (cep.length < 8) {
+        marcarInvalido(ids.membroCep, true);
+        mostrarMensagemComposicao("error", "CEP do membro incompleto.");
+        return;
+      }
+      void consultarCepMembro(cep, true);
+    });
+    document.getElementById(ids.membroUsarEnderecoCliente)?.addEventListener("change", () => {
+      atualizarEstadoEnderecoMembro();
+    });
+
+    el.fotoInput?.addEventListener("change", (event) => {
+      const alvo = event.target;
+      if (!(alvo instanceof HTMLInputElement)) return;
+      const arquivo = alvo.files?.[0] || null;
+      definirFotoPendente(arquivo);
+    });
+
+    el.documentosInput?.addEventListener("change", (event) => {
+      const alvo = event.target;
+      if (!(alvo instanceof HTMLInputElement)) return;
+      const arquivos = Array.from(alvo.files || []);
+      if (!arquivos.length) return;
+      adicionarDocumentosPendentes(arquivos);
+    });
+
+    el.btnEnviarFoto?.addEventListener("click", async () => {
+      try {
+        await enviarFotoCliente();
+        await carregarLista();
+        mostrarMensagem("success", "Foto do cliente enviada com sucesso.");
+      } catch (erro) {
+        mostrarMensagem("error", mensagemErro(erro, "Não foi possível enviar a foto do cliente."));
+      } finally {
+        renderSecaoMidiasCliente();
+      }
+    });
+
+    el.btnRemoverFoto?.addEventListener("click", async () => {
+      if (state.pendingFotoArquivo) {
+        definirFotoPendente(null);
+        mostrarMensagem("info", "Seleção de foto removida.");
+        return;
+      }
+      if (!window.confirm("Deseja remover a foto atual deste cliente?")) return;
+      try {
+        await removerFotoClienteAtual();
+        await carregarLista();
+        mostrarMensagem("success", "Foto do cliente removida com sucesso.");
+      } catch (erro) {
+        mostrarMensagem("error", mensagemErro(erro, "Não foi possível remover a foto do cliente."));
+      } finally {
+        renderSecaoMidiasCliente();
+      }
+    });
+
+    el.btnEnviarDocumentos?.addEventListener("click", async () => {
+      try {
+        await enviarDocumentosCliente();
+        await carregarLista();
+        mostrarMensagem("success", "Documentos enviados com sucesso.");
+      } catch (erro) {
+        mostrarMensagem("error", mensagemErro(erro, "Não foi possível enviar os documentos do cliente."));
+      } finally {
+        renderSecaoMidiasCliente();
+      }
+    });
+
+    el.documentosSelecionados?.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const botao = event.target.closest("button[data-action='remover-documento-pendente']");
+      if (!botao) return;
+      const indice = Number(botao.getAttribute("data-index"));
+      if (!Number.isInteger(indice)) return;
+      removerDocumentoPendente(indice);
+    });
+
+    el.documentosLista?.addEventListener("click", async (event) => {
+      if (!(event.target instanceof Element)) return;
+      const botao = event.target.closest("button[data-action='remover-documento']");
+      if (!botao) return;
+      const id = botao.getAttribute("data-id");
+      if (!id) return;
+      if (!window.confirm("Deseja excluir este documento do cadastro do cliente?")) return;
+      try {
+        await removerDocumentoClienteAtual(id);
+        await carregarLista();
+        mostrarMensagem("success", "Documento removido com sucesso.");
+      } catch (erro) {
+        mostrarMensagem("error", mensagemErro(erro, "Não foi possível remover o documento do cliente."));
+      } finally {
+        renderSecaoMidiasCliente();
+      }
+    });
+
+    el.btnSalvar?.addEventListener("click", () => { void salvar(); });
+    el.btnNovo?.addEventListener("click", () => { limparFormulario(); mostrarFormulario(); });
+    el.btnVoltarLista?.addEventListener("click", () => { esconderFormulario(); });
+    el.form?.addEventListener("reset", (event) => {
+      event.preventDefault();
+      limparFormulario();
+      mostrarMensagem("info", "");
+      renderSecaoMidiasCliente();
+    });
+    el.btnAdicionarComposicao?.addEventListener("click", () => { abrirModalComposicao(""); });
+    el.btnFecharComposicao?.addEventListener("click", () => { fecharModalComposicao(); });
+    el.formComposicao?.addEventListener("submit", (event) => { void salvarComposicao(event); });
+    el.modal?.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.dataset.action === "fechar-modal" || target.classList.contains("tl-clientes-modal")) {
+        esconderFormulario();
+      }
+    });
+    el.modalComposicao?.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.dataset.action === "fechar-composicao" || target === el.modalComposicao) {
+        fecharModalComposicao();
+      }
+    });
+    el.btnFecharView?.addEventListener("click", () => { fecharViewModal(); });
+    el.viewModal?.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const action = target.dataset.action;
+      if (action === "fechar-view" || target === el.viewModal) {
+        fecharViewModal();
+        return;
+      }
+
+      const botao = target.closest("button[data-action]");
+      if (!botao) return;
+      const acao = botao.getAttribute("data-action");
+      const id = botao.getAttribute("data-id");
+
+      if (acao === "view-editar" && id) {
+        fecharViewModal();
+        void abrirEdicaoCliente(id).catch((erro) => {
+          mostrarMensagem("error", mensagemErro(erro, "Não foi possível carregar o cliente."));
+        });
+        return;
+      }
+
+      if (acao === "view-abrir-reserva" && id) {
+        abrirReservaVisualizacaoNoSimulador(id);
+        return;
+      }
+
+      if (acao === "view-cancelar-reserva" && id) {
+        void cancelarReservaVisualizacao(id).catch((erro) => {
+          mostrarMensagem("error", mensagemErro(erro, "Não foi possível liberar a reserva deste cliente."));
+        });
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (el.viewModal && !el.viewModal.hidden) {
+        fecharViewModal();
+        return;
+      }
+      if (el.modalComposicao && !el.modalComposicao.hidden) {
+        fecharModalComposicao();
+        return;
+      }
+      if (el.successModal && !el.successModal.hidden) {
+        esconderConfirmacaoCadastro();
+        focarBaseClientes();
+        return;
+      }
+      if (el.modal && !el.modal.hidden) {
+        esconderFormulario();
+      }
+    });
+
+    el.lista?.addEventListener("click", async (event) => {
+      const btn = event.target.closest("button[data-action]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-id");
+      if (!id) return;
+      if (btn.getAttribute("data-action") === "excluir") {
+        await excluir(id);
+        return;
+      }
+      if (btn.getAttribute("data-action") === "ver") {
+        await abrirVisualizacaoCliente(id);
+        return;
+      }
+      try {
+        await abrirEdicaoCliente(id);
+      } catch (e) {
+        mostrarMensagem("error", mensagemErro(e, "Não foi possível carregar o cliente."));
+      }
+    });
+
+    el.carteiraComercialLista?.addEventListener("click", (event) => {
+      const botao = event.target.closest("button[data-action]");
+      if (!botao) return;
+      const acao = botao.getAttribute("data-action");
+      const id = botao.getAttribute("data-id");
+      if (!id) return;
+      if (acao === "abrir-reserva-simulador") {
+        abrirReservaNoSimulador(id);
+        return;
+      }
+      if (acao === "cancelar-reserva-cliente") {
+        void cancelarReservaCarteira(id).catch((erro) => {
+          mostrarMensagem("error", mensagemErro(erro, "Não foi possível liberar a reserva deste cliente."));
+        });
+      }
+    });
+
+    el.composicaoLista?.addEventListener("click", async (event) => {
+      const botao = event.target.closest("button[data-action]");
+      if (!botao) return;
+      const acao = botao.getAttribute("data-action");
+      const id = botao.getAttribute("data-id");
+      if (!acao || !id) return;
+
+      const membro = state.composicaoFamiliar.find((item) => String(item.id) === String(id));
+      if (!membro) return;
+
+      try {
+        if (acao === "editar-membro") {
+          abrirModalComposicao(id);
+          return;
+        }
+        if (acao === "toggle-analise") {
+          await atualizarFlagMembro(id, { incluir_na_analise: !membro.incluir_na_analise });
+          return;
+        }
+        if (acao === "toggle-renda") {
+          await atualizarFlagMembro(id, { compoe_renda: !membro.compoe_renda });
+          return;
+        }
+        if (acao === "toggle-status") {
+          await atualizarStatusMembro(id, !membroAtivo(membro));
+          return;
+        }
+        if (acao === "remover-membro") {
+          await removerMembro(id);
+        }
+      } catch (erro) {
+        mostrarMensagem("error", mensagemErro(erro, "Não foi possível atualizar o membro da composição."));
+      }
+    });
+  }
+
+  async function init() {
+    marcarCamposObrigatoriosVisuais();
+    enhanceSelects();
+    bindAcoes();
+    esconderFormulario();
+    renderComposicaoFamiliar();
+    renderCarteiraComercial();
+    renderSecaoMidiasCliente();
+    if (!shared?.fetchJson) {
+      mostrarMensagem("error", "Serviço de API indisponível.");
+      return;
+    }
+    try {
+      const me = await api(ENDPOINTS.me, "GET");
+      state.user = me?.usuario || me?.user || me || null;
+      shared.fillUserbox?.(state.user);
+      await carregarLista();
+      mostrarMensagem("info", "Base de clientes atualizada.");
+    } catch (e) {
+      mostrarMensagem("error", mensagemErro(e, "Não foi possível carregar os clientes."));
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => { void init(); });
+})();

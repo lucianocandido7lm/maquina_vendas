@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor Financeiro - Kanban</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header class="navbar" style="position:relative;">
+        <div class="nav-left">
+            <i class="fa-solid fa-chart-line logo-icon"></i>
+            <h1>MONITOR FINANCEIRO - Kanban</h1>
+        </div>
+        <div class="nav-center">
+            <a href="dashboard.html" class="nav-tab">Monitor de Pagamento</a>
+            <a href="index.html" class="nav-tab active">Títulos lançados</a>
+            <a href="extrato.html" class="nav-tab">Extrato detalhado</a>
+        </div>
+        <div class="nav-right">
+            <div class="date-info">
+                <i class="fa-regular fa-calendar"></i> 24 Abr 2026
+            </div>
+            <button class="icon-btn"><i class="fa-regular fa-bell"></i></button>
+            <button class="icon-btn"><i class="fa-regular fa-circle-question"></i></button>
+            <button class="icon-btn"><i class="fa-solid fa-gear"></i></button>
+            <img src="https://via.placeholder.com/30" class="user-avatar" alt="7LM">
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <div class="filters">
+            <select class="filter-select">
+                <option>Todos Bancos</option>
+                <option>Banco ABC</option>
+                <option>Banco Eanco</option>
+            </select>
+            <select class="filter-select">
+                <option>Todos Tipos</option>
+                <option>Medição</option>
+                <option>Nota Fiscal</option>
+            </select>
+            <div class="search-wrapper">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" class="search-input" placeholder="Buscar título...">
+            </div>
+        </div>
+        <button class="btn btn-primary"><i class="fa-solid fa-plus"></i> Novo Título</button>
+    </div>
+
+    <main class="kanban-board">
+        <!-- Coluna: Atrasados -->
+        <div class="kanban-column col-atrasados">
+            <div class="kanban-header">
+                <h3>Atrasados <i class="fa-solid fa-triangle-exclamation" style="float:right"></i></h3>
+                <div class="kanban-stats">
+                    <span class="kanban-count">6 |</span>
+                    <span class="kanban-value">R$ 482.750</span>
+                </div>
+            </div>
+            <div class="kanban-cards">
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">A-1023</span>
+                        <span class="card-alert">Atrasado</span>
+                    </div>
+                    <div class="card-title">Altôneso Peneponte</div>
+                    <div class="card-value">R$ 362.800</div>
+                    <div class="card-tags">
+                        <span class="tag"><i class="fa-solid fa-file-contract"></i> Contrato</span>
+                        <span class="tag">ABC</span>
+                    </div>
+                </div>
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">A-982</span>
+                        <span class="card-alert">Atrasado</span>
+                    </div>
+                    <div class="card-title">Conro io Bailargo</div>
+                    <div class="card-value">R$ 128.100</div>
+                    <div class="card-tags">
+                        <span class="tag"><i class="fa-solid fa-ruler"></i> Medição</span>
+                        <span class="tag">ABC</span>
+                    </div>
+                </div>
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">A-715</span>
+                        <span class="card-alert">Atrasado</span>
+                    </div>
+                    <div class="card-title">Projeto Fiamess</div>
+                    <div class="card-value">R$ 133.260</div>
+                    <div class="card-tags">
+                        <span class="tag">Pagamento</span>
+                        <span class="tag">123</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna: Vence Hoje -->
+        <div class="kanban-column col-vence-hoje">
+            <div class="kanban-header">
+                <h3>Vence Hoje <i class="fa-solid fa-calendar-day" style="float:right"></i></h3>
+                <div class="kanban-stats">
+                    <span class="kanban-count">5 |</span>
+                    <span class="kanban-value">R$ 105.800</span>
+                </div>
+            </div>
+            <div class="kanban-cards">
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">B-715</span>
+                        <span class="card-alert">Hoje</span>
+                    </div>
+                    <div class="card-title">Projeto Fiamess</div>
+                    <div class="card-value">R$ 76.300</div>
+                    <div class="card-tags">
+                        <span class="tag">Fiscal</span>
+                        <span class="tag">ABC</span>
+                    </div>
+                </div>
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">C-890</span>
+                    </div>
+                    <div class="card-title">Elétrica Luz</div>
+                    <div class="card-value">R$ 29.500</div>
+                    <div class="card-tags">
+                        <span class="tag"><i class="fa-solid fa-ruler"></i> Medição</span>
+                    </div>
+                </div>
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">D-210</span>
+                    </div>
+                    <div class="card-title">Transportes Lima</div>
+                    <div class="card-value">R$ 45.750</div>
+                    <div class="card-tags">
+                        <span class="tag">Eanco</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna: Alerta -->
+        <div class="kanban-column col-alerta">
+            <div class="kanban-header">
+                <h3>Alerta (3 dias)</h3>
+                <div class="kanban-stats">
+                    <span class="kanban-count">8 |</span>
+                    <span class="kanban-value">R$ 325.760</span>
+                </div>
+            </div>
+            <div class="kanban-cards">
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">A-512</span>
+                        <span class="card-alert">+ 1 dia</span>
+                    </div>
+                    <div class="card-title">Alcântara Materiais</div>
+                    <div class="card-value">R$ 263.800</div>
+                    <div class="card-tags">
+                        <span class="tag">Contrato</span>
+                        <span class="tag">ABC</span>
+                    </div>
+                </div>
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">M-884</span>
+                        <span class="card-alert">+ 2 dias</span>
+                    </div>
+                    <div class="card-title">Construtec</div>
+                    <div class="card-value">R$ 69.200</div>
+                    <div class="card-tags">
+                        <span class="tag">ABC</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna: Planejados -->
+        <div class="kanban-column col-planejados">
+            <div class="kanban-header">
+                <h3>Planejados</h3>
+                <div class="kanban-stats">
+                    <span class="kanban-count">28 |</span>
+                    <span class="kanban-value">R$ 1.184.400</span>
+                </div>
+            </div>
+            <div class="kanban-cards">
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">T-711</span>
+                    </div>
+                    <div class="card-title">MetaEngenharia</div>
+                    <div class="card-value">R$ 563.000</div>
+                    <div class="card-tags">
+                        <span class="tag">Contrato</span>
+                        <span class="tag">ABC</span>
+                    </div>
+                </div>
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">S-990</span>
+                    </div>
+                    <div class="card-title">Vip Fornecimentos</div>
+                    <div class="card-value">R$ 189.200</div>
+                    <div class="card-tags">
+                        <span class="tag">Medição</span>
+                    </div>
+                </div>
+                 <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">N-331</span>
+                    </div>
+                    <div class="card-title">AutoPeças Brasil</div>
+                    <div class="card-value">R$ 95.500</div>
+                    <div class="card-tags">
+                        <span class="tag">Nota Fiscal</span>
+                        <span class="tag">123</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna: Pago -->
+        <div class="kanban-column col-pago">
+            <div class="kanban-header">
+                <h3>Pago (Últimos '23)</h3>
+                <div class="kanban-stats">
+                    <span class="kanban-count">183 |</span>
+                    <span class="kanban-value">R$ 1.184.400</span>
+                </div>
+            </div>
+            <div class="kanban-cards">
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">N-180</span>
+                    </div>
+                    <div class="card-title">Construtec</div>
+                    <div class="card-value">R$ 482.260</div>
+                    <div class="card-tags" style="justify-content:space-between">
+                        <span class="tag"><i class="fa-solid fa-check"></i> Pago</span>
+                    </div>
+                </div>
+                <div class="titulo-card">
+                    <div class="card-top">
+                        <span class="card-id">R-101</span>
+                    </div>
+                    <div class="card-title">EngCiv Ltda</div>
+                    <div class="card-value">R$ 355.300</div>
+                    <div class="card-tags" style="justify-content:space-between">
+                        <span class="tag"><i class="fa-solid fa-check"></i> Pago</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</body>
+</html>

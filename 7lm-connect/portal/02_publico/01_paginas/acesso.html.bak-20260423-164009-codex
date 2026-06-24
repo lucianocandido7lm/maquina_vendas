@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Máquina de Vendas | Acesso</title>
+  <script>
+    (function () {
+      try {
+        var queryTheme = new URLSearchParams(window.location.search).get("theme") || "";
+        var localTheme = window.localStorage.getItem("tl.theme") || "";
+        var cookieTheme = document.cookie.split(";").map(function (item) { return item.trim(); }).find(function (item) { return item.indexOf("tl.theme=") === 0; });
+        var theme = queryTheme || localTheme || (cookieTheme ? decodeURIComponent(cookieTheme.slice("tl.theme=".length)) : "") || "light";
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (_) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/02_recursos/01_estilos/acesso.css?v=20260423-access-minimal-2" />
+</head>
+<body class="clean-login tl-access-page">
+  <main class="tl-min-shell">
+    <section class="tl-min-card">
+      <div class="tl-min-card__top">
+        <a class="tl-min-brand" href="/" aria-label="Ir para a entrada">
+          <span class="tl-min-brand__mark">
+            <img src="/assets/7lm_logo.png" alt="Logo 7LM" />
+          </span>
+          <span class="tl-min-brand__copy">
+            <strong>Máquina de Vendas</strong>
+            <small>Uso interno</small>
+          </span>
+        </a>
+
+        <button id="btnThemeToggle" class="tl-min-theme" type="button" aria-label="Alternar tema">
+          <span aria-hidden="true">◐</span>
+        </button>
+      </div>
+
+      <div class="dialog__head tl-min-head">
+        <span class="dialog__eyebrow">Acesso</span>
+        <h2>Entrar</h2>
+        <p>Use seu e-mail e senha para acessar o portal.</p>
+      </div>
+
+      <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+
+      <section id="stageLogin" class="stage">
+        <div class="auth-surface">
+          <form id="loginForm" class="form" novalidate>
+            <div class="field">
+              <label for="correio_eletronico">E-mail</label>
+              <div class="input-shell">
+                <input id="correio_eletronico" class="input" type="email" autocomplete="username" placeholder="Informe seu e-mail corporativo" required />
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="senha">Senha</label>
+              <div class="input-shell">
+                <input id="senha" class="input" type="password" autocomplete="current-password" placeholder="Digite sua senha" required />
+              </div>
+            </div>
+
+            <button id="btnLogin" class="btn btn-p" type="submit">Entrar</button>
+          </form>
+        </div>
+
+        <div id="entraWrap" class="stack hide">
+          <div class="sep"><span>ou</span></div>
+          <a id="btnEntra" class="btn btn-s" href="/auth/entra/entrar">Entrar com Microsoft</a>
+        </div>
+      </section>
+
+      <section id="stageMfa" class="stage hide">
+        <div class="mfa-box">
+          <span class="auth-pill">Microsoft Authenticator</span>
+
+          <div class="stack">
+            <h2 id="mfaTitle">Validar codigo</h2>
+            <p id="mfaText">Digite o codigo de 6 digitos para continuar.</p>
+          </div>
+
+          <div class="mfa-grid">
+            <div id="qrWrap" class="qr hide"><img id="qrImg" alt="QR Code do Microsoft Authenticator" /></div>
+            <div id="manualWrap" class="manual hide"><strong>Chave manual</strong><code id="manualKey">-</code></div>
+          </div>
+
+          <form id="mfaForm" class="form" novalidate>
+            <div class="field">
+              <label for="codigo">Codigo</label>
+              <div class="input-shell">
+                <input id="codigo" class="input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" required />
+              </div>
+            </div>
+            <button id="btnMfa" class="btn btn-p" type="submit">Validar</button>
+            <button id="btnBack" class="btn btn-g" type="button">Voltar</button>
+          </form>
+        </div>
+      </section>
+
+      <div class="tl-min-foot">
+        <span>Uso interno</span>
+      </div>
+    </section>
+
+    <p id="helper" class="helper helper-offscreen"></p>
+  </main>
+
+  <script>
+    (function () {
+      var KEYS = {
+        access: ["sevenlm_connect_token_de_acesso", "sevenlm_connect_token_de_acesso"],
+        refresh: ["sevenlm_connect_token_de_renovacao", "sevenlm_connect_token_de_renovacao"],
+        user: ["sevenlm_connect_usuario", "sevenlm_connect_usuario"],
+        at: ["sevenlm_connect_login_at", "sevenlm_connect_login_at"],
+        provider: ["sevenlm_connect_provedor_login", "sevenlm_connect_provedor_login"]
+      };
+      var state = { mode: "", challenge: "" };
+      var $ = function (id) { return document.getElementById(id); };
+      var els = { feedback: $("feedback"), helper: $("helper"), login: $("stageLogin"), mfa: $("stageMfa"), loginForm: $("loginForm"), mfaForm: $("mfaForm"), correioEletronico: $("correio_eletronico"), senha: $("senha"), codigo: $("codigo"), btnLogin: $("btnLogin"), btnMfa: $("btnMfa"), btnBack: $("btnBack"), btnCloseLogin: $("btnCloseLogin"), entraWrap: $("entraWrap"), btnEntra: $("btnEntra"), mfaTitle: $("mfaTitle"), mfaText: $("mfaText"), qrWrap: $("qrWrap"), qrImg: $("qrImg"), manualWrap: $("manualWrap"), manualKey: $("manualKey") };
+
+      function note(text, kind) { if (!text) return; els.feedback.textContent = text; els.feedback.dataset.kind = kind || "info"; els.feedback.dataset.show = "1"; }
+      function clearNote() { els.feedback.textContent = ""; els.feedback.removeAttribute("data-kind"); els.feedback.removeAttribute("data-show"); }
+      function helper(text) {
+        var value = String(text || "").trim();
+        if (!els.helper) return;
+        els.helper.textContent = value;
+        els.helper.style.display = value ? "block" : "none";
+      }
+      function toggle(stage) { var m = stage === "mfa"; els.login.classList.toggle("hide", m); els.mfa.classList.toggle("hide", !m); }
+      function busy(on) { [els.correioEletronico, els.senha, els.codigo, els.btnLogin, els.btnMfa, els.btnBack].forEach(function (el) { if (el) el.disabled = !!on; }); els.btnLogin.textContent = on ? "Processando..." : "Entrar"; els.btnMfa.textContent = on ? "Validando..." : "Validar"; }
+      function goHome() { window.location.assign("/"); }
+      function cleanCode(v) { return String(v || "").replace(/\D+/g, "").slice(0, 6); }
+      function save(keys, value) { try { (keys || []).forEach(function (key) { sessionStorage.setItem(key, value); }); } catch (_) {} }
+      function read(keys) {
+        try {
+          for (var i = 0; i < (keys || []).length; i += 1) {
+            var value = sessionStorage.getItem(keys[i]) || "";
+            if (value) return value;
+          }
+        } catch (_) {}
+        return "";
+      }
+      function remove(keys) { try { (keys || []).forEach(function (key) { sessionStorage.removeItem(key); }); } catch (_) {} }
+      function clearSession() { Object.keys(KEYS).forEach(function (key) { remove(KEYS[key]); }); }
+      function msg(payload, fallback) { if (!payload) return fallback; if (typeof payload === "string") return payload || fallback; return payload.mensagem || payload.message || payload.detail || payload.erro || payload.error || fallback; }
+
+      async function req(url, options, timeoutMs) {
+        var controller = new AbortController();
+        var timer = setTimeout(function () { controller.abort(); }, timeoutMs || 12000);
+        try {
+          var response = await fetch(url, Object.assign({ cache: "no-store", credentials: "same-origin", signal: controller.signal, headers: { Accept: "application/json" } }, options || {}));
+          var text = await response.text().catch(function () { return ""; });
+          var payload = {};
+          if (text) { try { payload = JSON.parse(text); } catch (_) { payload = { detail: text }; } }
+          return { response: response, payload: payload };
+        } catch (error) {
+          if (error && error.name === "AbortError") throw new Error("A autenticação demorou demais para responder. Verifique se a API local está ativa.");
+          throw new Error("Não foi possível conectar ao servidor de autenticação.");
+        } finally { clearTimeout(timer); }
+      }
+
+      function hasAdminAccess(user) {
+        if (!user || typeof user !== "object") return false;
+        if (user.acessos_portal && typeof user.acessos_portal === "object" && typeof user.acessos_portal["administracao.view"] === "boolean") {
+          return user.acessos_portal["administracao.view"];
+        }
+        if (typeof user.pode_ver === "boolean") return user.pode_ver;
+        return false;
+      }
+
+      async function postLogin(access) {
+        try {
+          var result = await req("/api/me", { method: "GET", headers: { Accept: "application/json", Authorization: "Bearer " + access } }, 7000);
+          if (result.response.status === 401) {
+            clearSession();
+            return "/acesso";
+          }
+          if (!result.response.ok) {
+            clearSession();
+            return "/acesso";
+          }
+          var usuario = result.payload && (result.payload.usuario || result.payload.user || result.payload.data || result.payload);
+          if (usuario && typeof usuario === "object") {
+            save(KEYS.user, JSON.stringify(usuario));
+            if (hasAdminAccess(usuario)) return "/administracao/acessos";
+          }
+        } catch (_) {
+          clearSession();
+          return "/acesso";
+        }
+        return "/inicio";
+      }
+
+      async function finish(payload, provider) {
+        var access = payload.token_de_acesso || payload.access_token || payload.token || "";
+        if (!access) throw new Error("O portal não recebeu um token válido da autenticação.");
+        save(KEYS.access, access);
+        if (payload.token_de_renovacao || payload.refresh_token) save(KEYS.refresh, payload.token_de_renovacao || payload.refresh_token);
+        if (payload.usuario || payload.user) save(KEYS.user, JSON.stringify(payload.usuario || payload.user));
+        save(KEYS.at, new Date().toISOString());
+        save(KEYS.provider, provider || "credencial_interna");
+        helper("Concluindo sua autenticação...");
+        window.location.replace(await postLogin(access));
+      }
+
+      function showMfaLogin(message) {
+        state.mode = "login";
+        els.mfaTitle.textContent = "Digite o código do Microsoft Authenticator";
+        els.mfaText.textContent = message || "Abra o aplicativo e informe o código atual de 6 dígitos para concluir seu acesso.";
+        els.qrWrap.classList.add("hide");
+        els.manualWrap.classList.add("hide");
+        els.qrImg.removeAttribute("src");
+        els.manualKey.textContent = "-";
+        els.codigo.value = "";
+        toggle("mfa");
+        helper("Digite o código atual do Microsoft Authenticator.");
+        setTimeout(function () { els.codigo.focus(); }, 40);
+      }
+
+      async function showMfaSetup(message) {
+        state.mode = "setup";
+        helper("Gerando seu QR Code de configuração...");
+        var result = await req("/api/mfa/iniciar", { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ mfa_desafio: state.challenge }) });
+        if (!result.response.ok) throw new Error(msg(result.payload, "Não foi possível iniciar a configuração do Microsoft Authenticator."));
+        els.mfaTitle.textContent = "Configure seu Microsoft Authenticator";
+        els.mfaText.textContent = message || "Escaneie o QR Code ou copie a chave manual. Depois informe o código de 6 dígitos para ativar o acesso.";
+        els.qrWrap.classList.remove("hide");
+        els.manualWrap.classList.remove("hide");
+        els.qrImg.src = "data:image/png;base64," + (result.payload.qr_png_base64 || "");
+        els.manualKey.textContent = result.payload.chave_manual || "-";
+        els.codigo.value = "";
+        toggle("mfa");
+        helper("Escaneie o QR Code e valide o código gerado no app.");
+        note("Seu autenticador ainda não estava configurado. Faça a vinculação abaixo.", "info");
+        setTimeout(function () { els.codigo.focus(); }, 40);
+      }
+
+      function back() { state.mode = ""; state.challenge = ""; els.codigo.value = ""; toggle("login"); clearNote(); helper(""); setTimeout(function () { els.correioEletronico.focus(); }, 40); }
+
+      els.codigo.addEventListener("input", function () { this.value = cleanCode(this.value); });
+      els.btnBack.addEventListener("click", back);
+      if (els.btnCloseLogin) {
+        els.btnCloseLogin.addEventListener("click", function () {
+          goHome();
+        });
+      }
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+          goHome();
+        }
+      });
+
+      els.loginForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        clearNote();
+        var correioEletronico = String(els.correioEletronico.value || "").trim();
+        var senha = String(els.senha.value || "");
+        if (!correioEletronico || !senha) return note("Informe o e-mail e a senha para continuar.", "error");
+        busy(true); helper("Validando suas credenciais...");
+        try {
+          var tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (_) {}
+          var result = await req("/api/entrada", { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ correio_eletronico: correioEletronico, senha: senha, fuso_horario_informado: tz }) });
+          if (!result.response.ok) throw new Error(msg(result.payload, "Não foi possível iniciar o acesso ao portal."));
+          if (result.payload && (result.payload.token_de_acesso || result.payload.access_token || result.payload.token)) return await finish(result.payload, "credencial_interna");
+          state.challenge = result.payload && result.payload.mfa_desafio || "";
+          if (result.payload && result.payload.mfa_setup_required && state.challenge) return await showMfaSetup(msg(result.payload, ""));
+          if (result.payload && result.payload.mfa_required && state.challenge) return showMfaLogin(msg(result.payload, ""));
+          throw new Error(msg(result.payload, "O portal não informou a próxima etapa da autenticação."));
+        } catch (error) {
+          note(error.message || "Não foi possível concluir a autenticação.", "error");
+          helper("Confira se a API local está em execução e tente novamente.");
+        } finally { busy(false); }
+      });
+
+      els.mfaForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        clearNote();
+        var codigo = cleanCode(els.codigo.value);
+        els.codigo.value = codigo;
+        if (codigo.length !== 6) return note("Informe um código válido de 6 dígitos.", "error");
+        if (!state.mode || !state.challenge) return note("A etapa de autenticação expirou. Volte e tente novamente.", "error");
+        busy(true); helper("Validando o código do Microsoft Authenticator...");
+        try {
+          var endpoint = state.mode === "setup" ? "/api/mfa/confirmar" : "/api/mfa/verificar";
+          var result = await req(endpoint, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ mfa_desafio: state.challenge, codigo: codigo }) });
+          if (!result.response.ok) throw new Error(msg(result.payload, "Não foi possível validar o código informado."));
+          await finish(result.payload, "credencial_interna");
+        } catch (error) {
+          note(error.message || "Não foi possível validar o código.", "error");
+          helper("Confira o código no app e tente novamente.");
+        } finally { busy(false); }
+      });
+
+      (function init() {
+        var params = new URLSearchParams(window.location.search);
+        var erro = params.get("erro_msg");
+        helper("");
+        if (erro) note(erro, "error");
+        req("/api/autenticacao/opcoes", { method: "GET" }, 5000).then(function (result) {
+          var provedores = Array.isArray(result.payload && result.payload.provedores) ? result.payload.provedores : [];
+          var entra = provedores.find(function (item) { return item && item.codigo === "entra_id" && item.url_entrada; });
+          if (result.response.ok && entra) { els.btnEntra.href = entra.url_entrada; els.entraWrap.classList.remove("hide"); }
+        }).catch(function () {});
+        var token = read(KEYS.access);
+        if (token) {
+          helper("Sessão existente encontrada. Encaminhando você para o portal...");
+          postLogin(token).then(function (destino) {
+            if (destino && destino !== "/acesso") {
+              window.location.replace(destino || "/inicio");
+              return;
+            }
+            clearSession();
+            helper("");
+          }).catch(function () {
+            clearSession();
+            helper("");
+          });
+        }
+      })();
+    })();
+  </script>
+  <script>
+    (function () {
+      var button = document.getElementById("btnThemeToggle");
+      if (!button) return;
+      button.addEventListener("click", function () {
+        var current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        var next = current === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        try {
+          window.localStorage.setItem("tl.theme", next);
+          document.cookie = "tl.theme=" + encodeURIComponent(next) + "; path=/; max-age=31536000";
+        } catch (_) {}
+      });
+    })();
+  </script>
+</body>
+</html>

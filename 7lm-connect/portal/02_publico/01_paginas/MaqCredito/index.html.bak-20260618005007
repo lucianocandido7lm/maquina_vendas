@@ -1,0 +1,83 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR" data-preload-root-classes="tl-maq-credito-gated">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Gestão da reserva</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/02_recursos/01_estilos/inicio.css?v=20260611-portal-bg-1" />
+  <link rel="stylesheet" href="/02_recursos/01_estilos/operacoes.css?v=20260406-litefx1" />
+  <link rel="stylesheet" href="/02_recursos/01_estilos/maq_credito.css?v=20260617-textos-jornada-1" />
+
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <meta name="sevenlm-connect-required-permission" content="maq.credito.view" />
+  <meta name="sevenlm-connect-access-fallback" content="/inicio" />
+
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260611-logout-forcado-2"></script>
+  <script src="/02_recursos/02_scripts/maq_credito.js?v=20260617-textos-jornada-1" defer></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260612-titlecase-credito-1" defer></script>
+</head>
+<body class="tl-home tl-maq-credito-page">
+  <div class="tl-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main">
+      <section class="tl-mc-shell" data-maq-credito-root data-skip-text-normalizer>
+        <header class="tl-mc-header">
+          <div>
+            <span class="tl-mc-kicker">Gestão da reserva</span>
+            <h1>Operação de crédito imobiliário</h1>
+            <p>Clientes, documentos do corretor, validação do analista e kits do correspondente em uma jornada única.</p>
+          </div>
+
+          <div class="tl-mc-header__actions">
+            <span class="tl-mc-user" id="maqCreditoUsuario">Carregando...</span>
+            <button class="tl-mc-btn tl-mc-btn--soft" type="button" data-action="refresh">
+              Atualizar
+            </button>
+          </div>
+        </header>
+
+        <nav class="tl-mc-tabs" aria-label="Acessos da gestão da reserva" data-tabs></nav>
+
+        <section class="tl-mc-status" data-state hidden></section>
+
+        <section class="tl-mc-workspace">
+          <div class="tl-mc-main-panel">
+            <div class="tl-mc-panel-head">
+              <div>
+                <span data-active-kicker>Carteira</span>
+                <h2 data-active-title>Carregando</h2>
+              </div>
+              <form class="tl-mc-search" data-filter-form>
+                <input type="search" placeholder="Buscar cliente, CPF, corretor ou status" data-filter-search />
+                <select data-filter-status>
+                  <option value="">Todos os status</option>
+                  <option value="pendente">Com Pendência</option>
+                  <option value="documento">Com Documento</option>
+                  <option value="finalizado">Finalizados</option>
+                </select>
+              </form>
+            </div>
+
+            <section class="tl-mc-kpis" aria-label="Indicadores da aba" data-kpis></section>
+
+            <section class="tl-mc-content" data-tab-content></section>
+          </div>
+
+          <aside class="tl-mc-detail-panel" data-detail-panel>
+            <div class="tl-mc-empty-detail">
+              <strong>Selecione um cliente</strong>
+              <span>Os detalhes, documentos, pendências e mensagens aparecem aqui.</span>
+            </div>
+          </aside>
+        </section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

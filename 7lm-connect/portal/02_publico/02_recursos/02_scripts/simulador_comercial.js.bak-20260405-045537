@@ -1,0 +1,1166 @@
+﻿(function () {
+  "use strict";
+
+  const shared = window.SevenLMConnectOperacoes;
+  const API_BASE = shared?.buildPortalPath ? shared.buildPortalPath("/api") : "/api";
+  const PRESELECTED_PROPERTY_STORAGE_KEY = "7lm-connect-simulador-imovel";
+
+  const ENDPOINTS = {
+    me: `${API_BASE}/me`,
+    clientes: `${API_BASE}/clientes`,
+    clientePorId: `${API_BASE}/clientes/{id}`,
+    complementos: `${API_BASE}/connect-comercial/clientes/{id}/complementos-renda`,
+    complementoPorId: `${API_BASE}/connect-comercial/clientes/{id}/complementos-renda/{complementoId}`,
+    sugerir: `${API_BASE}/connect-comercial/simulador/sugerir-imoveis`,
+    calcular: `${API_BASE}/connect-comercial/simulador/calcular`,
+    salvar: `${API_BASE}/connect-comercial/simulador/salvar`,
+    reservar: `${API_BASE}/connect-comercial/imoveis/{id}/reservar`,
+    vender: `${API_BASE}/connect-comercial/imoveis/{id}/vender`,
+    liberar: `${API_BASE}/connect-comercial/imoveis/{id}/liberar-reserva`,
+  };
+
+  const el = {
+    feedback: document.getElementById("simFeedback"),
+    buscaCliente: document.getElementById("simBuscaCliente"),
+    clientesLista: document.getElementById("simClientesLista"),
+    clienteSelecionado: document.getElementById("simClienteSelecionado"),
+    clienteStatus: document.getElementById("simClienteStatus"),
+    complementosLista: document.getElementById("simComplementosLista"),
+    sugestoesLista: document.getElementById("simSugestoesLista"),
+    imovelPreview: document.getElementById("simImovelPreview"),
+    imovelStatus: document.getElementById("simImovelStatus"),
+    resumoKpis: document.getElementById("simResumoKpis"),
+    statusBadge: document.getElementById("simStatusBadge"),
+    sugestoesAjuste: document.getElementById("simSugestoesAjuste"),
+    demonstrativoBody: document.getElementById("simDemonstrativoBody"),
+    btnSugerir: document.getElementById("btnSugerirImoveis"),
+    btnCalcular: document.getElementById("btnCalcularSimulacao"),
+    btnSalvar: document.getElementById("btnSalvarSimulacao"),
+    btnReservar: document.getElementById("btnReservarImovel"),
+    btnVender: document.getElementById("btnVenderImovel"),
+    btnLiberar: document.getElementById("btnLiberarReserva"),
+    btnNova: document.getElementById("btnNovaSimulacao"),
+    btnNovoComplemento: document.getElementById("btnNovoComplemento"),
+    modalComplemento: document.getElementById("simComplementoModal"),
+    formComplemento: document.getElementById("simComplementoForm"),
+    complementoTitulo: document.getElementById("simComplementoTitulo"),
+    complementoFeedback: document.getElementById("simComplementoFeedback"),
+    btnFecharComplemento: document.getElementById("btnFecharComplemento"),
+    inputComplementoNome: document.getElementById("simComplementoNome"),
+    inputComplementoCpf: document.getElementById("simComplementoCpf"),
+    inputComplementoParentesco: document.getElementById("simComplementoParentesco"),
+    inputComplementoRenda: document.getElementById("simComplementoRenda"),
+    inputComplementoAtivo: document.getElementById("simComplementoAtivo"),
+  };
+
+  const state = {
+    user: null,
+    clientes: [],
+    clienteSelecionado: null,
+    complementos: [],
+    sugestoes: [],
+    imovelSelecionado: null,
+    simulacaoAtual: null,
+    simulacaoSalvaId: "",
+    complementoEdicaoId: "",
+    buscaTimer: null,
+  };
+
+  const ids = {
+    filtroEmpreendimento: "simFiltroEmpreendimento",
+    filtroCidade: "simFiltroCidade",
+    filtroBairro: "simFiltroBairro",
+    filtroTipologia: "simFiltroTipologia",
+    filtroDormitorios: "simFiltroDormitorios",
+    filtroPrecoMin: "simFiltroPrecoMin",
+    filtroPrecoMax: "simFiltroPrecoMax",
+    filtroStatus: "simFiltroStatus",
+    valorImovel: "simValorImovel",
+    financiamento: "simFinanciamento",
+    fgts: "simFgts",
+    subsidio: "simSubsidio",
+    entrada: "simEntrada",
+    sobrepreco: "simSobrepreco",
+    mesesPre: "simMesesPre",
+    mesesPos: "simMesesPos",
+    intermediariaValor: "simIntermediariaValor",
+    intermediariaQtd: "simIntermediariaQtd",
+    anualValor: "simAnualValor",
+    anualQtd: "simAnualQtd",
+    semestralValor: "simSemestralValor",
+    semestralQtd: "simSemestralQtd",
+    reforcoValor: "simReforcoValor",
+    reforcoQtd: "simReforcoQtd",
+    observacoes: "simObservacoes",
+  };
+
+  function endpoint(template, values = {}) {
+    return String(template || "").replace(/\{([^}]+)\}/g, (_, key) => encodeURIComponent(values[key] || ""));
+  }
+
+  function escapeHtml(value) {
+    if (shared?.escapeHtml) return shared.escapeHtml(String(value ?? ""));
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function showFeedback(variant, text) {
+    if (!el.feedback) return;
+    if (!text) {
+      el.feedback.innerHTML = "";
+      return;
+    }
+    el.feedback.innerHTML = `<div class="tl-imoveis-feedback__item" data-variant="${escapeHtml(variant || "info")}">${escapeHtml(text)}</div>`;
+  }
+
+  function showComplementoFeedback(variant, text) {
+    if (!el.complementoFeedback) return;
+    el.complementoFeedback.textContent = text || "";
+    el.complementoFeedback.dataset.variant = variant || "info";
+  }
+
+  function readValue(id) {
+    return document.getElementById(id)?.value || "";
+  }
+
+  function setValue(id, value) {
+    const node = document.getElementById(id);
+    if (!node) return;
+    node.value = value ?? "";
+    if (node.tagName === "SELECT") {
+      node.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+
+  function digitsOnly(value) {
+    return String(value || "").replace(/\D/g, "");
+  }
+
+  function parseMoney(value) {
+    if (value === null || value === undefined || value === "") return 0;
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    const raw = String(value).trim();
+    if (!raw) return 0;
+
+    if (/^-?\d+(?:\.\d+)?$/.test(raw)) {
+      const direct = Number(raw);
+      return Number.isFinite(direct) ? direct : 0;
+    }
+
+    let normalized = raw.replace(/[^\d,.-]/g, "");
+    if (!normalized) return 0;
+
+    if (normalized.includes(",") && normalized.includes(".")) {
+      if (normalized.lastIndexOf(",") > normalized.lastIndexOf(".")) {
+        normalized = normalized.replace(/\./g, "").replace(",", ".");
+      } else {
+        normalized = normalized.replace(/,/g, "");
+      }
+    } else if (normalized.includes(",")) {
+      normalized = normalized.replace(/\./g, "").replace(",", ".");
+    } else if ((normalized.match(/\./g) || []).length > 1) {
+      normalized = normalized.replace(/\./g, "");
+    }
+
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function formatMoney(value) {
+    const number = Number(value || 0);
+    if (!Number.isFinite(number)) return "R$ 0,00";
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(number);
+  }
+
+  function formatMoneyInput(value) {
+    const digits = digitsOnly(value);
+    if (!digits) return "";
+    return formatMoney(Number(digits) / 100);
+  }
+
+  function formatCpf(value) {
+    const digits = digitsOnly(value).slice(0, 11);
+    return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  }
+
+  function formatPercent(value) {
+    const number = Number(value || 0) * 100;
+    if (!Number.isFinite(number)) return "0,00%";
+    return `${number.toFixed(2).replace(".", ",")}%`;
+  }
+
+  function toNumber(value, fallback = 0) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  async function api(url, method = "GET", body = null) {
+    const options = { method };
+    if (body !== null && body !== undefined) {
+      options.body = JSON.stringify(body);
+      options.headers = { "Content-Type": "application/json" };
+    }
+    return shared.fetchJson(url, options);
+  }
+
+  function messageFromError(error, fallback) {
+    const text = String(error?.message || "").trim();
+    if (!text) return fallback;
+    if (text === "[object Object]") return fallback;
+    if (text.toLowerCase() === "not found") return "Recurso nao encontrado. Atualize a pagina e tente novamente.";
+    return text;
+  }
+
+  function normalizeSearch(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
+
+  function closeSelectPanels(exceptWrap = null) {
+    document.querySelectorAll(".tl-clientes-select-wrap").forEach((wrap) => {
+      if (exceptWrap && wrap === exceptWrap) return;
+      wrap.classList.remove("is-open");
+      wrap.querySelector(".tl-clientes-select-options")?.classList.remove("is-open");
+      wrap.querySelector(".tl-clientes-select-trigger")?.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function refreshSelectUi(select) {
+    const ui = select?._customUi;
+    if (!ui) return;
+    const selected = select.options[select.selectedIndex] || null;
+    ui.trigger.textContent = selected?.textContent?.trim() || "Selecione";
+    ui.options.querySelectorAll(".tl-clientes-select-option").forEach((button) => {
+      const isSelected = button.dataset.value === String(select.value || "");
+      button.classList.toggle("is-selected", isSelected);
+      button.setAttribute("aria-selected", isSelected ? "true" : "false");
+    });
+  }
+
+  function setupSelect(select) {
+    if (!select || select.dataset.customizado === "true") return;
+    const parent = select.parentElement;
+    if (!parent) return;
+
+    const wrap = document.createElement("div");
+    wrap.className = "tl-clientes-select-wrap";
+    parent.insertBefore(wrap, select);
+    wrap.appendChild(select);
+
+    select.classList.add("tl-clientes-select--native");
+    select.dataset.customizado = "true";
+
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "tl-clientes-select-trigger";
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+
+    const options = document.createElement("div");
+    options.className = "tl-clientes-select-options";
+    options.setAttribute("role", "listbox");
+
+    wrap.appendChild(trigger);
+    wrap.appendChild(options);
+
+    select._customUi = { wrap, trigger, options };
+
+    options.innerHTML = "";
+    Array.from(select.options).forEach((option) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "tl-clientes-select-option";
+      button.dataset.value = option.value;
+      button.textContent = option.textContent?.trim() || "";
+      button.setAttribute("role", "option");
+      if (option.disabled) button.disabled = true;
+      button.addEventListener("click", () => {
+        if (option.disabled) return;
+        select.value = option.value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        closeSelectPanels();
+      });
+      options.appendChild(button);
+    });
+
+    trigger.addEventListener("click", () => {
+      const isOpen = options.classList.contains("is-open");
+      closeSelectPanels(isOpen ? null : wrap);
+      if (!isOpen) {
+        wrap.classList.add("is-open");
+        options.classList.add("is-open");
+        trigger.setAttribute("aria-expanded", "true");
+      }
+    });
+
+    select.addEventListener("change", () => refreshSelectUi(select));
+    refreshSelectUi(select);
+  }
+
+  function enableCustomSelects() {
+    document.querySelectorAll("select.tl-clientes-select").forEach(setupSelect);
+
+    if (document.body.dataset.simSelectBind === "true") return;
+    document.body.dataset.simSelectBind = "true";
+
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest(".tl-clientes-select-wrap")) return;
+      closeSelectPanels();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeSelectPanels();
+    });
+  }
+
+  function setStatusBadge(status) {
+    if (!el.statusBadge) return;
+    const value = String(status || "").toLowerCase();
+    el.statusBadge.classList.remove("tl-sim-status--ideal", "tl-sim-status--atencao", "tl-sim-status--invalida", "tl-sim-status--neutro");
+    if (value === "ideal") {
+      el.statusBadge.classList.add("tl-sim-status--ideal");
+      el.statusBadge.textContent = "Simulacao ideal";
+      return;
+    }
+    if (value === "atencao") {
+      el.statusBadge.classList.add("tl-sim-status--atencao");
+      el.statusBadge.textContent = "Simulacao em atencao";
+      return;
+    }
+    if (value === "invalida") {
+      el.statusBadge.classList.add("tl-sim-status--invalida");
+      el.statusBadge.textContent = "Simulacao bloqueada";
+      return;
+    }
+    el.statusBadge.classList.add("tl-sim-status--neutro");
+    el.statusBadge.textContent = "Aguardando calculo";
+  }
+
+  function buildClassificacaoBadge(value) {
+    const status = String(value || "").toLowerCase();
+    if (status === "ideal") return '<span class="tl-sim-badge tl-sim-badge--ideal">IDEAL</span>';
+    if (status === "atencao") return '<span class="tl-sim-badge tl-sim-badge--atencao">ATENCAO</span>';
+    return '<span class="tl-sim-badge tl-sim-badge--invalida">BLOQUEADO</span>';
+  }
+
+  function clearSimulationPanels() {
+    state.simulacaoAtual = null;
+    state.simulacaoSalvaId = "";
+    setStatusBadge("");
+    if (el.resumoKpis) el.resumoKpis.innerHTML = "";
+    if (el.sugestoesAjuste) el.sugestoesAjuste.innerHTML = "";
+    if (el.demonstrativoBody) el.demonstrativoBody.innerHTML = '<tr><td colspan="7" class="tl-sim-empty">Aguardando calculo para gerar o demonstrativo.</td></tr>';
+  }
+
+  function setClientStatus(text) {
+    if (!el.clienteStatus) return;
+    el.clienteStatus.textContent = text || "Nenhum cliente selecionado";
+  }
+
+  function setPropertyStatus(text) {
+    if (!el.imovelStatus) return;
+    el.imovelStatus.textContent = text || "Sem unidade selecionada";
+  }
+
+  function renderClientSelected() {
+    if (!el.clienteSelecionado) return;
+    if (!state.clienteSelecionado) {
+      el.clienteSelecionado.innerHTML = "";
+      setClientStatus("Nenhum cliente selecionado");
+      return;
+    }
+
+    const cliente = state.clienteSelecionado;
+    const rendaPrincipal = parseMoney(cliente.renda_principal || 0);
+    const rendaTotal = parseMoney(cliente.renda_total || 0);
+
+    el.clienteSelecionado.innerHTML = `
+      <article class="tl-sim-item">
+        <div class="tl-sim-item__head">
+          <h4 class="tl-sim-item__title">${escapeHtml(cliente.nome_completo || "Cliente")}</h4>
+          <span class="tl-sim-chip">${escapeHtml(cliente.cpf || "CPF nao informado")}</span>
+        </div>
+        <div class="tl-sim-item__meta">
+          <span>Cidade: ${escapeHtml(cliente.cidade || "Nao informada")}</span>
+          <span>Email: ${escapeHtml(cliente.email || "Nao informado")}</span>
+          <span>Renda principal: ${formatMoney(rendaPrincipal)}</span>
+          <span>Renda total cadastrada: ${formatMoney(rendaTotal)}</span>
+        </div>
+      </article>`;
+
+    setClientStatus(`Cliente ativo: ${cliente.nome_completo || "-"}`);
+  }
+
+  function renderClientsList() {
+    if (!el.clientesLista) return;
+
+    if (!state.clientes.length) {
+      el.clientesLista.innerHTML = '<div class="tl-sim-empty">Nenhum cliente encontrado com esse filtro.</div>';
+      return;
+    }
+
+    el.clientesLista.innerHTML = state.clientes
+      .map((cliente) => {
+        const renda = formatMoney(parseMoney(cliente.renda_total || 0));
+        return `
+          <article class="tl-sim-item">
+            <div class="tl-sim-item__head">
+              <h4 class="tl-sim-item__title">${escapeHtml(cliente.nome_completo || "Cliente")}</h4>
+              <span class="tl-sim-chip">${escapeHtml(cliente.cpf || "CPF nao informado")}</span>
+            </div>
+            <div class="tl-sim-item__meta">
+              <span>${escapeHtml(cliente.cidade || "Cidade nao informada")}</span>
+              <span>${escapeHtml(cliente.email || "E-mail nao informado")}</span>
+              <span>Renda total: ${renda}</span>
+            </div>
+            <div class="tl-sim-item__actions">
+              <button class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button" data-action="selecionar-cliente" data-id="${escapeHtml(cliente.id)}">Selecionar</button>
+            </div>
+          </article>`;
+      })
+      .join("");
+  }
+
+  function renderComplementos() {
+    if (!el.complementosLista) return;
+
+    if (!state.clienteSelecionado) {
+      el.complementosLista.innerHTML = '<div class="tl-sim-empty">Selecione um cliente para gerenciar os complementos.</div>';
+      return;
+    }
+
+    if (!state.complementos.length) {
+      el.complementosLista.innerHTML = '<div class="tl-sim-empty">Nenhum complemento de renda cadastrado para este cliente.</div>';
+      return;
+    }
+
+    el.complementosLista.innerHTML = state.complementos
+      .map((item) => {
+        const renda = formatMoney(parseMoney(item.renda || 0));
+        return `
+          <article class="tl-sim-item">
+            <div class="tl-sim-item__head">
+              <h4 class="tl-sim-item__title">${escapeHtml(item.nome || "Complemento")}</h4>
+              ${item.incluir_na_analise ? '<span class="tl-sim-badge tl-sim-badge--ideal">ATIVO</span>' : '<span class="tl-sim-badge tl-sim-badge--atencao">INATIVO</span>'}
+            </div>
+            <div class="tl-sim-item__meta">
+              <span>CPF: ${escapeHtml(item.cpf || "-")}</span>
+              <span>Parentesco: ${escapeHtml(item.parentesco || "Nao informado")}</span>
+              <span>Renda: ${renda}</span>
+            </div>
+            <div class="tl-sim-item__actions">
+              <button class="tl-imoveis-btn tl-imoveis-btn--secondary" type="button" data-action="editar-complemento" data-id="${escapeHtml(item.id)}">Editar</button>
+              <button class="tl-imoveis-btn tl-imoveis-btn--ghost" type="button" data-action="toggle-complemento" data-id="${escapeHtml(item.id)}">${item.incluir_na_analise ? "Desativar" : "Ativar"}</button>
+              <button class="tl-imoveis-btn tl-imoveis-btn--danger" type="button" data-action="excluir-complemento" data-id="${escapeHtml(item.id)}">Excluir</button>
+            </div>
+          </article>`;
+      })
+      .join("");
+  }
+
+  function renderSuggestions() {
+    if (!el.sugestoesLista) return;
+
+    if (!state.sugestoes.length) {
+      el.sugestoesLista.innerHTML = '<div class="tl-sim-empty">Nenhuma sugestao encontrada com os filtros atuais.</div>';
+      return;
+    }
+
+    el.sugestoesLista.innerHTML = state.sugestoes
+      .map((item, index) => {
+        const imovel = item.imovel || {};
+        const resumo = item.resumo_operacao || {};
+        const isBest = index === 0;
+
+        return `
+          <article class="tl-sim-sugestao ${isBest ? "is-best" : ""}">
+            <div class="tl-sim-sugestao__head">
+              <div>
+                <strong>${escapeHtml(imovel.titulo || "Imovel")}</strong>
+                <div class="tl-sim-item__meta">
+                  <span>${escapeHtml(imovel.cidade || "-")} - ${escapeHtml(imovel.bairro || "-")}</span>
+                  <span>${escapeHtml(imovel.tipologia || "Tipologia nao informada")}</span>
+                </div>
+              </div>
+              <div>
+                ${buildClassificacaoBadge(item.classificacao)}
+              </div>
+            </div>
+            <div class="tl-sim-item__meta">
+              <span>Valor: ${formatMoney(parseMoney(imovel.valor || 0))}</span>
+              <span>Comprometimento: ${formatPercent(resumo.percentual_comprometimento || 0)}</span>
+              <span>Fechamento inicial: ${formatPercent(resumo.percentual_fechamento_inicial || 0)}</span>
+              <span>Entrega projetada: ${formatPercent(resumo.percentual_projetado_entrega || 0)}</span>
+              <span>Score: ${Number(item.score || 0).toFixed(2)}</span>
+            </div>
+            <p>${escapeHtml(item.justificativa || "Sem justificativa")}</p>
+            <div class="tl-sim-item__actions">
+              <button class="tl-imoveis-btn" type="button" data-action="selecionar-sugestao" data-index="${index}">Selecionar unidade</button>
+            </div>
+          </article>`;
+      })
+      .join("");
+  }
+
+  function renderPropertyPreview() {
+    if (!el.imovelPreview) return;
+    if (!state.imovelSelecionado) {
+      el.imovelPreview.innerHTML = "";
+      setPropertyStatus("Sem unidade selecionada");
+      return;
+    }
+
+    const imovel = state.imovelSelecionado;
+    const foto = imovel.foto_principal ? `/${String(imovel.foto_principal).replace(/^\/+/, "")}` : "";
+
+    el.imovelPreview.innerHTML = `
+      <div class="tl-sim-imovel-hero">
+        ${foto ? `<img src="${escapeHtml(foto)}" alt="${escapeHtml(imovel.titulo || "Imovel")}" />` : '<div class="tl-sim-empty">Sem foto</div>'}
+        <div>
+          <strong>${escapeHtml(imovel.titulo || "Imovel")}</strong>
+          <div class="tl-sim-item__meta">
+            <span>${escapeHtml(imovel.tipologia || "Tipologia nao informada")}</span>
+            <span>${escapeHtml(imovel.cidade || "-")} - ${escapeHtml(imovel.bairro || "-")}</span>
+            <span>Status: ${escapeHtml(imovel.status || "-")}</span>
+            <span>Valor: ${formatMoney(parseMoney(imovel.valor || 0))}</span>
+          </div>
+        </div>
+      </div>`;
+
+    setPropertyStatus(`Unidade selecionada: ${imovel.titulo || "-"}`);
+  }
+
+  function applyPreselectedPropertyFromShowroom() {
+    let raw = "";
+    try {
+      raw = window.sessionStorage.getItem(PRESELECTED_PROPERTY_STORAGE_KEY) || "";
+    } catch {
+      raw = "";
+    }
+    if (!raw) return false;
+
+    try {
+      const payload = JSON.parse(raw);
+      if (!payload || !payload.id) return false;
+      state.imovelSelecionado = {
+        id: String(payload.id),
+        titulo: payload.titulo || "Imovel",
+        tipologia: payload.tipologia || payload.tipo_imovel || "",
+        cidade: payload.cidade || "",
+        bairro: payload.bairro || "",
+        valor: parseMoney(payload.valor || 0),
+        status: payload.status || "Disponivel",
+        foto_principal: payload.foto_principal || "",
+      };
+      setValue(ids.valorImovel, formatMoney(parseMoney(state.imovelSelecionado.valor || 0)));
+      renderPropertyPreview();
+      showFeedback("info", "Unidade recebida do showroom. Selecione o cliente e continue a simulacao.");
+      return true;
+    } catch {
+      return false;
+    } finally {
+      try {
+        window.sessionStorage.removeItem(PRESELECTED_PROPERTY_STORAGE_KEY);
+      } catch {
+        // no-op
+      }
+    }
+  }
+
+  function buildFiltersPayload() {
+    const dormitoriosRaw = readValue(ids.filtroDormitorios).trim();
+    const dormitorios = dormitoriosRaw ? Number(dormitoriosRaw) : null;
+
+    return {
+      empreendimento: readValue(ids.filtroEmpreendimento).trim() || null,
+      cidade: readValue(ids.filtroCidade).trim() || null,
+      bairro: readValue(ids.filtroBairro).trim() || null,
+      tipologia: readValue(ids.filtroTipologia).trim() || null,
+      dormitorios: Number.isFinite(dormitorios) ? dormitorios : null,
+      faixa_preco_min: parseMoney(readValue(ids.filtroPrecoMin)) || null,
+      faixa_preco_max: parseMoney(readValue(ids.filtroPrecoMax)) || null,
+      status: readValue(ids.filtroStatus) || "Disponivel",
+    };
+  }
+
+  function buildSimulationPayload() {
+    return {
+      cliente_id: state.clienteSelecionado?.id || "",
+      imovel_id: state.imovelSelecionado?.id || "",
+      valor_imovel: parseMoney(readValue(ids.valorImovel)),
+      financiamento_caixa: parseMoney(readValue(ids.financiamento)),
+      fgts: parseMoney(readValue(ids.fgts)),
+      subsidio: parseMoney(readValue(ids.subsidio)),
+      entrada: parseMoney(readValue(ids.entrada)),
+      sobrepreco: parseMoney(readValue(ids.sobrepreco)),
+      meses_pre_entrega: toNumber(readValue(ids.mesesPre), 36),
+      meses_pos_entrega: toNumber(readValue(ids.mesesPos), 24),
+      parcela_intermediaria_valor: parseMoney(readValue(ids.intermediariaValor)),
+      parcelas_intermediarias_quantidade: toNumber(readValue(ids.intermediariaQtd), 0),
+      parcela_anual_valor: parseMoney(readValue(ids.anualValor)),
+      parcelas_anuais_quantidade: toNumber(readValue(ids.anualQtd), 0),
+      parcela_semestral_valor: parseMoney(readValue(ids.semestralValor)),
+      parcelas_semestrais_quantidade: toNumber(readValue(ids.semestralQtd), 0),
+      parcela_reforco_valor: parseMoney(readValue(ids.reforcoValor)),
+      parcelas_reforco_quantidade: toNumber(readValue(ids.reforcoQtd), 0),
+      observacoes_comerciais: readValue(ids.observacoes).trim() || null,
+      filtros: buildFiltersPayload(),
+    };
+  }
+
+  function ensureSelections(requireProperty = false) {
+    if (!state.clienteSelecionado) {
+      showFeedback("warning", "Selecione um cliente aprovado para continuar.");
+      return false;
+    }
+
+    if (requireProperty && !state.imovelSelecionado) {
+      showFeedback("warning", "Selecione uma unidade para calcular e concluir a simulacao.");
+      return false;
+    }
+
+    return true;
+  }
+
+  function renderSummaryFromResult(resultado) {
+    const resumo = resultado?.resumo_operacao || {};
+    const cliente = resultado?.cliente || {};
+
+    setStatusBadge(resumo.status_simulacao || "");
+
+    const cards = [
+      ["Renda total", formatMoney(parseMoney(cliente.renda_total || 0))],
+      ["Limite 45%", formatMoney(parseMoney(resumo.limite_comprometimento || 0))],
+      ["Comprometimento", formatPercent(resumo.percentual_comprometimento || 0)],
+      ["Parcela maxima segura", formatMoney(parseMoney(resumo.parcela_maxima_segura || 0))],
+      ["Entrada", formatMoney(parseMoney(resumo.entrada || 0))],
+      ["Pro-soluto", formatMoney(parseMoney(resumo.pro_soluto_total || 0))],
+      ["Fechamento inicial", formatPercent(resumo.percentual_fechamento_inicial || 0)],
+      ["Entrega projetada", formatPercent(resumo.percentual_projetado_entrega || 0)],
+      ["Saldo pos-entrega", formatMoney(parseMoney(resumo.saldo_pos_entrega || 0))],
+    ];
+
+    if (el.resumoKpis) {
+      el.resumoKpis.innerHTML = cards
+        .map(([label, value]) => `<article class="tl-sim-kpi"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`)
+        .join("");
+    }
+
+    const alerts = [];
+    (resumo.bloqueios || []).forEach((item) => alerts.push(`<div class="tl-sim-alerta" style="border-color: rgba(180, 35, 24, 0.2); color: #b42318;">${escapeHtml(item)}</div>`));
+    (resumo.atencoes || []).forEach((item) => alerts.push(`<div class="tl-sim-alerta" style="border-color: rgba(245, 158, 11, 0.2); color: #b66a00;">${escapeHtml(item)}</div>`));
+    (resumo.sugestoes || []).forEach((item) => alerts.push(`<div class="tl-sim-alerta">${escapeHtml(item)}</div>`));
+
+    if (el.sugestoesAjuste) {
+      el.sugestoesAjuste.innerHTML = alerts.length ? alerts.join("") : '<div class="tl-sim-alerta">Sem alertas para este cenario.</div>';
+    }
+
+    renderDemonstrativo(resultado?.demonstrativo || []);
+  }
+
+  function renderDemonstrativo(parcelas) {
+    if (!el.demonstrativoBody) return;
+
+    if (!Array.isArray(parcelas) || !parcelas.length) {
+      el.demonstrativoBody.innerHTML = '<tr><td colspan="7" class="tl-sim-empty">Nenhuma parcela gerada para o cenario atual.</td></tr>';
+      return;
+    }
+
+    el.demonstrativoBody.innerHTML = parcelas
+      .map((parcela) => {
+        const fase = String(parcela.fase || "").replaceAll("_", " ");
+        const tipo = String(parcela.tipo || "").replaceAll("_", " ");
+        const vencimento = parcela.vencimento ? new Date(parcela.vencimento).toLocaleDateString("pt-BR") : "-";
+        return `
+          <tr>
+            <td>${escapeHtml(fase)}</td>
+            <td>${escapeHtml(tipo)}</td>
+            <td>${escapeHtml(String(parcela.parcela || "-"))}</td>
+            <td>${escapeHtml(vencimento)}</td>
+            <td>${escapeHtml(formatMoney(parseMoney(parcela.valor || 0)))}</td>
+            <td>${escapeHtml(formatPercent(parcela.percentual_renda || 0))}</td>
+            <td>${escapeHtml(parcela.observacao || "-")}</td>
+          </tr>`;
+      })
+      .join("");
+  }
+
+  async function loadClients(search) {
+    const query = encodeURIComponent(String(search || "").trim());
+    const url = `${ENDPOINTS.clientes}?pagina=1&limite=12&q=${query}`;
+    const payload = await api(url, "GET");
+    state.clientes = Array.isArray(payload?.items) ? payload.items : [];
+    renderClientsList();
+  }
+
+  async function selectClientById(id) {
+    const payload = await api(endpoint(ENDPOINTS.clientePorId, { id }), "GET");
+    const cliente = payload?.item;
+    if (!cliente) throw new Error("Cliente nao encontrado.");
+
+    state.clienteSelecionado = cliente;
+    state.imovelSelecionado = null;
+    state.sugestoes = [];
+    state.simulacaoSalvaId = "";
+
+    renderClientSelected();
+    renderPropertyPreview();
+    renderSuggestions();
+    clearSimulationPanels();
+
+    setValue(ids.valorImovel, "");
+
+    await loadComplementos();
+  }
+
+  async function loadComplementos() {
+    if (!state.clienteSelecionado?.id) {
+      state.complementos = [];
+      renderComplementos();
+      return;
+    }
+
+    const url = endpoint(ENDPOINTS.complementos, { id: state.clienteSelecionado.id });
+    const payload = await api(url, "GET");
+    state.complementos = Array.isArray(payload?.items) ? payload.items : [];
+    renderComplementos();
+  }
+
+  async function runSuggestions() {
+    if (!ensureSelections(false)) return;
+
+    const body = {
+      ...buildSimulationPayload(),
+      cliente_id: state.clienteSelecionado.id,
+      filtros: buildFiltersPayload(),
+      limite_sugestoes: 12,
+    };
+
+    delete body.imovel_id;
+
+    const payload = await api(ENDPOINTS.sugerir, "POST", body);
+    const items = payload?.sugestao?.items;
+    state.sugestoes = Array.isArray(items) ? items : [];
+
+    if (!state.sugestoes.length) {
+      state.imovelSelecionado = null;
+      renderPropertyPreview();
+      clearSimulationPanels();
+      renderSuggestions();
+      showFeedback("warning", "Nenhum imovel encontrado para esse perfil. Ajuste filtros ou parametros.");
+      return;
+    }
+
+    renderSuggestions();
+
+    const best = state.sugestoes[0];
+    if (best?.imovel) {
+      state.imovelSelecionado = best.imovel;
+      setValue(ids.valorImovel, formatMoney(parseMoney(best.imovel.valor || 0)));
+      renderPropertyPreview();
+    }
+
+    showFeedback("success", "Sugestao inteligente concluida. Selecione a unidade desejada para finalizar a simulacao.");
+  }
+
+  async function runCalculation() {
+    if (!ensureSelections(true)) return;
+
+    const body = {
+      ...buildSimulationPayload(),
+      cliente_id: state.clienteSelecionado.id,
+      imovel_id: state.imovelSelecionado.id,
+      filtros: buildFiltersPayload(),
+    };
+
+    const payload = await api(ENDPOINTS.calcular, "POST", body);
+    state.simulacaoAtual = payload?.resultado || null;
+    state.simulacaoSalvaId = "";
+
+    if (!state.simulacaoAtual) {
+      throw new Error("Nao foi possivel calcular a simulacao.");
+    }
+
+    renderSummaryFromResult(state.simulacaoAtual);
+    showFeedback("success", "Simulacao recalculada em tempo real com as travas comerciais aplicadas.");
+  }
+
+  async function saveSimulation() {
+    if (!ensureSelections(true)) return;
+
+    const body = {
+      ...buildSimulationPayload(),
+      cliente_id: state.clienteSelecionado.id,
+      imovel_id: state.imovelSelecionado.id,
+      filtros: buildFiltersPayload(),
+      payload_snapshot_extra: {
+        cliente_nome: state.clienteSelecionado.nome_completo,
+        imovel_titulo: state.imovelSelecionado.titulo,
+      },
+    };
+
+    const payload = await api(ENDPOINTS.salvar, "POST", body);
+    const item = payload?.item;
+
+    if (!item?.id) {
+      throw new Error("Simulacao salva sem identificador valido.");
+    }
+
+    state.simulacaoSalvaId = item.id;
+    showFeedback("success", "Simulacao salva com sucesso. Agora voce pode reservar ou vender o imovel com seguranca.");
+  }
+
+  async function reserveProperty() {
+    if (!state.simulacaoSalvaId) {
+      showFeedback("warning", "Salve a simulacao antes de reservar o imovel.");
+      return;
+    }
+
+    const body = {
+      cliente_id: state.clienteSelecionado?.id || null,
+      simulacao_id: state.simulacaoSalvaId,
+      observacoes: readValue(ids.observacoes) || null,
+    };
+
+    await api(endpoint(ENDPOINTS.reservar, { id: state.imovelSelecionado.id }), "POST", body);
+    if (state.imovelSelecionado) {
+      state.imovelSelecionado.status = "Reservado";
+      renderPropertyPreview();
+    }
+    setPropertyStatus("Unidade reservada");
+    showFeedback("success", "Imovel reservado com consistencia transacional.");
+  }
+
+  async function sellProperty() {
+    if (!state.simulacaoSalvaId) {
+      showFeedback("warning", "Salve a simulacao antes de vender o imovel.");
+      return;
+    }
+
+    const body = {
+      cliente_id: state.clienteSelecionado?.id || null,
+      simulacao_id: state.simulacaoSalvaId,
+      observacoes: readValue(ids.observacoes) || null,
+    };
+
+    await api(endpoint(ENDPOINTS.vender, { id: state.imovelSelecionado.id }), "POST", body);
+    if (state.imovelSelecionado) {
+      state.imovelSelecionado.status = "Vendido";
+      renderPropertyPreview();
+    }
+    setPropertyStatus("Unidade vendida");
+    showFeedback("success", "Venda concluida com seguranca e regras de saude comercial.");
+  }
+
+  async function releaseReserve() {
+    if (!state.imovelSelecionado?.id) {
+      showFeedback("warning", "Selecione uma unidade para liberar a reserva.");
+      return;
+    }
+
+    const body = {
+      observacoes: readValue(ids.observacoes) || null,
+    };
+
+    await api(endpoint(ENDPOINTS.liberar, { id: state.imovelSelecionado.id }), "POST", body);
+    if (state.imovelSelecionado) {
+      state.imovelSelecionado.status = "Disponivel";
+      renderPropertyPreview();
+    }
+    setPropertyStatus("Reserva liberada");
+    showFeedback("success", "Reserva liberada e status do imovel retornou para disponivel.");
+  }
+
+  function resetSimulation() {
+    state.imovelSelecionado = null;
+    state.sugestoes = [];
+    state.simulacaoAtual = null;
+    state.simulacaoSalvaId = "";
+
+    renderSuggestions();
+    renderPropertyPreview();
+    clearSimulationPanels();
+
+    setValue(ids.valorImovel, "");
+    setValue(ids.financiamento, "");
+    setValue(ids.fgts, "");
+    setValue(ids.subsidio, "");
+    setValue(ids.entrada, "");
+    setValue(ids.sobrepreco, "");
+    setValue(ids.intermediariaValor, "");
+    setValue(ids.anualValor, "");
+    setValue(ids.semestralValor, "");
+    setValue(ids.reforcoValor, "");
+    setValue(ids.observacoes, "");
+
+    showFeedback("info", "Nova simulacao pronta. Selecione uma unidade e recalcule.");
+  }
+
+  function openComplementoModal(editId = "") {
+    if (!state.clienteSelecionado) {
+      showFeedback("warning", "Selecione o cliente antes de adicionar complemento.");
+      return;
+    }
+
+    state.complementoEdicaoId = editId;
+    showComplementoFeedback("info", "");
+
+    if (!editId) {
+      el.formComplemento?.reset();
+      if (el.complementoTitulo) el.complementoTitulo.textContent = "Novo complemento";
+      setValue("simComplementoAtivo", "true");
+    } else {
+      const item = state.complementos.find((complemento) => String(complemento.id) === String(editId));
+      if (!item) return;
+      if (el.complementoTitulo) el.complementoTitulo.textContent = "Editar complemento";
+      if (el.inputComplementoNome) el.inputComplementoNome.value = item.nome || "";
+      if (el.inputComplementoCpf) el.inputComplementoCpf.value = formatCpf(item.cpf || "");
+      if (el.inputComplementoParentesco) el.inputComplementoParentesco.value = item.parentesco || "";
+      if (el.inputComplementoRenda) el.inputComplementoRenda.value = formatMoney(parseMoney(item.renda || 0));
+      setValue("simComplementoAtivo", item.incluir_na_analise ? "true" : "false");
+    }
+
+    if (!el.modalComplemento) return;
+    el.modalComplemento.hidden = false;
+    el.modalComplemento.setAttribute("aria-hidden", "false");
+    document.body.classList.add("tl-modal-open");
+    setTimeout(() => el.inputComplementoNome?.focus(), 0);
+  }
+
+  function closeComplementoModal() {
+    if (!el.modalComplemento) return;
+    closeSelectPanels();
+    el.modalComplemento.hidden = true;
+    el.modalComplemento.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("tl-modal-open");
+    state.complementoEdicaoId = "";
+  }
+
+  async function saveComplemento(event) {
+    event.preventDefault();
+
+    if (!state.clienteSelecionado?.id) return;
+
+    const nome = String(el.inputComplementoNome?.value || "").trim();
+    const cpf = digitsOnly(el.inputComplementoCpf?.value || "");
+    const renda = parseMoney(el.inputComplementoRenda?.value || "");
+
+    if (nome.length < 3) {
+      showComplementoFeedback("error", "Informe o nome completo do complemento.");
+      return;
+    }
+    if (cpf.length !== 11) {
+      showComplementoFeedback("error", "Informe um CPF valido com 11 digitos.");
+      return;
+    }
+    if (renda <= 0) {
+      showComplementoFeedback("error", "Informe uma renda maior que zero.");
+      return;
+    }
+
+    const body = {
+      nome,
+      cpf,
+      parentesco: String(el.inputComplementoParentesco?.value || "").trim() || null,
+      renda,
+      incluir_na_analise: String(el.inputComplementoAtivo?.value || "true") === "true",
+    };
+
+    try {
+      if (state.complementoEdicaoId) {
+        await api(
+          endpoint(ENDPOINTS.complementoPorId, {
+            id: state.clienteSelecionado.id,
+            complementoId: state.complementoEdicaoId,
+          }),
+          "PUT",
+          body
+        );
+      } else {
+        await api(endpoint(ENDPOINTS.complementos, { id: state.clienteSelecionado.id }), "POST", body);
+      }
+
+      closeComplementoModal();
+      await loadComplementos();
+      showFeedback("success", "Complemento de renda atualizado com sucesso.");
+    } catch (error) {
+      showComplementoFeedback("error", messageFromError(error, "Nao foi possivel salvar o complemento."));
+    }
+  }
+
+  async function toggleComplemento(id) {
+    const item = state.complementos.find((complemento) => String(complemento.id) === String(id));
+    if (!item) return;
+
+    const body = {
+      nome: item.nome,
+      cpf: digitsOnly(item.cpf || ""),
+      parentesco: item.parentesco || null,
+      renda: parseMoney(item.renda || 0),
+      incluir_na_analise: !item.incluir_na_analise,
+    };
+
+    await api(endpoint(ENDPOINTS.complementoPorId, { id: state.clienteSelecionado.id, complementoId: id }), "PUT", body);
+    await loadComplementos();
+  }
+
+  async function deleteComplemento(id) {
+    if (!window.confirm("Deseja excluir este complemento de renda?")) return;
+    await api(endpoint(ENDPOINTS.complementoPorId, { id: state.clienteSelecionado.id, complementoId: id }), "DELETE");
+    await loadComplementos();
+    showFeedback("success", "Complemento removido com sucesso.");
+  }
+
+  function applyInputMasks() {
+    [ids.filtroPrecoMin, ids.filtroPrecoMax, ids.valorImovel, ids.financiamento, ids.fgts, ids.subsidio, ids.entrada, ids.sobrepreco, ids.intermediariaValor, ids.anualValor, ids.semestralValor, ids.reforcoValor]
+      .forEach((id) => {
+        document.getElementById(id)?.addEventListener("input", (event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLInputElement)) return;
+          target.value = formatMoneyInput(target.value);
+        });
+      });
+
+    el.inputComplementoRenda?.addEventListener("input", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      target.value = formatMoneyInput(target.value);
+    });
+
+    el.inputComplementoCpf?.addEventListener("input", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      target.value = formatCpf(target.value);
+    });
+  }
+
+  function bindEvents() {
+    el.buscaCliente?.addEventListener("input", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      const term = normalizeSearch(target.value || "");
+      clearTimeout(state.buscaTimer);
+      state.buscaTimer = setTimeout(() => {
+        loadClients(term).catch((error) => {
+          showFeedback("error", messageFromError(error, "Nao foi possivel buscar clientes."));
+        });
+      }, 260);
+    });
+
+    el.clientesLista?.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action='selecionar-cliente']");
+      if (!button) return;
+      const id = button.getAttribute("data-id");
+      if (!id) return;
+      selectClientById(id)
+        .then(() => showFeedback("success", "Cliente selecionado. Agora ajuste filtros e gere as sugestoes."))
+        .catch((error) => showFeedback("error", messageFromError(error, "Nao foi possivel selecionar o cliente.")));
+    });
+
+    el.sugestoesLista?.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action='selecionar-sugestao']");
+      if (!button) return;
+      const index = Number(button.getAttribute("data-index") || "-1");
+      if (!Number.isFinite(index) || index < 0 || index >= state.sugestoes.length) return;
+      const suggestion = state.sugestoes[index];
+      state.imovelSelecionado = suggestion.imovel || null;
+      if (state.imovelSelecionado) {
+        setValue(ids.valorImovel, formatMoney(parseMoney(state.imovelSelecionado.valor || 0)));
+      }
+      renderPropertyPreview();
+      showFeedback("info", "Unidade selecionada. Agora recalcule para validar o fechamento.");
+    });
+
+    el.complementosLista?.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const action = button.getAttribute("data-action");
+      const id = button.getAttribute("data-id");
+      if (!id) return;
+
+      if (action === "editar-complemento") openComplementoModal(id);
+      if (action === "toggle-complemento") {
+        toggleComplemento(id).catch((error) => showFeedback("error", messageFromError(error, "Falha ao atualizar complemento.")));
+      }
+      if (action === "excluir-complemento") {
+        deleteComplemento(id).catch((error) => showFeedback("error", messageFromError(error, "Falha ao excluir complemento.")));
+      }
+    });
+
+    el.btnSugerir?.addEventListener("click", () => runSuggestions().catch((error) => showFeedback("error", messageFromError(error, "Nao foi possivel sugerir imoveis."))));
+    el.btnCalcular?.addEventListener("click", () => runCalculation().catch((error) => showFeedback("error", messageFromError(error, "Nao foi possivel calcular a simulacao."))));
+    el.btnSalvar?.addEventListener("click", () => saveSimulation().catch((error) => showFeedback("error", messageFromError(error, "Nao foi possivel salvar a simulacao."))));
+    el.btnReservar?.addEventListener("click", () => reserveProperty().catch((error) => showFeedback("error", messageFromError(error, "Nao foi possivel reservar o imovel."))));
+    el.btnVender?.addEventListener("click", () => sellProperty().catch((error) => showFeedback("error", messageFromError(error, "Nao foi possivel concluir a venda."))));
+    el.btnLiberar?.addEventListener("click", () => releaseReserve().catch((error) => showFeedback("error", messageFromError(error, "Nao foi possivel liberar a reserva."))));
+    el.btnNova?.addEventListener("click", resetSimulation);
+
+    el.btnNovoComplemento?.addEventListener("click", () => openComplementoModal(""));
+    el.btnFecharComplemento?.addEventListener("click", closeComplementoModal);
+    el.modalComplemento?.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.dataset.action === "fechar-complemento" || target === el.modalComplemento) {
+        closeComplementoModal();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && el.modalComplemento && !el.modalComplemento.hidden) {
+        closeComplementoModal();
+      }
+    });
+
+    el.formComplemento?.addEventListener("submit", (event) => {
+      saveComplemento(event).catch((error) => {
+        showComplementoFeedback("error", messageFromError(error, "Nao foi possivel salvar o complemento."));
+      });
+    });
+  }
+
+  async function init() {
+    if (!shared?.fetchJson) {
+      showFeedback("error", "Servico de API indisponivel.");
+      return;
+    }
+
+    shared.initChrome?.();
+    enableCustomSelects();
+    applyInputMasks();
+    bindEvents();
+    clearSimulationPanels();
+    renderClientsList();
+    renderComplementos();
+    renderSuggestions();
+    renderPropertyPreview();
+    applyPreselectedPropertyFromShowroom();
+
+    try {
+      const me = await api(ENDPOINTS.me, "GET");
+      state.user = me?.usuario || me?.user || me || null;
+      shared.fillUserbox?.(state.user);
+      await loadClients("");
+      showFeedback("info", "Simulador comercial pronto. Selecione um cliente para iniciar.");
+    } catch (error) {
+      showFeedback("error", messageFromError(error, "Nao foi possivel iniciar o simulador."));
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    init().catch((error) => {
+      showFeedback("error", messageFromError(error, "Falha ao carregar o simulador."));
+    });
+  });
+})();

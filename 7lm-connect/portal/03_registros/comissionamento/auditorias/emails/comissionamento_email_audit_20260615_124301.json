@@ -1,0 +1,603 @@
+{
+  "run_id": "20260615124301",
+  "ciclo": "2026-06-email-audit",
+  "modo_execucao": "dry_run",
+  "provider_configurado": {
+    "provider": "microsoft_graph",
+    "modo": "teste_allowlist",
+    "send_enabled_env": true,
+    "provider_env": "microsoft_graph",
+    "allowlist": [
+      "automacaoprocessos@7lm.com.br",
+      "hudson.porto@7lm.com.br",
+      "inovacao@7lm.com.br"
+    ],
+    "destinatario_forcado": "hudson.porto@7lm.com.br"
+  },
+  "dados_teste": {
+    "resultado_pj": "audit-pj-hudson",
+    "nome_pj": "AUDITORIA PJ HUDSON",
+    "resultado_clt": "audit-clt-hudson",
+    "nome_clt": "AUDITORIA CLT HUDSON"
+  },
+  "passos": [
+    {
+      "acao": "enviar_head",
+      "resultado_id": "audit-pj-hudson",
+      "comissionado": "AUDITORIA PJ HUDSON",
+      "template": "head_aprovacao_pendente",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "calculado",
+      "status_novo": "aguardando_head_comercial",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "pendente_nf",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "09f486bf-d939-4538-980e-16691b235197",
+        "criado_em": "2026-06-15T12:43:02.116976+00:00"
+      },
+      "notificacao": {
+        "id": "af42b098-09e0-4270-8f4a-26b1804f3ace",
+        "evento_notificacao": {
+          "id": "35416b8e-d38e-49dc-b5ea-041bfae6c6b6",
+          "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:enviar_head:head_aprovacao_pendente",
+          "tipo_evento": "head_aprovacao_pendente",
+          "ciclo_id": "2026-06-email-audit",
+          "resultado_id": "audit-pj-hudson",
+          "criado_em": "2026-06-15T12:43:02.135735+00:00"
+        },
+        "filas": [
+          {
+            "id": "74d00683-7158-42ea-899e-4f8fcd068391",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "head_aprovacao_pendente",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "74d00683-7158-42ea-899e-4f8fcd068391",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-864cfc82-aefd-4939-9d06-7a0383c01c91"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:enviar_head:head_aprovacao_pendente",
+      "criado_em": "2026-06-15T12:43:02.189180+00:00"
+    },
+    {
+      "acao": "aprovar_head",
+      "resultado_id": "audit-pj-hudson",
+      "comissionado": "AUDITORIA PJ HUDSON",
+      "template": "comissionado_nf_solicitada",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_head_comercial",
+      "status_novo": "aguardando_nf",
+      "status_nf_anterior": "pendente_nf",
+      "status_nf_novo": "solicitada",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "23267e98-2fe5-4a60-8768-eab3d92799fd",
+        "criado_em": "2026-06-15T12:43:02.194874+00:00"
+      },
+      "notificacao": {
+        "id": "f970799d-90eb-4842-bc24-cdfb78d6dd53",
+        "evento_notificacao": {
+          "id": "4cf72b21-1111-4274-85a1-fa9653d079c6",
+          "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:aprovar_head:comissionado_nf_solicitada",
+          "tipo_evento": "comissionado_nf_solicitada",
+          "ciclo_id": "2026-06-email-audit",
+          "resultado_id": "audit-pj-hudson",
+          "criado_em": "2026-06-15T12:43:02.201841+00:00"
+        },
+        "filas": [
+          {
+            "id": "6bea0407-8822-44c8-9485-3fe56100c974",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "comissionado_nf_solicitada",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "6bea0407-8822-44c8-9485-3fe56100c974",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-a72a19ef-2ca5-41c4-b2ae-768e7b3816e0"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:aprovar_head:comissionado_nf_solicitada",
+      "criado_em": "2026-06-15T12:43:02.223527+00:00"
+    },
+    {
+      "acao": "reenviar_lembrete_nf",
+      "resultado_id": "audit-pj-hudson",
+      "comissionado": "AUDITORIA PJ HUDSON",
+      "template": "comissionado_nf_lembrete",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_nf",
+      "status_novo": "aguardando_nf",
+      "status_nf_anterior": "solicitada",
+      "status_nf_novo": "solicitada",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "50237bc6-fe1c-4cd4-a12e-da928e6d7563",
+        "criado_em": "2026-06-15T12:43:02.230072+00:00"
+      },
+      "notificacao": {
+        "id": "3cca7157-8c5f-4791-a200-fa589a926cbb",
+        "evento_notificacao": {
+          "id": "f9a07006-bc92-4785-b2ba-8e235ff2f1b4",
+          "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:reenviar_lembrete_nf:comissionado_nf_lembrete",
+          "tipo_evento": "comissionado_nf_lembrete",
+          "ciclo_id": "2026-06-email-audit",
+          "resultado_id": "audit-pj-hudson",
+          "criado_em": "2026-06-15T12:43:02.240244+00:00"
+        },
+        "filas": [
+          {
+            "id": "36d84189-70eb-4cb3-ba7f-8917d2d47fc5",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "comissionado_nf_lembrete",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "36d84189-70eb-4cb3-ba7f-8917d2d47fc5",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-85636b51-edcb-478f-bba0-6f24dc4ded76"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:reenviar_lembrete_nf:comissionado_nf_lembrete",
+      "criado_em": "2026-06-15T12:43:02.266163+00:00"
+    },
+    {
+      "acao": "registrar_nf_recebida",
+      "resultado_id": "audit-pj-hudson",
+      "comissionado": "AUDITORIA PJ HUDSON",
+      "template": "secretaria_nf_recebida",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_nf",
+      "status_novo": "nf_em_validacao",
+      "status_nf_anterior": "solicitada",
+      "status_nf_novo": "recebida",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "e57286a9-0b7d-4a91-a210-1ac2fbce3361",
+        "criado_em": "2026-06-15T12:43:02.273248+00:00"
+      },
+      "notificacao": {
+        "id": "4d50cb85-39d5-40cb-9457-f9390c7f5a2f",
+        "evento_notificacao": {
+          "id": "2ca43d9a-081e-4171-9049-d54f09a5196b",
+          "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:registrar_nf_recebida:secretaria_nf_recebida",
+          "tipo_evento": "secretaria_nf_recebida",
+          "ciclo_id": "2026-06-email-audit",
+          "resultado_id": "audit-pj-hudson",
+          "criado_em": "2026-06-15T12:43:02.282785+00:00"
+        },
+        "filas": [
+          {
+            "id": "cc5fa09a-7acd-4373-96f0-b2d2f6e462c7",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "secretaria_nf_recebida",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "cc5fa09a-7acd-4373-96f0-b2d2f6e462c7",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-8dd58659-1978-4fc9-8ed4-629807df5115"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:registrar_nf_recebida:secretaria_nf_recebida",
+      "criado_em": "2026-06-15T12:43:02.303968+00:00"
+    },
+    {
+      "acao": "solicitar_correcao_nf",
+      "resultado_id": "audit-pj-hudson",
+      "comissionado": "AUDITORIA PJ HUDSON",
+      "template": "comissionado_nf_rejeitada",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "nf_em_validacao",
+      "status_novo": "aguardando_nf",
+      "status_nf_anterior": "recebida",
+      "status_nf_novo": "solicitada",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "3c838cd2-8bd9-4c94-8423-5fed516a09f2",
+        "criado_em": "2026-06-15T12:43:02.310915+00:00"
+      },
+      "notificacao": {
+        "id": "48b1b2fa-947c-4f76-b82a-8b36d5c515f3",
+        "evento_notificacao": {
+          "id": "4f4c96f2-ea13-4223-8565-0047bafbd2b1",
+          "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:solicitar_correcao_nf:comissionado_nf_rejeitada",
+          "tipo_evento": "comissionado_nf_rejeitada",
+          "ciclo_id": "2026-06-email-audit",
+          "resultado_id": "audit-pj-hudson",
+          "criado_em": "2026-06-15T12:43:02.320171+00:00"
+        },
+        "filas": [
+          {
+            "id": "44c51b62-1140-4a36-a67e-80a854190598",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "comissionado_nf_rejeitada",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "44c51b62-1140-4a36-a67e-80a854190598",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-aeed3edd-8fe1-4efa-bc29-4e1c2deb781e"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:solicitar_correcao_nf:comissionado_nf_rejeitada",
+      "criado_em": "2026-06-15T12:43:02.347950+00:00"
+    },
+    {
+      "acao": "reenviar_nf",
+      "resultado_id": "audit-pj-hudson",
+      "comissionado": "AUDITORIA PJ HUDSON",
+      "template": "secretaria_nf_recebida",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_nf",
+      "status_novo": "nf_em_validacao",
+      "status_nf_anterior": "solicitada",
+      "status_nf_novo": "recebida",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "0729b680-f9ab-4f96-9f7a-1b49251f2c98",
+        "criado_em": "2026-06-15T12:43:02.355047+00:00"
+      },
+      "notificacao": {
+        "id": "accbc175-5917-40fa-a5c6-e175e42ec7c9",
+        "evento_notificacao": {
+          "id": "15e089e8-ecd0-4e41-aa94-01c46bfd8b2f",
+          "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:reenviar_nf:secretaria_nf_recebida",
+          "tipo_evento": "secretaria_nf_recebida",
+          "ciclo_id": "2026-06-email-audit",
+          "resultado_id": "audit-pj-hudson",
+          "criado_em": "2026-06-15T12:43:02.363244+00:00"
+        },
+        "filas": [
+          {
+            "id": "001d0216-ed75-485f-807a-e345058b984d",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "secretaria_nf_recebida",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "001d0216-ed75-485f-807a-e345058b984d",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-a13fe275-dd09-4b19-b87e-f28bb1ac21d6"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:reenviar_nf:secretaria_nf_recebida",
+      "criado_em": "2026-06-15T12:43:02.388469+00:00"
+    },
+    {
+      "acao": "validar_nf",
+      "resultado_id": "audit-pj-hudson",
+      "comissionado": "AUDITORIA PJ HUDSON",
+      "template": "comissionado_nf_validada",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "nf_em_validacao",
+      "status_novo": "pronta_para_envio_pagamento",
+      "status_nf_anterior": "recebida",
+      "status_nf_novo": "validada",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "pronta_para_envio_pagamento",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "4cb08a0e-fbdd-44a2-9980-5afb3186ad39",
+        "criado_em": "2026-06-15T12:43:02.394800+00:00"
+      },
+      "notificacao": {
+        "id": "b020b013-1fbf-4cd5-8ec4-50b25c4ffbd6",
+        "evento_notificacao": {
+          "id": "afc9dcd6-ff2a-440c-91b3-d4b2dbdf4575",
+          "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:validar_nf:comissionado_nf_validada",
+          "tipo_evento": "comissionado_nf_validada",
+          "ciclo_id": "2026-06-email-audit",
+          "resultado_id": "audit-pj-hudson",
+          "criado_em": "2026-06-15T12:43:02.402367+00:00"
+        },
+        "filas": [
+          {
+            "id": "5c076744-40b4-48ee-9b4b-c11c38317d3b",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "comissionado_nf_validada",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "5c076744-40b4-48ee-9b4b-c11c38317d3b",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-e71c171e-ac19-4b9d-948b-8b7a5262e252"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:validar_nf:comissionado_nf_validada",
+      "criado_em": "2026-06-15T12:43:02.423792+00:00"
+    },
+    {
+      "acao": "enviar_pacote_pagamento_pj",
+      "resultado_id": "audit-pj-hudson",
+      "comissionado": "AUDITORIA PJ HUDSON",
+      "template": "financeiro_pacote_pj_enviado",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "pronta_para_envio_pagamento",
+      "status_novo": "enviada_pagamento",
+      "status_nf_anterior": "validada",
+      "status_nf_novo": "validada",
+      "status_financeiro_anterior": "pronta_para_envio_pagamento",
+      "status_financeiro_novo": "pacote_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "aguardando_pagamento",
+      "evento_negocio": {
+        "id": "0520fa57-84af-4526-ac12-580deed8d118",
+        "criado_em": "2026-06-15T12:43:02.429736+00:00"
+      },
+      "notificacao": {
+        "id": "58dfe598-6eaf-46ab-9663-59cc6d1f0402",
+        "evento_notificacao": {
+          "id": "05457266-78a5-45e3-88cb-df0c87e1ee1a",
+          "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:enviar_pacote_pagamento_pj:financeiro_pacote_pj_enviado",
+          "tipo_evento": "financeiro_pacote_pj_enviado",
+          "ciclo_id": "2026-06-email-audit",
+          "resultado_id": "audit-pj-hudson",
+          "criado_em": "2026-06-15T12:43:02.435616+00:00"
+        },
+        "filas": [
+          {
+            "id": "846602b9-27c5-466b-ab75-6c8f18ba3aa3",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "financeiro_pacote_pj_enviado",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "846602b9-27c5-466b-ab75-6c8f18ba3aa3",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-c4384855-bbaa-4893-88b4-46a2ed356edf"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615124301:audit-pj-hudson:enviar_pacote_pagamento_pj:financeiro_pacote_pj_enviado",
+      "criado_em": "2026-06-15T12:43:02.455582+00:00"
+    },
+    {
+      "acao": "enviar_head",
+      "resultado_id": "audit-clt-hudson",
+      "comissionado": "AUDITORIA CLT HUDSON",
+      "template": "head_aprovacao_pendente",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "calculado",
+      "status_novo": "aguardando_head_comercial",
+      "status_nf_anterior": "nao_aplicavel",
+      "status_nf_novo": "nao_aplicavel",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "nao_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "30e2152e-b776-439f-abf1-c7b097123165",
+        "criado_em": "2026-06-15T12:43:02.461868+00:00"
+      },
+      "notificacao": {
+        "id": "20b7ed08-c22a-498f-99a0-8bae07d49624",
+        "evento_notificacao": {
+          "id": "ce30f985-74ed-48e2-8884-1fb88252c22b",
+          "correlation_id": "comissionamento:auditoria:20260615124301:audit-clt-hudson:enviar_head:head_aprovacao_pendente",
+          "tipo_evento": "head_aprovacao_pendente",
+          "ciclo_id": "2026-06-email-audit",
+          "resultado_id": "audit-clt-hudson",
+          "criado_em": "2026-06-15T12:43:02.467863+00:00"
+        },
+        "filas": [
+          {
+            "id": "f3304df5-3d98-4a78-a25f-a8053729d54a",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "head_aprovacao_pendente",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "f3304df5-3d98-4a78-a25f-a8053729d54a",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-5437fb8d-9d4d-4f57-b1e7-72db06844c0f"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615124301:audit-clt-hudson:enviar_head:head_aprovacao_pendente",
+      "criado_em": "2026-06-15T12:43:02.488479+00:00"
+    },
+    {
+      "acao": "aprovar_head_clt",
+      "resultado_id": "audit-clt-hudson",
+      "comissionado": "AUDITORIA CLT HUDSON",
+      "template": "secretaria_pacote_pronto",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "aguardando_head_comercial",
+      "status_novo": "pronta_para_envio_pagamento",
+      "status_nf_anterior": "nao_aplicavel",
+      "status_nf_novo": "nao_aplicavel",
+      "status_financeiro_anterior": "nao_enviado",
+      "status_financeiro_novo": "pronta_para_envio_pagamento",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "nao_enviado",
+      "evento_negocio": {
+        "id": "05a6a934-c230-44c1-8db8-ea07ed67b8ef",
+        "criado_em": "2026-06-15T12:43:02.494032+00:00"
+      },
+      "notificacao": {
+        "id": "f58a6f4f-9534-417e-a2bc-bde4ff625e30",
+        "evento_notificacao": {
+          "id": "66f20a81-5fc7-405b-9fae-bb2591983142",
+          "correlation_id": "comissionamento:auditoria:20260615124301:audit-clt-hudson:aprovar_head_clt:secretaria_pacote_pronto",
+          "tipo_evento": "secretaria_pacote_pronto",
+          "ciclo_id": "2026-06-email-audit",
+          "resultado_id": "audit-clt-hudson",
+          "criado_em": "2026-06-15T12:43:02.499504+00:00"
+        },
+        "filas": [
+          {
+            "id": "ef89d798-caa1-4ff1-ae02-5159689f0dfa",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "secretaria_pacote_pronto",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "ef89d798-caa1-4ff1-ae02-5159689f0dfa",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-ab689b55-d970-4e1f-8a0f-54c9377f55af"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615124301:audit-clt-hudson:aprovar_head_clt:secretaria_pacote_pronto",
+      "criado_em": "2026-06-15T12:43:02.518679+00:00"
+    },
+    {
+      "acao": "enviar_pacote_pagamento_clt",
+      "resultado_id": "audit-clt-hudson",
+      "comissionado": "AUDITORIA CLT HUDSON",
+      "template": "rh_financeiro_pacote_clt_enviado",
+      "destinatario": "hudson.porto@7lm.com.br",
+      "status_anterior": "pronta_para_envio_pagamento",
+      "status_novo": "enviada_pagamento",
+      "status_nf_anterior": "nao_aplicavel",
+      "status_nf_novo": "nao_aplicavel",
+      "status_financeiro_anterior": "pronta_para_envio_pagamento",
+      "status_financeiro_novo": "pacote_enviado",
+      "status_pagamento_anterior": "nao_enviado",
+      "status_pagamento_novo": "aguardando_pagamento",
+      "evento_negocio": {
+        "id": "2ca7efb2-7d68-422b-a622-1b0e893c5964",
+        "criado_em": "2026-06-15T12:43:02.524429+00:00"
+      },
+      "notificacao": {
+        "id": "260a26df-8427-4531-a220-40ac38070a80",
+        "evento_notificacao": {
+          "id": "ca9c717b-2bd1-47b3-a6e0-39612fea4296",
+          "correlation_id": "comissionamento:auditoria:20260615124301:audit-clt-hudson:enviar_pacote_pagamento_clt:rh_financeiro_pacote_clt_enviado",
+          "tipo_evento": "rh_financeiro_pacote_clt_enviado",
+          "ciclo_id": "2026-06-email-audit",
+          "resultado_id": "audit-clt-hudson",
+          "criado_em": "2026-06-15T12:43:02.532614+00:00"
+        },
+        "filas": [
+          {
+            "id": "84743132-709d-404e-b9d4-fb0f5d83d9bf",
+            "status": "pendente",
+            "destinatario_email": "hudson.porto@7lm.com.br",
+            "template_codigo": "rh_financeiro_pacote_clt_enviado",
+            "template_versao": 1
+          }
+        ]
+      },
+      "filas_processadas": [
+        {
+          "id": "84743132-709d-404e-b9d4-fb0f5d83d9bf",
+          "status": "simulado",
+          "tentativas": 1,
+          "provider_message_id": "dry-run-ff7c6d79-7729-419d-ad7a-faa4783ee21d"
+        }
+      ],
+      "correlation_id": "comissionamento:auditoria:20260615124301:audit-clt-hudson:enviar_pacote_pagamento_clt:rh_financeiro_pacote_clt_enviado",
+      "criado_em": "2026-06-15T12:43:02.564199+00:00"
+    }
+  ],
+  "negativos": [
+    {
+      "cenario": "CLT tentando solicitar NF",
+      "resultado": "bloqueado_esperado",
+      "motivo": "Resultado CLT possui exige_nf=false; nenhuma notificacao de NF foi criada.",
+      "resultado_id": "audit-clt-hudson",
+      "fila_criada": false,
+      "timestamp": "2026-06-15T12:43:02.565889+00:00"
+    },
+    {
+      "cenario": "Destinatario fora da allowlist",
+      "resultado": "bloqueado_esperado",
+      "motivo": "Nenhum destinatario permitido pela allowlist de teste.",
+      "destinatario": "fora.allowlist@example.com",
+      "fila_criada": false,
+      "timestamp": "2026-06-15T12:43:02.567596+00:00"
+    },
+    {
+      "cenario": "pagamento_concluido nao gera e-mail",
+      "resultado": "bloqueado_esperado",
+      "motivo": "Escopo da auditoria para em pacote_pagamento_enviado; nenhuma notificacao foi criada.",
+      "evento_negocio": {
+        "id": "8f1165fe-481a-4a56-898e-9f5c731b5aa4",
+        "criado_em": "2026-06-15T12:43:02.570097+00:00"
+      },
+      "fila_criada": false,
+      "timestamp": "2026-06-15T12:43:02.571928+00:00"
+    }
+  ],
+  "contagens": {
+    "eventos_esperados": 14,
+    "emails_esperados": 11,
+    "emails_aceitos_graph": 0,
+    "emails_simulados": 11,
+    "falhas_permanentes": 0,
+    "falhas_retry": 0,
+    "bloqueios_esperados": 3
+  },
+  "gerado_em": "2026-06-15T12:43:02.572001+00:00"
+}

@@ -1,0 +1,1492 @@
+/**
+ * Autor: Willian Elias Franca
+ * Projeto: 7LM Connect - Plataforma Integrada
+ */
+
+const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
+const http = require("http");
+const https = require("https");
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const session = require("express-session");
+const dotenv = require("dotenv");
+const fetch = global.fetch || require("node-fetch");
+const { renderizarSidebarPortal } = require("./componentes/sidebar_portal");
+
+const fsp = fs.promises;
+let ConfidentialClientApplication = null;
+const agentHttpKeepAlive = new http.Agent({
+  keepAlive: true,
+  maxSockets: 64,
+});
+const agentHttpsKeepAlive = new https.Agent({
+  keepAlive: true,
+  maxSockets: 64,
+});
+
+try {
+  ({ ConfidentialClientApplication } = require("@azure/msal-node"));
+} catch (erro) {
+  ConfidentialClientApplication = null;
+}
+
+function carregarEnv() {
+  const basePortal = path.resolve(__dirname, "..");
+  const candidatos = [
+    path.join(basePortal, ".env"),
+    path.resolve(basePortal, "..", ".env"),
+  ];
+
+  for (const caminho of candidatos) {
+    if (fs.existsSync(caminho)) {
+      dotenv.config({ path: caminho });
+      return caminho;
+    }
+  }
+
+  dotenv.config();
+  return null;
+}
+
+function lerBooleanoEnv(nome, padrao = false) {
+  const valor = process.env[nome];
+  if (valor === undefined || valor === null || String(valor).trim() === "") {
+    return padrao;
+  }
+
+  return ["1", "true", "yes", "y", "on", "sim"].includes(String(valor).trim().toLowerCase());
+}
+
+function lerTextoEnv(candidatos, padrao = "") {
+  for (const nome of candidatos) {
+    const valor = process.env[nome];
+    if (valor === undefined || valor === null) continue;
+    const texto = String(valor).trim();
+    if (texto) return texto;
+  }
+
+  return padrao;
+}
+
+function lerBooleanoEnvComAlias(candidatos, padrao = false) {
+  for (const nome of candidatos) {
+    const valor = process.env[nome];
+    if (valor === undefined || valor === null || String(valor).trim() === "") {
+      continue;
+    }
+
+    return ["1", "true", "yes", "y", "on", "sim"].includes(String(valor).trim().toLowerCase());
+  }
+
+  return padrao;
+}
+
+function gerarTokenAleatorio() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function normalizarTexto(valor) {
+  return String(valor || "").trim();
+}
+
+function base64Json(valor) {
+  return Buffer.from(JSON.stringify(valor), "utf8").toString("base64");
+}
+
+function coletarValoresComoTexto(...candidatos) {
+  const itens = [];
+
+  for (const candidato of candidatos) {
+    if (Array.isArray(candidato)) {
+      for (const item of candidato) {
+        const texto = normalizarTexto(item);
+        if (texto) itens.push(texto);
+      }
+      continue;
+    }
+
+    const texto = normalizarTexto(candidato);
+    if (texto) itens.push(texto);
+  }
+
+  return itens;
+}
+
+function montarIdentificadoresFederados(claims) {
+  const identificadores = new Set();
+  const dados = claims || {};
+
+  for (const valorOriginal of coletarValoresComoTexto(
+    dados.preferred_username,
+    dados.email,
+    dados.upn,
+    dados.unique_name,
+    dados.emails
+  )) {
+    const valor = valorOriginal.toLowerCase();
+    identificadores.add(valor);
+
+    const arroba = valor.indexOf("@");
+    if (arroba > 0) {
+      identificadores.add(valor.slice(0, arroba));
+    }
+  }
+
+  return Array.from(identificadores);
+}
+
+function normalizarBasePath(valor) {
+  const texto = normalizarTexto(valor);
+  if (!texto || texto === "/") return "";
+  return `/${texto.replace(/^\/+|\/+$/g, "")}`;
+}
+
+function aplicarBasePath(basePath, caminho = "/") {
+  const texto = normalizarTexto(caminho) || "/";
+  const normalizado = texto.startsWith("/") ? texto : `/${texto}`;
+  if (!basePath) {
+    return normalizado === "//" ? "/" : normalizado;
+  }
+  return normalizado === "/" ? basePath : `${basePath}${normalizado}`;
+}
+
+function mimePorExtensao(extensao) {
+  switch (extensao) {
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".js":
+      return "application/javascript; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".json":
+      return "application/json; charset=utf-8";
+    case ".svg":
+      return "image/svg+xml";
+    default:
+      return null;
+  }
+}
+
+function garantirBarraInicial(valor = "") {
+  const texto = String(valor || "");
+  return texto.startsWith("/") ? texto : `/${texto}`;
+}
+
+function normalizarRotaPublica(valor = "/") {
+  const texto = garantirBarraInicial(valor);
+  return texto.replace(/\/{2,}/g, "/");
+}
+
+function caminhoRelativoSeguro(caminhoUrl) {
+  const normalizado = path.posix.normalize(garantirBarraInicial(caminhoUrl));
+  if (normalizado.includes("..")) return null;
+  return normalizado.replace(/^\/+/, "");
+}
+
+function resolverDentroDaPasta(base, relativo) {
+  const absoluto = path.resolve(base, relativo);
+  const relativoParaBase = path.relative(base, absoluto);
+  if (!relativoParaBase || relativoParaBase === "") {
+    return absoluto;
+  }
+  if (relativoParaBase.startsWith("..") || path.isAbsolute(relativoParaBase)) {
+    return null;
+  }
+  return absoluto;
+}
+
+function listarArquivosRecursivos(base) {
+  const itens = [];
+  const pilha = [base];
+
+  while (pilha.length > 0) {
+    const atual = pilha.pop();
+    if (!atual || !fs.existsSync(atual)) continue;
+
+    for (const entrada of fs.readdirSync(atual, { withFileTypes: true })) {
+      const caminho = path.join(atual, entrada.name);
+      if (entrada.isDirectory()) {
+        pilha.push(caminho);
+        continue;
+      }
+      if (entrada.isFile()) itens.push(caminho);
+    }
+  }
+
+  return itens;
+}
+
+function obterAgenteKeepAlive(url) {
+  const texto = normalizarTexto(url);
+  return texto.startsWith("https://") ? agentHttpsKeepAlive : agentHttpKeepAlive;
+}
+
+const envPath = carregarEnv();
+
+const PORTA = Number(lerTextoEnv(["SEVENLM_CONNECT_PORTA_DO_PORTAL", "PORTA_DO_PORTAL"], "3000"));
+const API_BASE = normalizarTexto(
+  lerTextoEnv(["SEVENLM_CONNECT_URL_API", "SEVENLM_CONNECT_URL_API"], "http://127.0.0.1:8000")
+).replace(/\/$/, "");
+const AMBIENTE = normalizarTexto(process.env.AMBIENTE || "desenvolvimento");
+const BASE_PATH = normalizarBasePath(
+  lerTextoEnv(["SEVENLM_CONNECT_BASE_PATH", "SEVENLM_CONNECT_BASE_PATH"], "")
+);
+const HOME_URL = aplicarBasePath(BASE_PATH, "/");
+const LOGIN_URL = aplicarBasePath(BASE_PATH, "/acesso");
+const LOGIN_MODAL_URL = `${HOME_URL}?abrir_login=1`;
+
+function montarUrlModalDeLogin(mensagem = "") {
+  const params = new URLSearchParams();
+  params.set("abrir_login", "1");
+  if (mensagem) {
+    params.set("erro_msg", String(mensagem));
+  }
+  return `${HOME_URL}?${params.toString()}`;
+}
+
+const ENTRA_ID_HABILITADO = lerBooleanoEnvComAlias(
+  ["SEVENLM_CONNECT_ENTRA_ID_HABILITADO", "SEVENLM_CONNECT_ENTRA_ID_HABILITADO"],
+  false
+);
+const ENTRA_TENANT_ID = normalizarTexto(
+  lerTextoEnv(["SEVENLM_CONNECT_ENTRA_TENANT_ID", "SEVENLM_CONNECT_ENTRA_TENANT_ID"])
+);
+const ENTRA_CLIENT_ID = normalizarTexto(
+  lerTextoEnv(["SEVENLM_CONNECT_ENTRA_CLIENT_ID", "SEVENLM_CONNECT_ENTRA_CLIENT_ID"])
+);
+const ENTRA_CLIENT_SECRET = normalizarTexto(
+  lerTextoEnv(["SEVENLM_CONNECT_ENTRA_CLIENT_SECRET", "SEVENLM_CONNECT_ENTRA_CLIENT_SECRET"])
+);
+const ENTRA_REDIRECT_URI = normalizarTexto(
+  lerTextoEnv(["SEVENLM_CONNECT_ENTRA_REDIRECT_URI", "SEVENLM_CONNECT_ENTRA_REDIRECT_URI"]) ||
+    `http://localhost:${PORTA}${aplicarBasePath(BASE_PATH, "/auth/entra/redirect")}`
+);
+const ENTRA_POST_LOGOUT_REDIRECT_URI = normalizarTexto(
+  lerTextoEnv(
+    ["SEVENLM_CONNECT_ENTRA_POST_LOGOUT_REDIRECT_URI", "SEVENLM_CONNECT_ENTRA_POST_LOGOUT_REDIRECT_URI"]
+  ) ||
+    `http://localhost:${PORTA}${LOGIN_URL}`
+);
+const ENTRA_SCOPES = coletarValoresComoTexto(
+  String(
+    lerTextoEnv(["SEVENLM_CONNECT_ENTRA_SCOPES", "SEVENLM_CONNECT_ENTRA_SCOPES"], "openid profile email")
+  ).split(/[,\s]+/)
+);
+const ENTRA_BRIDGE_SECRET = normalizarTexto(
+  lerTextoEnv(["SEVENLM_CONNECT_ENTRA_BRIDGE_SECRET", "SEVENLM_CONNECT_ENTRA_BRIDGE_SECRET"])
+);
+const SESSION_SECRET =
+  normalizarTexto(lerTextoEnv(["SEVENLM_CONNECT_SESSION_SECRET", "SEVENLM_CONNECT_SESSION_SECRET"])) ||
+  gerarTokenAleatorio();
+const ENTRA_AUTHORITY = ENTRA_TENANT_ID
+  ? `https://login.microsoftonline.com/${ENTRA_TENANT_ID}`
+  : "";
+const OFUSCAR_FRONT = lerBooleanoEnvComAlias(
+  ["SEVENLM_CONNECT_OFUSCAR_FRONT", "SEVENLM_CONNECT_OFUSCAR_FRONT"],
+  true
+);
+
+const ENTRA_CONFIGURADO = Boolean(
+  ENTRA_ID_HABILITADO &&
+    ENTRA_TENANT_ID &&
+    ENTRA_CLIENT_ID &&
+    ENTRA_CLIENT_SECRET &&
+    ENTRA_REDIRECT_URI &&
+    ENTRA_BRIDGE_SECRET &&
+    ConfidentialClientApplication
+);
+
+const clienteEntra = ENTRA_CONFIGURADO
+  ? new ConfidentialClientApplication({
+      auth: {
+        clientId: ENTRA_CLIENT_ID,
+        authority: ENTRA_AUTHORITY,
+        clientSecret: ENTRA_CLIENT_SECRET,
+      },
+    })
+  : null;
+
+const app = express();
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.setHeader("x-content-type-options", "nosniff");
+  res.setHeader("x-frame-options", "SAMEORIGIN");
+  res.setHeader("referrer-policy", "strict-origin-when-cross-origin");
+  res.setHeader(
+    "permissions-policy",
+    "accelerometer=(), autoplay=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+  );
+  res.setHeader("cross-origin-opener-policy", "same-origin");
+  res.setHeader("cross-origin-resource-policy", "same-origin");
+  res.setHeader("origin-agent-cluster", "?1");
+  res.setHeader("x-robots-tag", "noindex, nofollow, noarchive, nosnippet");
+  res.setHeader("content-security-policy", montarCabecalhoContentSecurityPolicy());
+  return next();
+});
+app.use(express.json({ limit: "1mb" }));
+app.use(cookieParser());
+app.use(
+  session({
+    name: "sevenlm_connect_portal_session",
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    proxy: true,
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: AMBIENTE === "producao",
+      path: BASE_PATH || "/",
+      maxAge: 15 * 60 * 1000,
+    },
+  })
+);
+
+const pastaPublica = path.resolve(__dirname, "..", "02_publico");
+const EMBUTIR_ASSETS_HTML = lerBooleanoEnvComAlias(
+  ["SEVENLM_CONNECT_EMBUTIR_ASSETS_HTML", "SEVENLM_CONNECT_EMBUTIR_ASSETS_HTML"],
+  true
+);
+const extensoesAssetsOfuscados = new Set([
+  ".css",
+  ".js",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".gif",
+  ".svg",
+  ".ico",
+  ".avif",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".otf",
+  ".eot",
+]);
+const aliasPorArquivoPublico = new Map();
+const arquivoPublicoPorAlias = new Map();
+const caminhosExperience = [
+  path.join(pastaPublica, "02_recursos", "01_estilos", "experiencia"),
+  path.join(pastaPublica, "02_recursos", "02_scripts", "experiencia"),
+  path.join(pastaPublica, "02_recursos", "03_imagens", "experiencia"),
+  path.join(pastaPublica, "02_recursos", "03_imagens"),
+];
+const caminhosSemAssetsEmbutidos = new Set(["/01_paginas/entrada.html"]);
+
+const rotasAmigaveis = new Map([
+  ["/", "01_paginas/entrada.html"],
+  ["/acesso", "01_paginas/acesso.html"],
+  ["/inicio", "01_paginas/inicio.html"],
+  ["/comercial", "01_paginas/Operacoes/catalogo.html"],
+  ["/comercial/imoveis", "01_paginas/Imoveis/listagem.html"],
+  ["/comercial/imoveis/cadastro", "01_paginas/Imoveis/cadastro.html"],
+  ["/comercial/clientes", "01_paginas/Clientes/cadastro.html"],
+  ["/comercial/simulador", "01_paginas/Comercial/simulador.html"],
+  ["/financeiro", "01_paginas/Financeiro/visao_geral.html"],
+  ["/configuracoes", "01_paginas/configuracoes_do_usuario.html"],
+  ["/administracao", "01_paginas/Administracao/acessos.html"],
+  ["/administracao/acessos", "01_paginas/Administracao/acessos.html"],
+]);
+
+const redirecionamentosAmigaveis = new Map([
+  ["/apresentacao", "/"],
+  ["/entrada.html", "/"],
+  ["/acesso.html", "/acesso"],
+  ["/inicio.html", "/inicio"],
+  ["/plataforma", "/comercial/imoveis"],
+  ["/plataforma/", "/comercial/imoveis"],
+  ["/comercial", "/comercial/imoveis"],
+  ["/comercial/", "/comercial/imoveis"],
+  ["/imoveis", "/comercial/imoveis"],
+  ["/imoveis/", "/comercial/imoveis"],
+  ["/imoveis/cadastro", "/comercial/imoveis/cadastro"],
+  ["/imoveis/cadastro/", "/comercial/imoveis/cadastro"],
+  ["/comercial/imoveis/", "/comercial/imoveis"],
+  ["/comercial/imoveis/cadastro/", "/comercial/imoveis/cadastro"],
+  ["/comercial/clientes/", "/comercial/clientes"],
+  ["/comercial/simulador/", "/comercial/simulador"],
+  ["/clientes", "/comercial/clientes"],
+  ["/clientes/", "/comercial/clientes"],
+  ["/simulador", "/comercial/simulador"],
+  ["/simulador/", "/comercial/simulador"],
+  ["/financeiro/", "/financeiro"],
+  ["/01_paginas/Imoveis/listagem.html", "/comercial/imoveis"],
+  ["/01_paginas/Imoveis/cadastro.html", "/comercial/imoveis/cadastro"],
+  ["/01_paginas/Clientes/cadastro.html", "/comercial/clientes"],
+  ["/01_paginas/Comercial/simulador.html", "/comercial/simulador"],
+  ["/paineis/hora-a-hora", "/comercial/imoveis"],
+  ["/paineis/agente", "/comercial/imoveis"],
+  ["/paineis/habilidade", "/comercial/imoveis"],
+  ["/painel.html", "/comercial/imoveis"],
+  ["/painel_hora_a_hora.html", "/comercial/imoveis"],
+  ["/painel_por_agente.html", "/comercial/imoveis"],
+  ["/painel_por_habilidade.html", "/comercial/imoveis"],
+  ["/operacional", "/comercial/imoveis"],
+  ["/configuracoes_do_usuario.html", "/configuracoes"],
+  ["/RH/index.html", "/inicio"],
+  ["/pesquisa.html", "/inicio"],
+  ["/RH/pesquisa.html", "/inicio"],
+  ["/pesquisa-lideranca.html", "/inicio"],
+  ["/RH/pesquisa-lideranca.html", "/inicio"],
+  ["/pesquisa-bem-estar-seguranca.html", "/inicio"],
+  ["/RH/pesquisa-bem-estar-seguranca.html", "/inicio"],
+  ["/pesquisa-valores-propositos.html", "/inicio"],
+  ["/RH/pesquisa-valores-propositos.html", "/inicio"],
+  ["/pesquisa-reconhecimento-promocao-crescimento.html", "/inicio"],
+  ["/RH/pesquisa-reconhecimento-promocao-crescimento.html", "/inicio"],
+  ["/pesquisa-comunicacao.html", "/inicio"],
+  ["/RH/pesquisa-comunicacao.html", "/inicio"],
+  ["/pesquisa-demograficos.html", "/inicio"],
+  ["/RH/pesquisa-demograficos.html", "/inicio"],
+  ["/Administracao/acessos.html", "/administracao/acessos"],
+  ["/01_paginas/entrada.html", "/"],
+  ["/01_paginas/acesso.html", "/acesso"],
+  ["/01_paginas/inicio.html", "/inicio"],
+  ["/01_paginas/painel.html", "/comercial/imoveis"],
+  ["/01_paginas/painel_hora_a_hora.html", "/comercial/imoveis"],
+  ["/01_paginas/painel_por_agente.html", "/comercial/imoveis"],
+  ["/01_paginas/painel_por_habilidade.html", "/comercial/imoveis"],
+  ["/01_paginas/configuracoes_do_usuario.html", "/configuracoes"],
+  ["/01_paginas/RH/index.html", "/inicio"],
+  ["/01_paginas/Administracao/acessos.html", "/administracao/acessos"],
+  ["/01_paginas/experiencia_sevenlm_connect.html", "/inicio"],
+  ["/01_paginas/Operacoes/catalogo.html", "/comercial/imoveis"],
+]);
+
+function construirAliasDeArquivoPublico(caminhoPublico) {
+  const extensao = path.posix.extname(caminhoPublico).toLowerCase();
+  const hash = crypto.createHash("sha1").update(caminhoPublico).digest("hex").slice(0, 20);
+  return `/_r/${hash}${extensao}`;
+}
+
+function registrarAliasDeArquivoPublico(caminhoPublico) {
+  const caminhoNormalizado = normalizarRotaPublica(caminhoPublico);
+  const extensao = path.posix.extname(caminhoNormalizado).toLowerCase();
+  if (!extensoesAssetsOfuscados.has(extensao)) {
+    return null;
+  }
+
+  const aliasExistente = aliasPorArquivoPublico.get(caminhoNormalizado);
+  if (aliasExistente) {
+    return aliasExistente;
+  }
+
+  const alias = construirAliasDeArquivoPublico(caminhoNormalizado);
+  aliasPorArquivoPublico.set(caminhoNormalizado, alias);
+  arquivoPublicoPorAlias.set(alias, caminhoNormalizado);
+  return alias;
+}
+
+function registrarAliasesIniciaisDosArquivosPublicos() {
+  for (const caminhoArquivo of listarArquivosRecursivos(pastaPublica)) {
+    const relativo = path.relative(pastaPublica, caminhoArquivo).split(path.sep).join("/");
+    registrarAliasDeArquivoPublico(`/${relativo}`);
+  }
+}
+
+registrarAliasesIniciaisDosArquivosPublicos();
+
+function montarPaginaBridge(payload, destino) {
+  const envelopeBase64 = base64Json({
+    payload,
+    destino,
+  });
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>7LM - autenticando</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #08121f;
+      color: #f4f7fb;
+      font-family: Arial, sans-serif;
+    }
+    .box {
+      width: min(92vw, 480px);
+      padding: 28px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 1.15rem;
+    }
+    p {
+      margin: 0;
+      color: rgba(244, 247, 251, 0.82);
+      line-height: 1.55;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Concluindo seu acesso</h1>
+    <p>Estamos preparando sua sessao segura e redirecionando voce para o ambiente 7LM.</p>
+  </div>
+  <script id="sevenlm-connect-entra-payload" type="application/json">${envelopeBase64}</script>
+  <script>
+    (function () {
+      try {
+        var raw = document.getElementById("sevenlm-connect-entra-payload").textContent || "";
+        var envelope = JSON.parse(atob(raw));
+        var payload = envelope && envelope.payload ? envelope.payload : {};
+        var destino = (envelope && envelope.destino) || "${aplicarBasePath(BASE_PATH, "/inicio")}";
+        var access = payload.token_de_acesso || payload.access_token || payload.token || "";
+        var refresh = payload.token_de_renovacao || payload.refresh_token || "";
+
+        if (!access) {
+          window.location.replace("${LOGIN_URL}?erro_msg=" + encodeURIComponent("O login Microsoft nao retornou token interno do portal."));
+          return;
+        }
+
+        sessionStorage.setItem("sevenlm_connect_token_de_acesso", access);
+        sessionStorage.setItem("sevenlm_connect_token_de_acesso", access);
+        if (refresh) {
+          sessionStorage.setItem("sevenlm_connect_token_de_renovacao", refresh);
+          sessionStorage.setItem("sevenlm_connect_token_de_renovacao", refresh);
+        }
+        if (payload.usuario) {
+          var usuarioSerializado = JSON.stringify(payload.usuario);
+          sessionStorage.setItem("sevenlm_connect_usuario", usuarioSerializado);
+          sessionStorage.setItem("sevenlm_connect_usuario", usuarioSerializado);
+        }
+        var loginAt = new Date().toISOString();
+        sessionStorage.setItem("sevenlm_connect_login_at", loginAt);
+        sessionStorage.setItem("sevenlm_connect_login_at", loginAt);
+        sessionStorage.setItem("sevenlm_connect_provedor_login", "entra_id");
+        sessionStorage.setItem("sevenlm_connect_provedor_login", "entra_id");
+
+        function safeJson(response) {
+          return response.text().then(function (text) {
+            if (!text) return {};
+            try {
+              return JSON.parse(text);
+            } catch (_) {
+              return {};
+            }
+          }).catch(function () {
+            return {};
+          });
+        }
+
+        function resolverDestinoAposLogin() {
+          var headers = {
+            "Accept": "application/json",
+            "Authorization": "Bearer " + access
+          };
+
+          return fetch("${aplicarBasePath(BASE_PATH, "/api/admin/contexto")}", {
+            method: "GET",
+            cache: "no-store",
+            credentials: "same-origin",
+            headers: headers
+          }).then(function (respostaAdmin) {
+            return safeJson(respostaAdmin).then(function (payloadAdmin) {
+              if (respostaAdmin.ok && payloadAdmin && payloadAdmin.allowed) {
+                return "${aplicarBasePath(BASE_PATH, "/administracao/acessos")}";
+              }
+              return destino;
+            });
+          }).catch(function () {
+            return destino;
+          });
+        }
+
+        resolverDestinoAposLogin().then(function (destinoFinal) {
+          window.location.replace(destinoFinal || destino);
+        });
+      } catch (erro) {
+        window.location.replace("${LOGIN_URL}?erro_msg=" + encodeURIComponent("Falha ao concluir o login Microsoft no navegador."));
+      }
+    })();
+  </script>
+</body>
+</html>`;
+}
+
+function reescreverUrlRelativaHtml(url, caminhoPublico = "/") {
+  const valor = String(url || "");
+  if (
+    !valor ||
+    valor.startsWith("#") ||
+    valor.startsWith("//") ||
+    /^[a-z][a-z0-9+.-]*:/i.test(valor)
+  ) {
+    return valor;
+  }
+
+  const matchRecursos = valor.match(/^(?:\.\.\/)+(02_recursos\/.+)$/i);
+  if (matchRecursos) {
+    return aplicarBasePath(BASE_PATH, `/${matchRecursos[1]}`);
+  }
+
+  return valor;
+}
+
+function quebrarUrlLocal(url) {
+  const valor = String(url || "");
+  if (
+    !valor ||
+    valor.startsWith("#") ||
+    valor.startsWith("//") ||
+    /^[a-z][a-z0-9+.-]*:/i.test(valor)
+  ) {
+    return null;
+  }
+
+  const match = valor.match(/^([^?#]*)(\?[^#]*)?(#.*)?$/);
+  const pathnameOriginal = normalizarTexto(match && match[1]);
+  if (!pathnameOriginal.startsWith("/")) {
+    return null;
+  }
+
+  let pathnameSemBase = pathnameOriginal;
+  if (BASE_PATH && pathnameSemBase === BASE_PATH) {
+    pathnameSemBase = "/";
+  } else if (BASE_PATH && pathnameSemBase.startsWith(`${BASE_PATH}/`)) {
+    pathnameSemBase = pathnameSemBase.slice(BASE_PATH.length);
+  }
+
+  return {
+    pathnameNormalizado: normalizarRotaPublica(pathnameSemBase),
+    query: match && match[2] ? match[2] : "",
+    hash: match && match[3] ? match[3] : "",
+  };
+}
+
+function protegerUrlDeAssetPublico(url) {
+  if (!OFUSCAR_FRONT) {
+    return url;
+  }
+
+  const partes = quebrarUrlLocal(url);
+  if (!partes) {
+    return url;
+  }
+
+  const alias = aliasPorArquivoPublico.get(partes.pathnameNormalizado);
+  if (!alias) {
+    return url;
+  }
+
+  return `${aplicarBasePath(BASE_PATH, alias)}${partes.query}${partes.hash}`;
+}
+
+function resolverUrlLocalContraContexto(url, caminhoPublico = "/") {
+  const valor = String(url || "");
+  if (
+    !valor ||
+    valor.startsWith("#") ||
+    valor.startsWith("%23") ||
+    valor.startsWith("//") ||
+    /^[a-z][a-z0-9+.-]*:/i.test(valor) ||
+    valor.startsWith("data:") ||
+    valor.startsWith("blob:")
+  ) {
+    return null;
+  }
+
+  const match = valor.match(/^([^?#]*)(\?[^#]*)?(#.*)?$/);
+  const pathnameOriginal = normalizarTexto(match && match[1]);
+  const query = match && match[2] ? match[2] : "";
+  const hash = match && match[3] ? match[3] : "";
+
+  let pathnameNormalizado = "";
+  if (pathnameOriginal.startsWith("/")) {
+    const partes = quebrarUrlLocal(pathnameOriginal);
+    if (!partes) return null;
+    pathnameNormalizado = partes.pathnameNormalizado;
+  } else {
+    const pastaBase = path.posix.dirname(normalizarRotaPublica(caminhoPublico));
+    pathnameNormalizado = normalizarRotaPublica(path.posix.join(pastaBase, pathnameOriginal));
+  }
+
+  return {
+    pathnameNormalizado,
+    query,
+    hash,
+  };
+}
+
+function reescreverUrlCss(url, caminhoPublico = "/") {
+  const partes = resolverUrlLocalContraContexto(url, caminhoPublico);
+  if (!partes) {
+    return url;
+  }
+
+  const alias = OFUSCAR_FRONT ? aliasPorArquivoPublico.get(partes.pathnameNormalizado) : null;
+  const caminhoFinal = alias
+    ? aplicarBasePath(BASE_PATH, alias)
+    : aplicarBasePath(BASE_PATH, partes.pathnameNormalizado);
+
+  return `${caminhoFinal}${partes.query}${partes.hash}`;
+}
+
+function reescreverConteudoCssPublico(conteudo, caminhoPublico = "/") {
+  let resultado = String(conteudo || "");
+  const placeholdersDataUrl = [];
+
+  resultado = resultado.replace(/url\(\s*(["'])data:[\s\S]*?\1\s*\)/gi, (trecho) => {
+    const token = `__SEVENLM_CONNECT_DATA_URL_${placeholdersDataUrl.length}__`;
+    placeholdersDataUrl.push([token, trecho]);
+    return token;
+  });
+
+  resultado = resultado.replace(/url\(\s*(["']?)([^)"']+)\1\s*\)/gi, (trecho, aspas, url) => {
+    const urlReescrita = reescreverUrlCss(url, caminhoPublico);
+    return `url("${urlReescrita}")`;
+  });
+
+  resultado = resultado.replace(/@import\s+(?:url\()?["']([^"']+)["']\)?/gi, (trecho, url) => {
+    const urlReescrita = reescreverUrlCss(url, caminhoPublico);
+    return `@import url("${urlReescrita}")`;
+  });
+
+  for (const [token, trecho] of placeholdersDataUrl) {
+    resultado = resultado.replace(token, () => trecho);
+  }
+
+  return resultado;
+}
+
+function resolverArquivoLocalDoHtml(url, caminhoPublico = "/") {
+  const partes = resolverUrlLocalContraContexto(url, caminhoPublico);
+  if (!partes) {
+    return null;
+  }
+
+  const caminhoArquivo = resolverArquivoPortal(partes.pathnameNormalizado);
+  if (!caminhoArquivo || !fs.existsSync(caminhoArquivo) || !fs.statSync(caminhoArquivo).isFile()) {
+    return null;
+  }
+
+  return {
+    caminhoArquivo,
+    caminhoPublico: partes.pathnameNormalizado,
+  };
+}
+
+function escaparConteudoParaScriptInline(conteudo) {
+  return String(conteudo || "").replace(/<\/script/gi, "<\\/script");
+}
+
+function escaparConteudoParaStyleInline(conteudo) {
+  return String(conteudo || "").replace(/<\/style/gi, "<\\/style");
+}
+
+function embutirAssetsLocaisNoHtml(conteudo, caminhoPublico = "/") {
+  const caminhoNormalizado = normalizarRotaPublica(caminhoPublico || "/");
+
+  // A homepage importada da Find carrega muitos bundles e deve continuar externa
+  // para evitar respostas HTML enormes e manter o carregamento previsivel.
+  if (!EMBUTIR_ASSETS_HTML || caminhosSemAssetsEmbutidos.has(caminhoNormalizado)) {
+    return String(conteudo || "");
+  }
+
+  let resultado = String(conteudo || "");
+
+  resultado = resultado.replace(
+    /<link\b(?=[^>]*\brel=["']stylesheet["'])(?=[^>]*\bhref=["']([^"']+)["'])[^>]*>/gi,
+    (tag, href) => {
+      const alvo = resolverArquivoLocalDoHtml(href, caminhoPublico);
+      if (!alvo) {
+        return tag;
+      }
+
+      const bruto = fs.readFileSync(alvo.caminhoArquivo, "utf8");
+      const cssProcessado = reescreverConteudoPublico(bruto, {
+        caminhoPublico: alvo.caminhoPublico,
+        extensao: ".css",
+      });
+
+      return `<style data-inline-asset="style">${escaparConteudoParaStyleInline(cssProcessado)}</style>`;
+    }
+  );
+
+  resultado = resultado.replace(
+    /<script\b(?=[^>]*\bsrc=["']([^"']+)["'])([^>]*)>\s*<\/script>/gi,
+    (tag, src) => {
+      const alvo = resolverArquivoLocalDoHtml(src, caminhoPublico);
+      if (!alvo) {
+        return tag;
+      }
+
+      const bruto = fs.readFileSync(alvo.caminhoArquivo, "utf8");
+      const jsProcessado = reescreverConteudoPublico(bruto, {
+        caminhoPublico: alvo.caminhoPublico,
+        extensao: ".js",
+      });
+
+      return `<script data-inline-asset="script">${escaparConteudoParaScriptInline(jsProcessado)}</script>`;
+    }
+  );
+
+  return resultado;
+}
+
+function minificarHtmlConservador(conteudo) {
+  const blocosPreservados = [];
+  const tokenizarBloco = (trecho) => {
+    const token = `__SEVENLM_CONNECT_HTML_BLOCO_${blocosPreservados.length}__`;
+    blocosPreservados.push([token, trecho]);
+    return token;
+  };
+
+  let resultado = String(conteudo || "").replace(
+    /<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi,
+    tokenizarBloco
+  );
+
+  resultado = resultado
+    .replace(/<!--(?!\s*\[if|\s*<!|\s*\[endif)[\s\S]*?-->/g, "")
+    .replace(/>\s+</g, "><")
+    .replace(/\r?\n+/g, "")
+    .trim();
+
+  for (const [token, trecho] of blocosPreservados) {
+    resultado = resultado.replace(token, () => trecho);
+  }
+
+  return resultado;
+}
+
+function montarCabecalhoContentSecurityPolicy() {
+  const diretivas = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'self'",
+    "form-action 'self' https://login.microsoftonline.com",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "connect-src 'self' https:",
+  ];
+
+  return diretivas.join("; ");
+}
+
+function reescreverConteudoPublico(conteudo, opcoes = {}) {
+  const caminhoPublico = normalizarRotaPublica(opcoes.caminhoPublico || "/");
+  const extensao = String(opcoes.extensao || "").toLowerCase();
+  let resultado = String(conteudo || "");
+
+  if (extensao === ".html" && /\btl-sidebar\b/i.test(resultado)) {
+    resultado = resultado.replace(
+      /<aside\b[^>]*class=["'][^"']*\btl-sidebar\b[^"']*["'][\s\S]*?<\/aside>/i,
+      renderizarSidebarPortal(caminhoPublico, { basePath: BASE_PATH })
+    );
+  }
+
+  resultado = resultado.replace(
+    /(<meta\s+name=["']sevenlm-connect-api-base-url["']\s+content=["'])http:\/\/127\.0\.0\.1:8000(["'][^>]*>)/gi,
+    "$1$2"
+  );
+
+  resultado = resultado.replace(/http:\/\/127\.0\.0\.1:8000\/api/g, aplicarBasePath(BASE_PATH, "/api"));
+
+  if (BASE_PATH) {
+    resultado = resultado.replace(
+      /(^|[\s("'=:`])\/(api|auth|01_paginas|02_recursos|experience)(?=\/)/gm,
+      (_, prefixo, segmento) => `${prefixo}${BASE_PATH}/${segmento}`
+    );
+  }
+
+  if (extensao === ".css") {
+    resultado = reescreverConteudoCssPublico(resultado, caminhoPublico);
+  }
+
+  if (extensao === ".html") {
+    resultado = resultado.replace(
+      /((?:href|src|content)=["'])([^"']+)(["'])/gi,
+      (_, prefixo, url, sufixo) =>
+        `${prefixo}${reescreverUrlRelativaHtml(url, caminhoPublico)}${sufixo}`
+    );
+
+    resultado = embutirAssetsLocaisNoHtml(resultado, caminhoPublico);
+
+    if (OFUSCAR_FRONT) {
+      resultado = resultado.replace(
+        /((?:href|src)=["'])([^"']+)(["'])/gi,
+        (_, prefixo, url, sufixo) => `${prefixo}${protegerUrlDeAssetPublico(url)}${sufixo}`
+      );
+    }
+  }
+
+  resultado = resultado
+    .replace(/window\.location\.replace\((["'])\/\1\)/g, `window.location.replace("${HOME_URL}")`)
+    .replace(/window\.location\.href\s*=\s*(["'])\/\1/g, `window.location.href = "${HOME_URL}"`)
+    .replace(
+      /(\?\s*["'][^"']*auth\/entra\/sair["']\s*:\s*)["']\/["']/g,
+      `$1"${HOME_URL}"`
+    );
+
+  if (extensao === ".html" && OFUSCAR_FRONT) {
+    resultado = minificarHtmlConservador(resultado);
+  }
+
+  return resultado;
+}
+
+async function safeBody(resposta) {
+  const tipo = (resposta.headers.get("content-type") || "").toLowerCase();
+  if (tipo.includes("application/json")) {
+    return resposta.json().catch(() => ({}));
+  }
+  return resposta.text().catch(() => "");
+}
+
+async function salvarSessao(req) {
+  await new Promise((resolve, reject) => {
+    req.session.save((erro) => (erro ? reject(erro) : resolve()));
+  });
+}
+
+function limparEstadoEntra(req) {
+  if (req.session && req.session.sevenlmEntra) {
+    delete req.session.sevenlmEntra;
+  }
+}
+
+function redirecionarParaEntradaComMensagem(res, mensagem) {
+  const destino = montarUrlModalDeLogin(String(mensagem || "Falha ao autenticar."));
+  return res.redirect(destino);
+}
+
+async function concluirLoginFederadoNaApi(req, claims) {
+  const url = `${API_BASE}/entrada/entra-id/concluir`;
+  const dados = claims || {};
+  const preferredUsername = normalizarTexto(
+    dados.preferred_username || dados.upn || dados.unique_name
+  );
+  const email = normalizarTexto(dados.email || (Array.isArray(dados.emails) ? dados.emails[0] : ""));
+
+  const resposta = await fetch(url, {
+    method: "POST",
+    agent: obterAgenteKeepAlive(url),
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "user-agent": req.headers["user-agent"] || "",
+      "x-sevenlm-connect-entra-bridge-secret": ENTRA_BRIDGE_SECRET,
+      "x-sevenlm-entra-bridge-secret": ENTRA_BRIDGE_SECRET,
+      "x-forwarded-for": req.headers["x-forwarded-for"] || ((req.socket && req.socket.remoteAddress) || ""),
+      "accept-language": req.headers["accept-language"] || "",
+    },
+    body: JSON.stringify({
+      oid: normalizarTexto(dados.oid),
+      tenant_id: normalizarTexto(dados.tid || ENTRA_TENANT_ID),
+      preferred_username: preferredUsername,
+      email,
+      nome_completo: normalizarTexto(dados.name),
+      identificadores: montarIdentificadoresFederados(claims),
+      roles: Array.isArray(dados.roles) ? dados.roles : [],
+    }),
+  });
+
+  return {
+    ok: resposta.ok,
+    status: resposta.status,
+    payload: await safeBody(resposta),
+  };
+}
+
+function montarDestinoApi(caminhoApi) {
+  const caminho = normalizarRotaPublica(caminhoApi);
+
+  if (caminho === "/entrada") {
+    return `${API_BASE}/entrada`;
+  }
+
+  if (caminho === "/entrada/atualizar-credencial") {
+    return `${API_BASE}/atualizar-credencial`;
+  }
+
+  if (caminho === "/saude") {
+    return `${API_BASE}/saude`;
+  }
+
+  if (caminho.startsWith("/mfa/")) {
+    return `${API_BASE}${caminho}`;
+  }
+
+  if (caminho === "/me" || caminho.startsWith("/admin/") || caminho.startsWith("/rh/")) {
+    return `${API_BASE}/api${caminho}`;
+  }
+
+  return `${API_BASE}/api${caminho}`;
+}
+
+async function lerCorpoBrutoDaRequisicao(req) {
+  if (Buffer.isBuffer(req.body)) {
+    return req.body;
+  }
+
+  if (typeof req.body === "string") {
+    return Buffer.from(req.body);
+  }
+
+  if (req.body && typeof req.body === "object" && Object.keys(req.body).length > 0) {
+    return null;
+  }
+
+  return await new Promise((resolve, reject) => {
+    const chunks = [];
+
+    req.on("data", (chunk) => {
+      chunks.push(Buffer.from(chunk));
+    });
+
+    req.on("end", () => {
+      resolve(chunks.length ? Buffer.concat(chunks) : Buffer.alloc(0));
+    });
+
+    req.on("error", reject);
+  });
+}
+
+async function proxyApi(req, res, caminhoApi) {
+  const urlDestino = new URL(montarDestinoApi(caminhoApi));
+
+  for (const [chave, valor] of Object.entries(req.query || {})) {
+    if (Array.isArray(valor)) {
+      for (const item of valor) urlDestino.searchParams.append(chave, String(item));
+    } else if (valor !== undefined && valor !== null) {
+      urlDestino.searchParams.append(chave, String(valor));
+    }
+  }
+
+  const headers = {
+    Accept: req.headers.accept || "application/json",
+    "user-agent": req.headers["user-agent"] || "",
+  };
+
+  if (req.headers.authorization) {
+    headers.authorization = req.headers.authorization;
+  }
+
+  if (req.headers["accept-language"]) {
+    headers["accept-language"] = req.headers["accept-language"];
+  }
+
+  const metodo = String(req.method || "GET").toUpperCase();
+  const possuiCorpo = !["GET", "HEAD"].includes(metodo);
+  const tipoConteudo = String(req.headers["content-type"] || "").toLowerCase();
+  const corpoMultipart = tipoConteudo.startsWith("multipart/form-data");
+  const corpoJson = tipoConteudo.includes("application/json");
+  let corpo = undefined;
+
+  if (possuiCorpo) {
+    headers["Content-Type"] = req.headers["content-type"] || "application/json";
+
+    if (corpoMultipart) {
+      corpo = await lerCorpoBrutoDaRequisicao(req);
+    } else if (Buffer.isBuffer(req.body) || typeof req.body === "string") {
+      corpo = req.body;
+    } else if (req.body && typeof req.body === "object" && Object.keys(req.body).length > 0) {
+      corpo = JSON.stringify(req.body);
+    } else if (!corpoJson) {
+      corpo = await lerCorpoBrutoDaRequisicao(req);
+    } else {
+      corpo = JSON.stringify(req.body || {});
+    }
+  }
+
+  try {
+    const resposta = await fetch(urlDestino, {
+      method: metodo,
+      agent: obterAgenteKeepAlive(urlDestino.toString()),
+      headers,
+      body: possuiCorpo ? corpo : undefined,
+    });
+
+    const contentType = resposta.headers.get("content-type");
+    const requestId = resposta.headers.get("x-identificador-requisicao");
+    if (contentType) res.setHeader("content-type", contentType);
+    if (requestId) res.setHeader("x-identificador-requisicao", requestId);
+    if (resposta.headers.get("cache-control")) {
+      res.setHeader("cache-control", resposta.headers.get("cache-control"));
+    }
+
+    const body = await safeBody(resposta);
+    return res.status(resposta.status).send(body);
+  } catch (erro) {
+    console.error("[PORTAL] Erro no proxy da API:", metodo, urlDestino.toString(), erro);
+    return res.status(500).json({ mensagem: "Erro interno no proxy do portal." });
+  }
+}
+
+function resolverArquivoExperience(caminhoUrl) {
+  const relativoBase = caminhoRelativoSeguro(caminhoUrl.replace(/^\/experience\/assets/, ""));
+  if (!relativoBase) return null;
+
+  for (const base of caminhosExperience) {
+    const candidato = resolverDentroDaPasta(base, relativoBase);
+    if (candidato && fs.existsSync(candidato) && fs.statSync(candidato).isFile()) {
+      return candidato;
+    }
+  }
+
+  return null;
+}
+
+function removerHashDeArquivoNext(nomeArquivo) {
+  return String(nomeArquivo || "").replace(/\.[a-f0-9]{6,}(?=\.[^.]+$)/i, "");
+}
+
+function resolverArquivoEspecialDaHomepage(caminhoUrl) {
+  const caminhoNormalizado = normalizarRotaPublica(caminhoUrl);
+
+  if (
+    caminhoNormalizado.startsWith("/_next/static/css/") ||
+    caminhoNormalizado.startsWith("/_next/static/chunks/")
+  ) {
+    const nomeArquivo = path.posix.basename(caminhoNormalizado);
+    return resolverDentroDaPasta(path.join(pastaPublica, "assets"), nomeArquivo);
+  }
+
+  if (caminhoNormalizado.startsWith("/assets/") && caminhoNormalizado.endsWith(".download")) {
+    const nomeArquivo = path.posix.basename(caminhoNormalizado, ".download");
+    return resolverDentroDaPasta(path.join(pastaPublica, "assets"), nomeArquivo);
+  }
+
+  if (caminhoNormalizado.startsWith("/_next/static/media/")) {
+    const relativoMedia = caminhoRelativoSeguro(caminhoNormalizado);
+    const caminhoMedia = relativoMedia ? resolverDentroDaPasta(pastaPublica, relativoMedia) : null;
+
+    if (caminhoMedia && fs.existsSync(caminhoMedia) && fs.statSync(caminhoMedia).isFile()) {
+      return caminhoMedia;
+    }
+
+    const nomeArquivoOriginal = path.posix.basename(caminhoNormalizado);
+    const nomeArquivoAlias = removerHashDeArquivoNext(nomeArquivoOriginal);
+    return resolverDentroDaPasta(path.join(pastaPublica, "assets"), nomeArquivoAlias);
+  }
+
+  return null;
+}
+
+function resolverArquivoPortal(caminhoUrl) {
+  const caminhoNormalizado = normalizarRotaPublica(caminhoUrl);
+  const arquivoEspecialDaHomepage = resolverArquivoEspecialDaHomepage(caminhoNormalizado);
+
+  if (
+    arquivoEspecialDaHomepage &&
+    fs.existsSync(arquivoEspecialDaHomepage) &&
+    fs.statSync(arquivoEspecialDaHomepage).isFile()
+  ) {
+    return arquivoEspecialDaHomepage;
+  }
+
+  if (caminhoNormalizado.startsWith("/experience/assets/")) {
+    return resolverArquivoExperience(caminhoNormalizado);
+  }
+
+  if (caminhoNormalizado.startsWith("/RH/")) {
+    const relativo = caminhoRelativoSeguro(`/01_paginas${caminhoNormalizado}`);
+    return relativo ? resolverDentroDaPasta(pastaPublica, relativo) : null;
+  }
+
+  if (caminhoNormalizado.startsWith("/Administracao/")) {
+    const relativo = caminhoRelativoSeguro(`/01_paginas${caminhoNormalizado}`);
+    return relativo ? resolverDentroDaPasta(pastaPublica, relativo) : null;
+  }
+
+  const relativo = caminhoRelativoSeguro(caminhoNormalizado);
+  return relativo ? resolverDentroDaPasta(pastaPublica, relativo) : null;
+}
+
+async function enviarArquivoPublico(res, caminhoArquivo) {
+  const extensao = path.extname(caminhoArquivo).toLowerCase();
+  const mime = mimePorExtensao(extensao);
+
+  if ([".html", ".js", ".css"].includes(extensao)) {
+    const conteudo = await fsp.readFile(caminhoArquivo, "utf8");
+    const caminhoPublico = `/${path.relative(pastaPublica, caminhoArquivo).split(path.sep).join("/")}`;
+    if (mime) res.type(mime);
+    if (extensao === ".html") {
+      res.setHeader("cache-control", "no-store, no-cache, must-revalidate, private");
+    }
+    return res.send(reescreverConteudoPublico(conteudo, { caminhoPublico, extensao }));
+  }
+
+  return res.sendFile(caminhoArquivo);
+}
+
+const roteadorPortal = express.Router();
+
+roteadorPortal.get("/_r/:arquivo", async (req, res) => {
+  const alias = normalizarRotaPublica(`/_r/${req.params.arquivo || ""}`);
+  const caminhoPublico = arquivoPublicoPorAlias.get(alias);
+  if (!caminhoPublico) {
+    return res.status(404).send("Recurso nao encontrado.");
+  }
+
+  const caminhoArquivo = resolverArquivoPortal(caminhoPublico);
+  if (!caminhoArquivo || !fs.existsSync(caminhoArquivo) || !fs.statSync(caminhoArquivo).isFile()) {
+    return res.status(404).send("Recurso nao encontrado.");
+  }
+
+  try {
+    return await enviarArquivoPublico(res, caminhoArquivo);
+  } catch (erro) {
+    console.error("[PORTAL] Erro ao servir recurso ofuscado:", caminhoPublico, erro);
+    return res.status(500).send("Erro interno ao servir o portal.");
+  }
+});
+
+roteadorPortal.get("/_next/image", async (req, res) => {
+  const urlOriginal = normalizarTexto(req.query && req.query.url);
+  if (!urlOriginal) {
+    return res.status(400).send("Recurso nao encontrado.");
+  }
+
+  const caminhoDireto = resolverArquivoPortal(urlOriginal);
+  if (!caminhoDireto || !fs.existsSync(caminhoDireto) || !fs.statSync(caminhoDireto).isFile()) {
+    return res.status(404).send("Recurso nao encontrado.");
+  }
+
+  try {
+    return await enviarArquivoPublico(res, caminhoDireto);
+  } catch (erro) {
+    console.error("[PORTAL] Erro ao servir imagem otimizada da homepage:", urlOriginal, erro);
+    return res.status(500).send("Erro interno ao servir o portal.");
+  }
+});
+
+roteadorPortal.get("/api/autenticacao/opcoes", (req, res) => {
+  return res.json({
+    entra_id_habilitado: ENTRA_CONFIGURADO,
+    provedores: ENTRA_CONFIGURADO
+      ? [
+          {
+            codigo: "entra_id",
+            rotulo: "Microsoft",
+            url_entrada: aplicarBasePath(BASE_PATH, "/auth/entra/entrar"),
+          },
+        ]
+      : [],
+  });
+});
+
+roteadorPortal.all("/api/*", async (req, res) => {
+  const caminhoApi = req.path.replace(/^\/api/, "") || "/";
+  return proxyApi(req, res, caminhoApi);
+});
+
+roteadorPortal.all("/api", async (req, res) => {
+  return proxyApi(req, res, "/");
+});
+
+roteadorPortal.get("/auth/entra/entrar", async (req, res) => {
+  if (!ENTRA_CONFIGURADO || !clienteEntra) {
+    return redirecionarParaEntradaComMensagem(
+      res,
+      "O login com Microsoft ainda nao foi configurado neste ambiente."
+    );
+  }
+
+  try {
+    const state = gerarTokenAleatorio();
+    const nonce = gerarTokenAleatorio();
+
+    req.session.sevenlmEntra = {
+      state,
+      nonce,
+      criado_em: Date.now(),
+    };
+    await salvarSessao(req);
+
+    const urlAutorizacao = await clienteEntra.getAuthCodeUrl({
+      scopes: ENTRA_SCOPES,
+      redirectUri: ENTRA_REDIRECT_URI,
+      responseMode: "query",
+      state,
+      nonce,
+      prompt: "select_account",
+    });
+
+    return res.redirect(urlAutorizacao);
+  } catch (erro) {
+    console.error("[PORTAL] Falha ao iniciar login Entra ID:", erro);
+    return redirecionarParaEntradaComMensagem(
+      res,
+      "Nao foi possivel iniciar o login com Microsoft."
+    );
+  }
+});
+
+roteadorPortal.get("/auth/entra/redirect", async (req, res) => {
+  if (!ENTRA_CONFIGURADO || !clienteEntra) {
+    return redirecionarParaEntradaComMensagem(
+      res,
+      "O login com Microsoft ainda nao foi configurado neste ambiente."
+    );
+  }
+
+  const erroRetorno = normalizarTexto(req.query.error_description || req.query.error);
+  if (erroRetorno) {
+    limparEstadoEntra(req);
+    return redirecionarParaEntradaComMensagem(res, erroRetorno);
+  }
+
+  const stateRecebido = normalizarTexto(req.query.state);
+  const code = normalizarTexto(req.query.code);
+  const contexto = (req.session && req.session.sevenlmEntra) || null;
+
+  if (!contexto || !contexto.state || contexto.state !== stateRecebido || !code) {
+    limparEstadoEntra(req);
+    return redirecionarParaEntradaComMensagem(
+      res,
+      "O retorno do Microsoft Entra ID nao passou na validacao de estado."
+    );
+  }
+
+  try {
+    const respostaMicrosoft = await clienteEntra.acquireTokenByCode({
+      code,
+      scopes: ENTRA_SCOPES,
+      redirectUri: ENTRA_REDIRECT_URI,
+      nonce: contexto.nonce,
+    });
+
+    const claims = (respostaMicrosoft && respostaMicrosoft.idTokenClaims) || {};
+    const respostaApi = await concluirLoginFederadoNaApi(req, claims);
+
+    limparEstadoEntra(req);
+
+    if (!respostaApi.ok) {
+      const mensagem =
+        (respostaApi && respostaApi.payload && respostaApi.payload.mensagem) ||
+        (respostaApi && respostaApi.payload && respostaApi.payload.detail) ||
+        "Nao foi possivel vincular a identidade Microsoft a um usuario do portal.";
+      return redirecionarParaEntradaComMensagem(res, mensagem);
+    }
+
+    return res
+      .status(200)
+      .type("html")
+      .send(montarPaginaBridge(respostaApi.payload, aplicarBasePath(BASE_PATH, "/inicio")));
+  } catch (erro) {
+    limparEstadoEntra(req);
+    console.error("[PORTAL] Falha no callback Entra ID:", erro);
+    return redirecionarParaEntradaComMensagem(
+      res,
+      "O portal nao conseguiu concluir o login com Microsoft."
+    );
+  }
+});
+
+roteadorPortal.get("/auth/entra/sair", (req, res) => {
+  try {
+    limparEstadoEntra(req);
+    req.session.destroy(() => {});
+  } catch (_) {}
+
+  if (!ENTRA_AUTHORITY) {
+    return res.redirect(HOME_URL);
+  }
+
+  const logoutUrl = `${ENTRA_AUTHORITY}/oauth2/v2.0/logout?post_logout_redirect_uri=${encodeURIComponent(
+    ENTRA_POST_LOGOUT_REDIRECT_URI
+  )}`;
+  return res.redirect(logoutUrl);
+});
+
+roteadorPortal.use(async (req, res, next) => {
+  if (!["GET", "HEAD"].includes(String(req.method || "").toUpperCase())) {
+    return next();
+  }
+
+  const caminho = normalizarRotaPublica(decodeURIComponent(req.path || "/"));
+
+  if (path.posix.extname(caminho).toLowerCase() === ".map") {
+    return res.status(404).send("Recurso nao encontrado.");
+  }
+
+  if (caminho === "/acesso" || caminho === "/acesso/") {
+    const mensagem = normalizarTexto(req.query && req.query.erro_msg);
+    return res.redirect(302, montarUrlModalDeLogin(mensagem));
+  }
+
+  if (redirecionamentosAmigaveis.has(caminho)) {
+    return res.redirect(302, aplicarBasePath(BASE_PATH, redirecionamentosAmigaveis.get(caminho)));
+  }
+
+  if (caminho === "/RH" || caminho === "/RH/") {
+    return res.redirect(302, aplicarBasePath(BASE_PATH, "/inicio"));
+  }
+
+  if (caminho === "/Administracao" || caminho === "/Administracao/") {
+    return res.redirect(302, aplicarBasePath(BASE_PATH, "/administracao/acessos"));
+  }
+
+  if (/^\/operacional\/[^/]+\/[^/]+\/?$/.test(caminho)) {
+    return res.redirect(302, aplicarBasePath(BASE_PATH, "/comercial/imoveis"));
+  }
+
+  const arquivoAmigavel = rotasAmigaveis.get(caminho);
+  if (arquivoAmigavel) {
+    try {
+      const caminhoArquivo = resolverDentroDaPasta(pastaPublica, arquivoAmigavel);
+      if (!caminhoArquivo || !fs.existsSync(caminhoArquivo)) {
+        return next();
+      }
+      return await enviarArquivoPublico(res, caminhoArquivo);
+    } catch (erro) {
+      console.error("[PORTAL] Erro ao servir rota amigavel:", caminho, erro);
+      return res.status(500).send("Erro interno ao servir o portal.");
+    }
+  }
+
+  const caminhoArquivo = resolverArquivoPortal(caminho);
+  if (!caminhoArquivo || !fs.existsSync(caminhoArquivo) || !fs.statSync(caminhoArquivo).isFile()) {
+    return next();
+  }
+
+  try {
+    return await enviarArquivoPublico(res, caminhoArquivo);
+  } catch (erro) {
+    console.error("[PORTAL] Erro ao servir arquivo publico:", caminhoArquivo, erro);
+    return res.status(500).send("Erro interno ao servir o portal.");
+  }
+});
+
+roteadorPortal.use((req, res) => {
+  return res.status(404).send("Recurso nao encontrado.");
+});
+
+app.use(BASE_PATH || "/", roteadorPortal);
+
+if (BASE_PATH) {
+  app.get("/", (req, res) => res.redirect(HOME_URL));
+}
+
+app.listen(PORTA, () => {
+  console.log("===============================================");
+  console.log("7LM Connect - Portal Institucional (Node)");
+  console.log("Autor: Willian Elias Franca");
+  console.log("===============================================");
+  console.log("Ambiente:", AMBIENTE);
+  console.log("Porta:", PORTA);
+  console.log("Base path:", BASE_PATH || "/");
+  console.log("Pasta publica:", pastaPublica);
+  console.log("API_BASE:", API_BASE);
+  console.log("Microsoft Entra ID:", ENTRA_CONFIGURADO ? "habilitado" : "desabilitado");
+  console.log(".env:", envPath || "(nao encontrado)");
+  console.log("");
+});

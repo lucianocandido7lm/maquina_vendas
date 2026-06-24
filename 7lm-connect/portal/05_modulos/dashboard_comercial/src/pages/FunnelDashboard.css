@@ -1,0 +1,396 @@
+.funnel-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: var(--color-text, #18212f);
+}
+
+.funnel-header,
+.funnel-detail-header,
+.funnel-goals-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.funnel-header h2,
+.funnel-detail-header h3 {
+  margin: 0;
+}
+
+.funnel-header p,
+.funnel-detail-header p {
+  margin: 4px 0 0;
+}
+
+.funnel-tabs {
+  display: inline-flex;
+  width: fit-content;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(99, 116, 139, 0.22);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.88);
+}
+
+.funnel-tabs button,
+.funnel-secondary-button,
+.funnel-pagination button,
+.funnel-table th button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.funnel-tabs button {
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.funnel-tabs button.active {
+  background: #18212f;
+  color: #fff;
+}
+
+.funnel-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.funnel-alert.warning {
+  border: 1px solid rgba(180, 83, 9, 0.24);
+  background: #fff7ed;
+  color: #8a3b08;
+}
+
+.funnel-alert.error {
+  border: 1px solid rgba(185, 28, 28, 0.25);
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.funnel-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.32fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.funnel-rules {
+  padding: 16px;
+  border: 1px solid rgba(99, 116, 139, 0.2);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.funnel-rules h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.funnel-rules p,
+.funnel-rules li {
+  color: #526072;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.funnel-rules ul {
+  margin: 12px 0 16px;
+  padding-left: 18px;
+}
+
+.funnel-secondary-button,
+.funnel-pagination button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(99, 116, 139, 0.25);
+  border-radius: 7px;
+  background: #fff;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.funnel-secondary-button:hover,
+.funnel-pagination button:not(:disabled):hover {
+  border-color: #18212f;
+}
+
+.funnel-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.funnel-audit {
+  margin-top: 12px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.funnel-audit.ok {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.funnel-audit.fail {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.funnel-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.funnel-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(120px, auto);
+  gap: 12px;
+  min-height: 74px;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(99, 116, 139, 0.2);
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.funnel-stage.selected {
+  border-color: #0f766e;
+  box-shadow: inset 3px 0 0 #0f766e;
+}
+
+.funnel-stage.unavailable {
+  border-style: dashed;
+  opacity: 0.72;
+}
+
+.funnel-stage-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: #eef2f7;
+  font-weight: 750;
+  z-index: 1;
+}
+
+.funnel-stage-main,
+.funnel-stage-metrics {
+  z-index: 1;
+}
+
+.funnel-stage-label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.funnel-stage-rule {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+
+.funnel-stage-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, rgba(15, 118, 110, 0.16), rgba(14, 165, 165, 0.05));
+  pointer-events: none;
+}
+
+.funnel-stage-metrics {
+  display: flex;
+  min-width: 116px;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.funnel-stage-metrics strong {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.funnel-stage-metrics small {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.funnel-detail,
+.funnel-goals {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.funnel-table-wrap {
+  overflow: auto;
+  border: 1px solid rgba(99, 116, 139, 0.2);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.funnel-table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.funnel-table th,
+.funnel-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(99, 116, 139, 0.15);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.funnel-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.funnel-table th button {
+  font-size: inherit;
+  font-weight: 800;
+  text-transform: inherit;
+}
+
+.funnel-table th svg.asc {
+  transform: rotate(180deg);
+}
+
+.funnel-tag {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #334155;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.funnel-tag.risk {
+  background: #fff7ed;
+  color: #b45309;
+}
+
+.funnel-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  color: #526072;
+  font-size: 0.88rem;
+}
+
+.funnel-goals-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.funnel-goals-toolbar input {
+  width: 112px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(99, 116, 139, 0.28);
+  border-radius: 7px;
+  font: inherit;
+}
+
+.funnel-goals-grid {
+  display: grid;
+  gap: 9px;
+}
+
+.funnel-goal-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.2fr) repeat(5, minmax(100px, 1fr));
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(99, 116, 139, 0.2);
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.funnel-goal-row strong,
+.funnel-goal-row small {
+  display: block;
+}
+
+.funnel-goal-row small {
+  margin-top: 3px;
+  color: #64748b;
+}
+
+.funnel-goal-row span:not(:first-child) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+@media (max-width: 980px) {
+  .funnel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .funnel-tabs {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .funnel-stage {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .funnel-stage-metrics {
+    grid-column: 2;
+    align-items: flex-start;
+  }
+
+  .funnel-goal-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}

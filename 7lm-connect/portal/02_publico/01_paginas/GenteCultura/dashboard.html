@@ -1,0 +1,1056 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR" data-preload-root-classes="tl-dashboard-gc-gated">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>7LM | Dashboard G&amp;C</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/02_recursos/01_estilos/inicio.css?v=20260611-portal-bg-1" />
+  <link rel="stylesheet" href="/02_recursos/01_estilos/dashboard_gc.css?v=20260623-comercial-databricks-1" />
+
+  <meta name="sevenlm-connect-api-base-url" content="" />
+  <meta name="sevenlm-connect-endpoint-me" content="/api/me" />
+  <meta name="sevenlm-connect-required-permission" content="metas.resultados.view" />
+  <meta name="sevenlm-connect-access-fallback" content="/inicio" />
+  <meta name="sevenlm-connect-endpoint-metas-referencias" content="/api/metas/referencias" />
+  <meta name="sevenlm-connect-endpoint-metas-dashboard" content="/api/metas/dashboard" />
+  <meta name="sevenlm-connect-endpoint-metas-corretores" content="/api/metas/corretores" />
+  <meta name="sevenlm-connect-endpoint-admin-funcionarios" content="/api/admin/funcionarios" />
+  <meta name="sevenlm-connect-endpoint-admin-funcionario-equipes" content="/api/admin/funcionarios/equipes" />
+  <meta name="sevenlm-connect-endpoint-gc-vagas" content="/api/gente-cultura/vagas" />
+  <meta name="sevenlm-connect-endpoint-gc-forecast" content="/api/gente-cultura/forecast" />
+  <meta name="sevenlm-connect-endpoint-gc-forecast-historico" content="/api/gente-cultura/forecast/historico" />
+  <meta name="sevenlm-connect-endpoint-gc-produtividade" content="/api/gente-cultura/produtividade" />
+
+  <script src="/02_recursos/02_scripts/preload_portal.js?v=20260611-logout-forcado-2"></script>
+  <script src="/02_recursos/02_scripts/ui_text_normalizer.js?v=20260623-gc-comercial-freeze-1" defer></script>
+  <script src="/02_recursos/02_scripts/dashboard_gc.js?v=20260623-gc-comercial-freeze-1" defer></script>
+</head>
+<body class="tl-home tl-dashboard-gc-page">
+  <div class="tl-shell tl-gc-shell">
+    <aside class="tl-sidebar glass-panel hyper-glass" id="sidebar"></aside>
+
+    <main class="tl-main tl-gc-main" id="dashboardGcRoot">
+      <section class="tl-gc-topbar" aria-label="NavegaÃ§Ã£o do mÃ³dulo Gente e Cultura">
+        <nav class="tl-gc-tabs">
+          <span class="tl-gc-tab-wrap">
+            <a class="tl-gc-tab is-active" href="/gente-cultura/dashboard" data-gc-tab="dashboard" data-gc-target="dashboardGcRoot" aria-current="page">Dashboard</a>
+            <a class="tl-gc-tab-help" href="/gente-cultura/metricas" data-gc-help-tab="dashboard" aria-label="Ver m&eacute;tricas e crit&eacute;rios" title="Ver m&eacute;tricas e crit&eacute;rios">i</a>
+          </span>
+          <span class="tl-gc-tab-wrap">
+            <a class="tl-gc-tab" href="/gente-cultura/equipes" data-gc-tab="equipes" data-gc-target="visaoEquipesGc">Equipes</a>
+            <a class="tl-gc-tab-help" href="/gente-cultura/metricas" data-gc-help-tab="equipes" aria-label="Ver m&eacute;tricas e crit&eacute;rios" title="Ver m&eacute;tricas e crit&eacute;rios">i</a>
+          </span>
+          <span class="tl-gc-tab-wrap">
+            <a class="tl-gc-tab" href="/gente-cultura/aprovacoes" data-gc-tab="aprovacoes" data-gc-target="visaoAprovacoesGc">Aprova&ccedil;&otilde;es</a>
+            <a class="tl-gc-tab-help" href="/gente-cultura/metricas" data-gc-help-tab="aprovacoes" aria-label="Ver m&eacute;tricas e crit&eacute;rios" title="Ver m&eacute;tricas e crit&eacute;rios">i</a>
+          </span>
+          <span class="tl-gc-tab-wrap">
+            <a class="tl-gc-tab" href="/gente-cultura/vagas" data-gc-tab="vagas" data-gc-target="visaoVagasGc">Vagas</a>
+            <a class="tl-gc-tab-help" href="/gente-cultura/metricas" data-gc-help-tab="vagas" aria-label="Ver m&eacute;tricas e crit&eacute;rios" title="Ver m&eacute;tricas e crit&eacute;rios">i</a>
+          </span>
+          <span class="tl-gc-tab-wrap">
+            <a class="tl-gc-tab" href="/gente-cultura/pessoas" data-gc-tab="pessoas" data-gc-target="visaoPessoasGc">Pessoas</a>
+            <a class="tl-gc-tab-help" href="/gente-cultura/metricas" data-gc-help-tab="pessoas" aria-label="Ver m&eacute;tricas e crit&eacute;rios" title="Ver m&eacute;tricas e crit&eacute;rios">i</a>
+          </span>
+          <span class="tl-gc-tab-wrap">
+            <a class="tl-gc-tab" href="/gente-cultura/produtividade" data-gc-tab="produtividade" data-gc-target="visaoProdutividadeGc">Produtividade</a>
+            <a class="tl-gc-tab-help" href="/gente-cultura/metricas" data-gc-help-tab="produtividade" aria-label="Ver m&eacute;tricas e crit&eacute;rios" title="Ver m&eacute;tricas e crit&eacute;rios">i</a>
+          </span>
+          <span class="tl-gc-tab-wrap">
+            <a class="tl-gc-tab" href="/gente-cultura/comercial" data-gc-tab="comercial" data-gc-target="visaoComercialGc">Comercial</a>
+            <a class="tl-gc-tab-help" href="/gente-cultura/metricas" data-gc-help-tab="comercial" aria-label="Ver m&eacute;tricas e crit&eacute;rios" title="Ver m&eacute;tricas e crit&eacute;rios">i</a>
+          </span>
+          <span class="tl-gc-tab-wrap">
+            <a class="tl-gc-tab" href="/gente-cultura/metricas" data-gc-tab="metricas" data-gc-target="visaoMetricasGc">M&eacute;tricas</a>
+            <a class="tl-gc-tab-help" href="/gente-cultura/metricas" data-gc-help-tab="metricas" aria-label="Ver m&eacute;tricas e crit&eacute;rios" title="Ver m&eacute;tricas e crit&eacute;rios">i</a>
+          </span>
+          <span class="tl-gc-tab-wrap">
+            <a class="tl-gc-tab" href="/gente-cultura/historico" data-gc-tab="historico" data-gc-target="historicoForecast">Hist&oacute;rico</a>
+            <a class="tl-gc-tab-help" href="/gente-cultura/metricas" data-gc-help-tab="historico" aria-label="Ver m&eacute;tricas e crit&eacute;rios" title="Ver m&eacute;tricas e crit&eacute;rios">i</a>
+          </span>
+        </nav>
+
+        <div class="tl-gc-userbox">
+          <div>
+            <strong id="nomeUsuario">Carregando...</strong>
+            <span id="metaUsuario">Validando acesso</span>
+          </div>
+          <div class="tl-gc-avatar" id="userInitials">7L</div>
+          <button id="btnTema" class="tl-gc-theme" type="button" aria-label="Alternar tema"></button>
+        </div>
+      </section>
+
+      <header class="tl-gc-heading">
+        <div>
+        <span class="tl-gc-eyebrow">Base Gente E Cultura</span>
+          <h1>Gest&atilde;o De Pessoas &amp; Cultura</h1>
+          <p>Vis&atilde;o Integrada De Equipes, Headcount, Vagas E Senioridade Para Apoiar Decis&otilde;es Estruturais E Operacionais.</p>
+        </div>
+
+        <div class="tl-gc-actions">
+          <label class="tl-gc-period">
+            <span>Per&iacute;odo</span>
+            <select id="filtroMes"></select>
+            <input id="filtroAno" type="number" min="2020" max="2100" aria-label="Ano" />
+          </label>
+          <button id="btnToggleFiltros" class="tl-gc-action tl-gc-action--secondary" type="button">Filtros</button>
+        </div>
+      </header>
+
+      <section id="filtrosAvancados" class="tl-gc-filterbar" aria-label="Filtros avanÃ§ados">
+        <label class="tl-gc-filter">Regi&atilde;o <select id="filtroRegiao"><option value="">Todas</option></select></label>
+        <label class="tl-gc-filter">Equipe <select id="filtroEquipe"><option value="">Todas</option></select></label>
+        <label class="tl-gc-filter">Foco <select id="filtroFoco"><option value="">Todos</option></select></label>
+        <label class="tl-gc-filter">Gerente De Vendas <select id="filtroGestor"><option value="">Todos</option></select></label>
+        <button id="btnAtualizar" class="tl-gc-action" type="button">Atualizar</button>
+      </section>
+
+      <section id="feedbackGc" class="tl-gc-feedback" aria-live="polite"></section>
+
+      <section id="pessoasResumo" class="tl-gc-kpis tl-gc-dashboard-section" aria-label="Indicadores gerais">
+        <article class="tl-gc-kpi" data-tone="blue">
+          <div class="tl-gc-kpi__icon" aria-hidden="true"></div>
+          <span>HC</span>
+          <strong id="kpiCorretores">0</strong>
+          <small id="kpiCorretoresDelta">Headcount</small>
+        </article>
+        <article class="tl-gc-kpi" data-tone="green">
+          <div class="tl-gc-kpi__icon" aria-hidden="true"></div>
+          <span>Forecast</span>
+          <strong id="kpiMetaCorretores">0</strong>
+          <small>Abertura E Objetivos</small>
+        </article>
+        <article class="tl-gc-kpi" data-tone="red">
+          <div class="tl-gc-kpi__icon" aria-hidden="true"></div>
+          <span>Gap De Headcount</span>
+          <strong id="kpiGapHeadcount">0</strong>
+          <small id="kpiGapHeadcountInfo">Pessoas Sem Objetivo Aberto</small>
+        </article>
+        <article class="tl-gc-kpi" data-tone="purple">
+          <div class="tl-gc-kpi__icon" aria-hidden="true"></div>
+          <span>Solicita&ccedil;&otilde;es RH</span>
+          <strong id="kpiVagasAbertas">0</strong>
+        </article>
+        <article class="tl-gc-kpi" data-tone="amber">
+          <div class="tl-gc-kpi__icon" aria-hidden="true"></div>
+          <span>Pend&ecirc;ncias Cadastrais</span>
+          <strong id="kpiPendenciasCadastro">0</strong>
+          <small>Gestor, Equipe, CPF Ou Contato</small>
+        </article>
+      </section>
+
+      <section class="tl-gc-overview tl-gc-dashboard-section">
+        <article class="tl-gc-panel" id="gapRegiaoPanel">
+          <div class="tl-gc-panel__head">
+            <div>
+              <h2>Gap Por Regi&atilde;o E Cargo</h2>
+            </div>
+            <select id="filtroMetricaGap" class="tl-gc-mini-select" aria-label="VisÃ£o Do Gap">
+              <option value="regiao">Regi&atilde;o</option>
+              <option value="foco">Foco</option>
+            </select>
+          </div>
+          <div id="gapRegiao" class="tl-gc-region-bars"></div>
+        </article>
+
+        <article class="tl-gc-panel">
+          <div class="tl-gc-panel__head">
+            <div>
+              <h2>Situa&ccedil;&atilde;o De Equipes Por Status</h2>
+            </div>
+          </div>
+          <div class="tl-gc-situation-layout">
+            <div id="donutEquipes" class="tl-gc-situation-hero" aria-label="Situa&ccedil;&atilde;o De Equipes Por Status">
+              <small>Total</small>
+              <strong>0</strong>
+              <span>Equipes</span>
+              <em>Sem Dados</em>
+            </div>
+            <div id="statusEquipes" class="tl-gc-situation-list"></div>
+          </div>
+        </article>
+
+        <article class="tl-gc-panel" id="vagasStatus">
+          <div class="tl-gc-panel__head">
+            <div>
+              <h2>Status Por Vaga</h2>
+            </div>
+            <button id="btnNovaVaga" class="tl-gc-mini-action" type="button">Nova Vaga</button>
+          </div>
+          <div class="tl-gc-vacancy-status-layout">
+            <div id="donutVagas" class="tl-gc-vacancy-status-total" aria-label="Distribui&ccedil;&atilde;o De Vagas">
+              <small>Total</small>
+              <strong>0</strong>
+              <span>Vagas</span>
+            </div>
+            <div id="statusVagas" class="tl-gc-vacancy-status-list"></div>
+          </div>
+          <div id="listaVagasManuais" class="tl-gc-vacancy-list" aria-label="Vagas Cadastradas Manualmente"></div>
+        </article>
+      </section>
+
+      <section class="tl-gc-workspace tl-gc-dashboard-section">
+        <article class="tl-gc-panel tl-gc-table-panel" id="resumoEquipes">
+          <div class="tl-gc-table-head">
+            <h2>Resumo Por Equipe</h2>
+            <div class="tl-gc-table-tools">
+              <label>Regi&atilde;o <select id="filtroRegiaoTabela"><option value="">Todas</option></select></label>
+              <label>Tipo <select id="filtroTipoTabela"><option value="">Todos</option></select></label>
+              <label>Gerente De Vendas <select id="filtroGestorTabela"><option value="">Todos</option></select></label>
+              <label>Equipe <select id="filtroEquipeTabela"><option value="">Todas</option></select></label>
+              <input id="buscaEquipe" class="tl-gc-search" type="search" placeholder="Buscar equipe ou gerente..." />
+              <button id="btnExportar" class="tl-gc-export" type="button">Exportar</button>
+            </div>
+          </div>
+          <div class="tl-gc-table-wrap">
+            <table class="tl-gc-table">
+              <thead>
+                <tr>
+                  <th>Regi&atilde;o</th>
+                  <th>Equipe</th>
+                  <th>Foco</th>
+                  <th>Gerente Comercial</th>
+                  <th>Gerente De Vendas E Tempo</th>
+                  <th>HC</th>
+                  <th>Afastados</th>
+                  <th>Forecast</th>
+                  <th>Gap</th>
+                  <th>Vagas Abertas</th>
+                  <th>Maturidade</th>
+                  <th>Situa&ccedil;&atilde;o</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaEquipes"></tbody>
+            </table>
+          </div>
+          <div class="tl-gc-table-footer">
+            <span id="totalEquipesTabela">Mostrando 0 Equipes</span>
+            <div id="paginacaoEquipes" class="tl-gc-pages" aria-label="PÃ¡ginas Do Resumo Por Equipe"></div>
+          </div>
+        </article>
+
+        <aside class="tl-gc-side">
+          <article class="tl-gc-panel">
+            <div class="tl-gc-side-head">
+              <h2>Prioridades Do Forecast</h2>
+              <a href="#resumoEquipes">Ver Resumo</a>
+            </div>
+            <div id="listaAlertasRh" class="tl-gc-list"></div>
+          </article>
+
+          <article class="tl-gc-panel">
+            <div class="tl-gc-side-head">
+              <h2>SLA Das Vagas</h2>
+              <a href="#" data-gc-tab="vagas">Ver Vagas</a>
+            </div>
+            <div id="listaPendenciasRecentes" class="tl-gc-list"></div>
+          </article>
+
+        </aside>
+      </section>
+
+      <section class="tl-gc-tab-view tl-gc-tab-view--equipes" id="visaoEquipesGc">
+        <div class="tl-gc-view-head">
+          <div>
+            <span class="tl-gc-eyebrow">Equipes</span>
+            <h2>Mapa De Equipes</h2>
+            <p>Equipes Ativas, Lideran&ccedil;a, Forecast, HC E Hist&oacute;rico De Vig&ecirc;ncias Inativas.</p>
+          </div>
+        </div>
+        <div class="tl-gc-view-metrics" id="metricasEquipesGc"></div>
+        <div class="tl-gc-insight-grid tl-gc-insight-grid--teams" id="insightsEquipesGc"></div>
+        <div class="tl-gc-view-grid">
+          <article class="tl-gc-panel tl-gc-table-panel">
+            <div class="tl-gc-table-head">
+              <div>
+                <h2>Equipes Ativas</h2>
+                <p id="totalEquipesAtivasGc">0 Equipes Ativas</p>
+              </div>
+            </div>
+            <div class="tl-gc-table-wrap">
+              <table class="tl-gc-table tl-gc-view-table tl-gc-team-view-table">
+                <thead>
+                  <tr>
+                    <th>Regi&atilde;o</th>
+                    <th>Equipe</th>
+                    <th>Gerente</th>
+                    <th>HC</th>
+                    <th>Forecast</th>
+                    <th>Gap</th>
+                    <th>Vagas</th>
+                    <th>Tempo M&eacute;dio</th>
+                    <th>Situa&ccedil;&atilde;o</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaEquipesAtivasGc"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="tl-gc-panel tl-gc-table-panel">
+            <div class="tl-gc-table-head">
+              <div>
+                <h2>Hist&oacute;rico De Equipes Inativas</h2>
+                <p id="totalEquipesInativasGc">0 Registros</p>
+              </div>
+            </div>
+            <div class="tl-gc-table-wrap">
+              <table class="tl-gc-table tl-gc-view-table tl-gc-inactive-team-table">
+                <thead>
+                  <tr>
+                    <th>Regi&atilde;o</th>
+                    <th>Equipe</th>
+                    <th>Gerente</th>
+                    <th>In&iacute;cio</th>
+                    <th>Fim</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaEquipesInativasGc"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="tl-gc-tab-view tl-gc-tab-view--aprovacoes" id="visaoAprovacoesGc">
+        <div class="tl-gc-view-head">
+          <div>
+            <span class="tl-gc-eyebrow">Aprova&ccedil;&otilde;es</span>
+            <h2>Aprova&ccedil;&atilde;o De Vagas</h2>
+            <p>Solicita&ccedil;&otilde;es Aguardando Aprova&ccedil;&atilde;o Regional Ou Diretoria Antes De Entrar Em Andamento.</p>
+          </div>
+        </div>
+        <div class="tl-gc-view-metrics" id="metricasAprovacoesGc"></div>
+        <div class="tl-gc-insight-grid tl-gc-insight-grid--approvals" id="insightsAprovacoesGc"></div>
+        <article class="tl-gc-panel tl-gc-table-panel">
+          <div class="tl-gc-table-head">
+            <div>
+              <h2>Fila De Aprova&ccedil;&atilde;o</h2>
+              <p id="totalAprovacoesGc">0 Solicita&ccedil;&otilde;es Pendentes</p>
+            </div>
+          </div>
+          <div class="tl-gc-table-wrap">
+            <table class="tl-gc-table tl-gc-view-table tl-gc-approval-view-table">
+              <thead>
+                <tr>
+                  <th>Protocolo</th>
+                  <th>Equipe</th>
+                  <th>Solicita&ccedil;&atilde;o</th>
+                  <th>Aprovador</th>
+                  <th>SLA De Aprova&ccedil;&atilde;o</th>
+                  <th>Status</th>
+                  <th>A&ccedil;&otilde;es</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaAprovacoesGc"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="tl-gc-tab-view tl-gc-tab-view--vagas" id="visaoVagasGc">
+        <div class="tl-gc-view-head">
+          <div>
+            <span class="tl-gc-eyebrow">Vagas</span>
+            <h2>Opera&ccedil;&atilde;o De Vagas</h2>
+            <p>Solicita&ccedil;&otilde;es, Aprova&ccedil;&atilde;o, Status De RH, SLA Por Etapa E Encerramento Por Equipe.</p>
+          </div>
+          <button class="tl-gc-action" type="button" data-open-vaga-view>Nova Vaga</button>
+        </div>
+        <div class="tl-gc-view-metrics" id="metricasVagasGc"></div>
+        <div class="tl-gc-insight-grid tl-gc-insight-grid--vacancies" id="insightsVagasGc"></div>
+        <article class="tl-gc-panel tl-gc-table-panel">
+          <div class="tl-gc-table-head">
+            <div>
+                <h2>Vagas Cadastradas</h2>
+              <p id="totalVagasGc">0 Vagas</p>
+            </div>
+          </div>
+          <div class="tl-gc-table-wrap">
+            <table class="tl-gc-table tl-gc-view-table tl-gc-vacancy-view-table">
+              <thead>
+                <tr>
+                  <th>Protocolo</th>
+                  <th>Equipe</th>
+                  <th>Cargo</th>
+                  <th>Qtd.</th>
+                  <th>Recrutadora</th>
+                  <th>Status</th>
+                  <th>Abertura</th>
+                  <th>SLA</th>
+                  <th>A&ccedil;&otilde;es</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaVagasGc"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="tl-gc-tab-view tl-gc-tab-view--pessoas" id="visaoPessoasGc">
+        <div class="tl-gc-view-head">
+          <div>
+            <span class="tl-gc-eyebrow">Pessoas</span>
+            <h2>Base De Pessoas</h2>
+            <p>Headcount Ativo, Afastamentos, Pend&ecirc;ncias Cadastrais E Distribui&ccedil;&atilde;o Por Equipe.</p>
+          </div>
+        </div>
+        <div class="tl-gc-view-metrics" id="metricasPessoasGc"></div>
+        <div class="tl-gc-insight-grid tl-gc-insight-grid--people" id="insightsPessoasGc"></div>
+        <div class="tl-gc-view-grid">
+          <article class="tl-gc-panel tl-gc-table-panel">
+            <div class="tl-gc-table-head">
+              <div>
+                <h2>Colaboradores Comerciais</h2>
+                <p id="totalPessoasGc">0 Pessoas</p>
+              </div>
+            </div>
+            <div class="tl-gc-table-wrap tl-gc-people-table-wrap">
+              <table class="tl-gc-table tl-gc-view-table tl-gc-people-view-table">
+                <thead>
+                  <tr>
+                    <th><span class="tl-gc-th-label">Nome</span><input id="pessoasFiltroNome" class="tl-gc-column-filter" type="search" placeholder="Filtrar Nome" /></th>
+                    <th><span class="tl-gc-th-label">Equipe</span><input id="pessoasFiltroEquipe" class="tl-gc-column-filter" type="search" placeholder="Filtrar Equipe" /></th>
+                    <th><span class="tl-gc-th-label">Gerente De Vendas</span><input id="pessoasFiltroGerente" class="tl-gc-column-filter" type="search" placeholder="Filtrar Gerente Ou Hierarquia" /></th>
+                    <th><span class="tl-gc-th-label">Status</span><input id="pessoasFiltroStatus" class="tl-gc-column-filter" type="search" placeholder="Filtrar Status" /></th>
+                    <th><span class="tl-gc-th-label">Tempo De Casa</span><input id="pessoasFiltroTempo" class="tl-gc-column-filter" type="search" placeholder="Filtrar Tempo" /></th>
+                    <th><span class="tl-gc-th-label">Pend&ecirc;ncia</span><input id="pessoasFiltroPendencia" class="tl-gc-column-filter" type="search" placeholder="Filtrar Pend&ecirc;ncia" /></th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaPessoasGc"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="tl-gc-panel">
+            <div class="tl-gc-side-head">
+              <h2>Pessoas Por Equipe</h2>
+            </div>
+            <div id="listaPessoasPorEquipeGc" class="tl-gc-view-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="tl-gc-tab-view tl-gc-tab-view--produtividade" id="visaoProdutividadeGc">
+        <div class="tl-gc-view-head">
+          <div>
+            <span class="tl-gc-eyebrow">Produtividade</span>
+            <h2>Produtividade Por Ger&ecirc;ncia Comercial</h2>
+            <p>Consolidado Comercial Por Gerente Comercial, Gerente De Vendas E Corretor, Com IPC, Repasses E Pastas Do Per&iacute;odo.</p>
+          </div>
+          <span class="tl-gc-sync-status" id="produtividadeUltimaSync">Sincroniza&ccedil;&atilde;o Pendente</span>
+        </div>
+
+        <div class="tl-gc-productivity-toolbar">
+          <label>Gerente Comercial <select id="filtroProdutividadeCoordenador"><option value="">Todos</option></select></label>
+          <label>Gerente De Vendas <select id="filtroProdutividadeGerente"><option value="">Todos</option></select></label>
+          <label>Equipe <select id="filtroProdutividadeEquipe"><option value="">Todas</option></select></label>
+          <label>Corretor <select id="filtroProdutividadeCorretor"><option value="">Todos</option></select></label>
+        </div>
+
+        <div class="tl-gc-view-metrics tl-gc-productivity-metrics" id="metricasProdutividadeGc"></div>
+        <div class="tl-gc-insight-grid tl-gc-insight-grid--productivity" id="insightsProdutividadeGc"></div>
+
+        <div class="tl-gc-productivity-grid">
+          <article class="tl-gc-panel tl-gc-productivity-panel">
+            <div class="tl-gc-table-head">
+              <div>
+                <h2>Gerentes Comerciais</h2>
+                <p id="totalProdutividadeCoordenadores">0 Gerentes Comerciais</p>
+              </div>
+            </div>
+            <div id="produtividadeCoordenadores" class="tl-gc-productivity-cards"></div>
+          </article>
+
+          <article class="tl-gc-panel tl-gc-table-panel tl-gc-productivity-panel">
+            <div class="tl-gc-table-head">
+              <div>
+                <h2>Gerentes Comerciais E Equipes</h2>
+                <p id="totalProdutividadeGerentes">0 Gerentes Comerciais</p>
+              </div>
+            </div>
+            <div class="tl-gc-table-wrap">
+              <table class="tl-gc-table tl-gc-productivity-table">
+                <thead>
+                  <tr>
+                    <th>Gerente Comercial</th>
+                    <th>Gerentes / Equipes</th>
+                    <th>HC</th>
+                    <th>IPC Ant.</th>
+                    <th>IPC Ano</th>
+                    <th>IPC MÃªs</th>
+                    <th>Meta IPC</th>
+                    <th>6 Meses</th>
+                    <th>Quartil</th>
+                    <th>% Total</th>
+                    <th>Rep. Sug.</th>
+                    <th>Rep. Real</th>
+                    <th>Pasta Sug.</th>
+                    <th>Pasta Real</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaProdutividadeGerentes"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="tl-gc-tab-view tl-gc-tab-view--comercial" id="visaoComercialGc">
+        <div class="tl-gc-view-head">
+          <div>
+            <span class="tl-gc-eyebrow">Comercial</span>
+            <h2>Dashboard Comercial Por Equipe</h2>
+            <p>Leitura De Repasses, QLP, IPC, Funil E Ranking Com Dados Sincronizados Do Databricks.</p>
+          </div>
+          <span class="tl-gc-sync-status" id="comercialUltimaSync">Sincroniza&ccedil;&atilde;o Pendente</span>
+        </div>
+
+        <div class="tl-gc-productivity-toolbar tl-gc-comercial-toolbar">
+          <label>Gerente Comercial <select id="filtroComercialCoordenador"><option value="">Todos</option></select></label>
+          <label>Gerente De Vendas <select id="filtroComercialGerente"><option value="">Todos</option></select></label>
+          <label>Equipe <select id="filtroComercialEquipe"><option value="">Todas</option></select></label>
+          <label>Corretor <select id="filtroComercialCorretor"><option value="">Todos</option></select></label>
+        </div>
+
+        <div class="tl-gc-view-metrics tl-gc-comercial-metrics" id="metricasComercialGc"></div>
+
+        <div class="tl-gc-comercial-layout">
+          <article class="tl-gc-panel tl-gc-comercial-panel">
+            <div class="tl-gc-table-head">
+              <div>
+                <h2>Equipes Comerciais</h2>
+                <p id="totalComercialEquipes">0 Equipes</p>
+              </div>
+            </div>
+            <div id="comercialEquipesCards" class="tl-gc-comercial-team-grid"></div>
+          </article>
+
+          <article class="tl-gc-panel tl-gc-comercial-panel">
+            <div class="tl-gc-table-head">
+              <div>
+                <h2>Funil Comercial</h2>
+                <p id="totalComercialFunil">Mês Atual</p>
+              </div>
+            </div>
+            <div id="comercialFunilGc" class="tl-gc-comercial-funnel"></div>
+          </article>
+        </div>
+
+        <div class="tl-gc-comercial-layout tl-gc-comercial-layout--secondary">
+          <article class="tl-gc-panel tl-gc-comercial-panel">
+            <div class="tl-gc-table-head">
+              <div>
+                <h2>Ranking Das Equipes</h2>
+                <p id="totalComercialRankingEquipes">0 Equipes</p>
+              </div>
+            </div>
+            <div class="tl-gc-table-wrap">
+              <table class="tl-gc-table tl-gc-comercial-table">
+                <thead>
+                  <tr>
+                    <th>Equipe</th>
+                    <th>Gerente</th>
+                    <th>QLP</th>
+                    <th>Repasse Mês</th>
+                    <th>IPC</th>
+                    <th>Meta</th>
+                    <th>Situação</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaComercialRankingEquipes"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="tl-gc-panel tl-gc-comercial-panel">
+            <div class="tl-gc-table-head">
+              <div>
+                <h2>Ações De Gestão</h2>
+                <p>Prioridades Da Semana</p>
+              </div>
+            </div>
+            <div id="comercialAcoesGestao" class="tl-gc-comercial-actions"></div>
+          </article>
+        </div>
+
+        <article class="tl-gc-panel tl-gc-table-panel tl-gc-comercial-panel">
+          <div class="tl-gc-table-head">
+            <div>
+              <h2>Ranking Individual</h2>
+              <p id="totalComercialRankingCorretores">0 Corretores</p>
+            </div>
+          </div>
+          <div class="tl-gc-table-wrap">
+            <table class="tl-gc-table tl-gc-comercial-table tl-gc-comercial-table--corretores">
+              <thead>
+                <tr>
+                  <th>Corretor</th>
+                  <th>Equipe</th>
+                  <th>Foco</th>
+                  <th>Tempo</th>
+                  <th>Repasse Mês</th>
+                  <th>IPC Mês</th>
+                  <th>Repasse Ano</th>
+                  <th>Meta IPC</th>
+                  <th>Situação</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaComercialRankingCorretores"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="tl-gc-tab-view tl-gc-tab-view--metricas" id="visaoMetricasGc">
+        <div class="tl-gc-view-head">
+          <div>
+            <span class="tl-gc-eyebrow">Regras do M&oacute;dulo</span>
+            <h2>M&eacute;tricas e Crit&eacute;rios de Leitura</h2>
+            <p>Guia operacional consolidado para ler headcount, forecast, gap, vagas, SLA e pend&ecirc;ncias cadastrais no dashboard de Pessoas &amp; Cultura.</p>
+          </div>
+        </div>
+
+        <div class="tl-gc-rule-hero">
+          <div>
+            <span>Leitura Principal</span>
+            <h3>O Gap de Headcount &eacute; o indicador central de aten&ccedil;&atilde;o.</h3>
+            <p>Quanto maior o gap negativo, maior a necessidade de contrata&ccedil;&atilde;o, movimenta&ccedil;&atilde;o, revis&atilde;o de forecast ou corre&ccedil;&atilde;o cadastral.</p>
+          </div>
+          <ul>
+            <li>Indicadores gerais mostram HC, forecast, gap, solicita&ccedil;&otilde;es RH e pend&ecirc;ncias.</li>
+            <li>Vis&atilde;o anal&iacute;tica mostra gap por regi&atilde;o, equipes por situa&ccedil;&atilde;o e vagas por status.</li>
+            <li>Resumo por equipe mostra a leitura detalhada por regi&atilde;o, foco, lideran&ccedil;a, forecast e situa&ccedil;&atilde;o.</li>
+          </ul>
+        </div>
+
+        <div class="tl-gc-rules-grid">
+          <article class="tl-gc-rule-card tl-gc-rule-card--indicator">
+            <span>Indicadores Gerais</span>
+            <h3>HC</h3>
+            <p>Representa o headcount atual da base filtrada. Conta pessoas ativas vinculadas &agrave;s equipes exibidas no per&iacute;odo.</p>
+            <ul>
+              <li>Respeita per&iacute;odo, regi&atilde;o, gerente de vendas e equipe.</li>
+              <li>Afastados ficam separados para n&atilde;o confundir presen&ccedil;a operacional com hist&oacute;rico.</li>
+              <li>Equipe inativa n&atilde;o aparece como atual, mas permanece no hist&oacute;rico dos meses em que esteve ativa.</li>
+            </ul>
+          </article>
+
+          <article class="tl-gc-rule-card tl-gc-rule-card--indicator">
+            <span>Indicadores Gerais</span>
+            <h3>Forecast</h3>
+            <p>Representa o quadro esperado da estrutura. Pode vir da regra do sistema, do cadastro da meta ou de ajuste manual autorizado.</p>
+            <ul>
+              <li>Sistema: forecast calculado automaticamente pela regra da estrutura.</li>
+              <li>Manual: forecast ajustado por necessidade operacional ou exce&ccedil;&atilde;o aprovada.</li>
+              <li>O ajuste manual deve ficar rastre&aacute;vel por gestor, equipe, per&iacute;odo e justificativa.</li>
+            </ul>
+          </article>
+
+          <article class="tl-gc-rule-card tl-gc-rule-card--formula">
+            <span>Indicadores Gerais</span>
+            <h3>Gap de Headcount</h3>
+            <p>Mostra a diferen&ccedil;a entre o HC atual e o forecast planejado. Valor negativo indica equipe abaixo do alvo.</p>
+            <div class="tl-gc-rule-formula">Gap = HC Atual - Forecast</div>
+            <ul>
+              <li>Exemplo: HC 59 - Forecast 90 = Gap -31.</li>
+              <li>Quanto mais negativo, maior o desvio operacional.</li>
+              <li>O saldo do filtro representa o gap total da base filtrada.</li>
+            </ul>
+          </article>
+
+          <article class="tl-gc-rule-card">
+            <span>Vis&atilde;o Anal&iacute;tica</span>
+            <h3>Gap Por Regi&atilde;o</h3>
+            <p>Mostra o d&eacute;ficit ou super&aacute;vit de headcount por regi&atilde;o, sempre respeitando os filtros aplicados.</p>
+            <ul>
+              <li>Valores negativos indicam falta de pessoas.</li>
+              <li>Maior desvio destaca a regi&atilde;o com maior d&eacute;ficit.</li>
+              <li>A leitura pode ser aberta por cargo quando houver necessidade de detalhar consultor, gerente de vendas ou gerente comercial.</li>
+            </ul>
+          </article>
+
+          <article class="tl-gc-rule-card">
+            <span>Vis&atilde;o Anal&iacute;tica</span>
+            <h3>Equipes Por Situa&ccedil;&atilde;o</h3>
+            <p>Classifica cada equipe conforme a rela&ccedil;&atilde;o entre HC atual e forecast.</p>
+            <ul>
+              <li>Completa: HC igual ao forecast.</li>
+              <li>Abaixo do alvo: HC abaixo do forecast, mas dentro da margem operacional.</li>
+              <li>Cr&iacute;tica: HC muito abaixo do forecast ou com d&eacute;ficit relevante.</li>
+              <li>Acima do alvo: HC maior que o forecast.</li>
+              <li>Imobili&aacute;ria: equipe sem forecast definido.</li>
+            </ul>
+          </article>
+
+          <article class="tl-gc-rule-card">
+            <span>Vagas</span>
+            <h3>Status Por Vaga</h3>
+            <p>Mostra as vagas abertas e seus respectivos status, com c&oacute;digo, equipe vinculada, cargo, quantidade, data e respons&aacute;vel ou etapa atual.</p>
+            <ul>
+              <li>Pendentes indicam vagas que ainda aguardam andamento, defini&ccedil;&atilde;o ou conclus&atilde;o.</li>
+              <li>Vagas abertas entram no saldo operacional porque representam reposi&ccedil;&atilde;o ou expans&atilde;o.</li>
+              <li>A leitura deve evitar duplicidade entre vaga aberta e necessidade j&aacute; coberta.</li>
+            </ul>
+          </article>
+
+          <article class="tl-gc-rule-card tl-gc-rule-card--wide">
+            <span>Equipes</span>
+            <h3>Resumo Por Equipe</h3>
+            <p>A tabela consolida a leitura operacional de cada equipe considerada no painel.</p>
+            <div class="tl-gc-rule-columns">
+              <ul>
+                <li>Regi&atilde;o: local associado &agrave; equipe.</li>
+                <li>Equipe: nome da equipe comercial.</li>
+                <li>Foco: regi&atilde;o ou conjunto de regi&otilde;es atendidas pela equipe.</li>
+                <li>Gerente de vendas e tempo: gestor respons&aacute;vel, tempo na fun&ccedil;&atilde;o e senioridade.</li>
+              </ul>
+              <ul>
+                <li>HC: quantidade atual de pessoas na equipe.</li>
+                <li>Afastados: pessoas afastadas quando houver.</li>
+                <li>Forecast: meta de headcount da equipe.</li>
+                <li>Gap, vagas abertas, maturidade e situa&ccedil;&atilde;o fecham a leitura final.</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="tl-gc-rule-card">
+            <span>Senioridade</span>
+            <h3>Tempo Do Gerente</h3>
+            <p>As faixas ajudam a interpretar maturidade de lideran&ccedil;a e estabilidade da equipe.</p>
+            <ul>
+              <li>Novato: 0-3m, at&eacute; 3 meses.</li>
+              <li>Veterano: 4-8m, entre 4 e 8 meses.</li>
+              <li>Veterano Plus: 9m+, acima de 9 meses.</li>
+            </ul>
+          </article>
+
+          <article class="tl-gc-rule-card tl-gc-rule-card--formula">
+            <span>Prioridades</span>
+            <h3>Forecast E SLA</h3>
+            <p>Prioridades destacam equipes com maior necessidade de recomposi&ccedil;&atilde;o de headcount. SLA mostra vagas abertas e tempo m&eacute;dio de cada vaga.</p>
+            <div class="tl-gc-rule-formula">HC Atual &lt; Forecast</div>
+            <ul>
+              <li>Entram equipes com gap negativo relevante.</li>
+              <li>Mensagem de pessoas abaixo e sem vaga aberta indica d&eacute;ficit sem recomposi&ccedil;&atilde;o suficiente.</li>
+              <li>N&atilde;o entram equipes completas, acima do alvo, sem forecast ou j&aacute; cobertas por vagas abertas.</li>
+            </ul>
+          </article>
+
+          <article class="tl-gc-rule-card">
+            <span>Abertura De Vaga</span>
+            <h3>Fluxo De Aprova&ccedil;&atilde;o</h3>
+            <p>Quando uma pessoa &eacute; inativada e o HC fica abaixo do forecast, a necessidade de vaga deve seguir a governan&ccedil;a de aprova&ccedil;&atilde;o.</p>
+            <ul>
+              <li>O gerente regional aprova primeiro.</li>
+              <li>Depois a solicita&ccedil;&atilde;o segue para aprova&ccedil;&atilde;o final do diretor.</li>
+              <li>A a&ccedil;&atilde;o Nova Vaga deve aparecer quando o gap negativo n&atilde;o est&aacute; coberto por vagas abertas suficientes.</li>
+            </ul>
+          </article>
+
+          <article class="tl-gc-rule-card">
+            <span>Filtros</span>
+            <h3>Escopo Da Leitura</h3>
+            <p>Todos os indicadores, cards, gr&aacute;ficos e tabelas devem respeitar os filtros aplicados.</p>
+            <ul>
+              <li>Per&iacute;odo.</li>
+              <li>Regi&atilde;o.</li>
+              <li>Gerente de vendas.</li>
+              <li>Equipe.</li>
+            </ul>
+          </article>
+
+          <article class="tl-gc-rule-card tl-gc-rule-card--wide">
+            <span>Governan&ccedil;a</span>
+            <h3>Regra Geral De Uso</h3>
+            <p>Prioridades do forecast, reposi&ccedil;&atilde;o e SLA devem orientar a a&ccedil;&atilde;o operacional. A leitura correta separa o que &eacute; necessidade real de contrata&ccedil;&atilde;o, o que j&aacute; est&aacute; coberto por vaga aberta e o que exige corre&ccedil;&atilde;o cadastral.</p>
+            <ul>
+              <li>Gap negativo sem vaga suficiente exige a&ccedil;&atilde;o.</li>
+              <li>Pend&ecirc;ncia cadastral deve ser corrigida antes de concluir a leitura do time.</li>
+              <li>Forecast manual precisa de autoriza&ccedil;&atilde;o e justificativa.</li>
+              <li>O hist&oacute;rico deve preservar equipes e pessoas nos meses em que estavam ativas.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="tl-gc-tab-view tl-gc-tab-view--historico" id="historicoForecast">
+        <div class="tl-gc-view-head">
+          <div>
+            <span class="tl-gc-eyebrow">Hist&oacute;rico</span>
+            <h2>Hist&oacute;rico De Forecast</h2>
+            <p>Rastreio De Ajustes Manuais, Origem Do Valor E Impacto Mensal Sem Alterar Meses Anteriores.</p>
+          </div>
+        </div>
+        <div class="tl-gc-view-metrics" id="metricasHistoricoGc"></div>
+        <div class="tl-gc-insight-grid tl-gc-insight-grid--history" id="insightsHistoricoGc"></div>
+        <article class="tl-gc-panel tl-gc-history-panel">
+          <div class="tl-gc-table-head">
+            <div>
+              <h2>Trilha De Altera&ccedil;&otilde;es</h2>
+              <p id="totalForecastHistorico">Hist&oacute;rico Do Per&iacute;odo: 0 Registros</p>
+            </div>
+          </div>
+          <div class="tl-gc-table-wrap">
+            <table class="tl-gc-table tl-gc-history-table">
+              <thead>
+                <tr>
+                  <th>Data E Hora</th>
+                  <th>Alterado Por</th>
+                  <th>A&ccedil;&atilde;o</th>
+                  <th>Gestor</th>
+                  <th>Equipe</th>
+                  <th>Antes</th>
+                  <th>Depois</th>
+                  <th>Observa&ccedil;&atilde;o</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaForecastHistorico"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div id="modalVagaManual" class="tl-gc-modal" hidden>
+    <div class="tl-gc-modal__backdrop" data-close-vaga-modal></div>
+    <section class="tl-gc-modal__dialog tl-gc-modal__dialog--vaga" role="dialog" aria-modal="true" aria-labelledby="tituloModalVaga">
+      <form id="formVagaManual" class="tl-gc-vacancy-form">
+        <input type="hidden" name="identificador_vaga" />
+        <div class="tl-gc-modal__head">
+          <div>
+            <span>Solicita&ccedil;&atilde;o De Vaga</span>
+            <h2 id="tituloModalVaga">Nova Vaga</h2>
+          </div>
+          <button class="tl-gc-icon-btn" type="button" aria-label="Fechar" data-close-vaga-modal>&times;</button>
+        </div>
+        <div class="tl-gc-form-grid">
+          <label>Protocolo <input name="protocolo" type="text" maxlength="80" placeholder="Gerado Automaticamente" readonly /></label>
+          <label>Equipe <select id="formVagaEquipe" name="equipe" required><option value="">Selecione</option></select></label>
+          <label>Cargo
+            <select id="formVagaCargo" name="cargo" required>
+              <option value="Corretor">Corretor</option>
+              <option value="Consultor">Consultor</option>
+              <option value="Facilitador">Facilitador</option>
+              <option value="Gerente de vendas">Gerente De Vendas</option>
+              <option value="Gerente comercial">Gerente Comercial</option>
+              <option value="Gerente regional">Gerente Regional</option>
+              <option value="Head Comercial">Head Comercial</option>
+              <option value="Diretor comercial">Diretor Comercial</option>
+            </select>
+          </label>
+          <label>Quantidade De Vagas <input name="quantidade_vagas" type="number" min="1" max="999" step="1" value="1" required /></label>
+          <label>Tipo De Solicita&ccedil;&atilde;o
+            <select name="tipo_solicitacao">
+              <option value="Reposicao">Reposi&ccedil;&atilde;o</option>
+              <option value="Aumento de quadro">Aumento De Quadro</option>
+              <option value="Substituicao">Substitui&ccedil;&atilde;o</option>
+              <option value="Temporaria">Tempor&aacute;ria</option>
+            </select>
+          </label>
+          <label>Prioridade
+            <select name="prioridade">
+              <option value="-1">-1</option>
+              <option value="0">0</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3" selected>3</option>
+            </select>
+          </label>
+          <label>Status
+            <select id="formVagaStatus" name="status_vaga" required>
+              <option value="PENDENTE_APROVACAO_REGIONAL">Pendente Regional</option>
+              <option value="PENDENTE_APROVACAO">Pendente Diretoria</option>
+              <option value="EM_ANDAMENTO">Em Andamento</option>
+              <option value="TRIAGEM">Triagem</option>
+              <option value="ENTREVISTAS">Entrevistas</option>
+              <option value="PROPOSTA">Proposta</option>
+              <option value="FECHADA">Fechada</option>
+              <option value="CANCELADA">Cancelada</option>
+              <option value="CONGELADA">Congelada</option>
+              <option value="REPROVADA">Reprovada</option>
+            </select>
+          </label>
+          <label>Data Da Solicita&ccedil;&atilde;o <input name="data_abertura" type="date" required /></label>
+          <label>Prazo Desejado <input name="prazo_desejado" type="date" /></label>
+          <label>Data Fechada <input name="data_fechamento" type="date" /></label>
+          <label>Recrutadora <input name="recrutadora" type="text" maxlength="160" placeholder="Nome Da Recrutadora" /></label>
+          <label>Solicitante <input name="solicitante" type="text" maxlength="160" placeholder="Quem Abriu A Solicita&ccedil;&atilde;o" /></label>
+          <label>Localidade <input name="localidade" type="text" maxlength="120" placeholder="Cidade, Regional Ou Loja" /></label>
+          <label>Modalidade
+            <select name="modalidade">
+              <option value="">A Definir</option>
+              <option value="Presencial">Presencial</option>
+              <option value="Hibrido">H&iacute;brido</option>
+              <option value="Remoto">Remoto</option>
+            </select>
+          </label>
+          <label class="tl-gc-form-field--wide">Substitui&ccedil;&atilde;o De <input name="substituicao_de" type="text" maxlength="160" placeholder="Opcional" /></label>
+        </div>
+        <label class="tl-gc-form-field">Motivo Da Abertura <textarea name="motivo_abertura" rows="3" maxlength="1000" placeholder="Contexto Da Vaga Para Aprova&ccedil;&atilde;o Da Lideran&ccedil;a."></textarea></label>
+        <label class="tl-gc-form-field">Observa&ccedil;&atilde;o Interna <textarea name="observacao" rows="3" maxlength="500" placeholder="Observa&ccedil;&atilde;o Inicial Do Pedido."></textarea></label>
+        <section id="vagaAndamentoPanel" class="tl-gc-vaga-progress" hidden>
+          <div id="vagaAndamentoResumo" class="tl-gc-vaga-progress__summary"></div>
+          <label class="tl-gc-form-field">Atualiza&ccedil;&atilde;o Do Andamento
+            <textarea name="andamento" rows="3" maxlength="2000" placeholder="Ex.: RH Acionou Candidatos, Entrevista Marcada, Retorno Pendente Ou Aprova&ccedil;&atilde;o Em Andamento."></textarea>
+          </label>
+          <div class="tl-gc-vaga-timeline-head">
+            <div>
+              <strong>Linha Do Tempo Da Vaga</strong>
+              <span id="vagaAndamentoTotal">Sem Atualiza&ccedil;&otilde;es Registradas</span>
+            </div>
+          </div>
+          <div id="vagaAndamentoTimeline" class="tl-gc-vaga-timeline"></div>
+        </section>
+        <div class="tl-gc-modal__actions">
+          <button class="tl-gc-action tl-gc-action--secondary" type="button" data-close-vaga-modal>Cancelar</button>
+          <button id="btnSalvarVaga" class="tl-gc-action" type="submit">Salvar Vaga</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div id="modalPrioridadeVaga" class="tl-gc-modal" hidden>
+    <div class="tl-gc-modal__backdrop" data-close-priority-vaga-modal></div>
+    <section class="tl-gc-modal__dialog tl-gc-modal__dialog--priority" role="dialog" aria-modal="true" aria-labelledby="tituloModalPrioridadeVaga">
+      <form id="formPrioridadeVaga" class="tl-gc-priority-modal">
+        <input type="hidden" name="identificador_vaga" />
+        <div class="tl-gc-modal__head">
+          <div>
+            <span>Prioridade Manual</span>
+            <h2 id="tituloModalPrioridadeVaga">Definir Prioridade</h2>
+            <p id="subtituloModalPrioridadeVaga"></p>
+          </div>
+          <button class="tl-gc-icon-btn" type="button" aria-label="Fechar" data-close-priority-vaga-modal>&times;</button>
+        </div>
+        <div id="prioridadeVagaResumo" class="tl-gc-priority-summary" aria-live="polite"></div>
+        <div class="tl-gc-priority-rule">
+          <strong>Distribui&ccedil;&atilde;o Por Quantidade</strong>
+          <span>Use os n&iacute;veis para separar quantas vagas do protocolo ficam priorizadas. A soma n&atilde;o pode passar da quantidade total.</span>
+        </div>
+        <div id="prioridadeVagaRows" class="tl-gc-priority-rows"></div>
+        <div class="tl-gc-priority-footer">
+          <p id="prioridadeVagaFeedback"></p>
+          <button id="btnAdicionarPrioridadeVaga" class="tl-gc-action tl-gc-action--secondary" type="button">Adicionar N&iacute;vel</button>
+        </div>
+        <div class="tl-gc-modal__actions">
+          <button class="tl-gc-action tl-gc-action--secondary" type="button" data-close-priority-vaga-modal>Cancelar</button>
+          <button id="btnSalvarPrioridadeVaga" class="tl-gc-action" type="submit">Salvar Prioridade</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div id="modalAprovacaoVaga" class="tl-gc-modal" hidden>
+    <div class="tl-gc-modal__backdrop" data-close-approval-vaga-modal></div>
+    <section class="tl-gc-modal__dialog tl-gc-modal__dialog--confirm" role="dialog" aria-modal="true" aria-labelledby="tituloModalAprovacaoVaga">
+      <form id="formAprovacaoVaga" class="tl-gc-vacancy-form">
+        <input type="hidden" name="identificador_vaga" />
+        <input type="hidden" name="aprovado" value="true" />
+        <div class="tl-gc-modal__head">
+          <div>
+            <span>Diretoria Comercial</span>
+            <h2 id="tituloModalAprovacaoVaga">Aprovar Vaga</h2>
+            <p id="subtituloModalAprovacaoVaga"></p>
+          </div>
+          <button class="tl-gc-icon-btn" type="button" aria-label="Fechar" data-close-approval-vaga-modal>&times;</button>
+        </div>
+        <label class="tl-gc-form-field">Observa&ccedil;&atilde;o Da Aprova&ccedil;&atilde;o
+          <textarea name="observacao" rows="4" maxlength="1000" placeholder="Opcional. Esse Texto Entra Na Linha Do Tempo Da Vaga."></textarea>
+        </label>
+        <div class="tl-gc-modal__actions tl-gc-modal__actions--split">
+          <button id="btnReprovarVaga" class="tl-gc-action tl-gc-action--danger" type="submit" data-vaga-aprovacao="false">Reprovar</button>
+          <button id="btnAprovarVaga" class="tl-gc-action" type="submit" data-vaga-aprovacao="true">Aprovar E Iniciar</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div id="modalExcluirVagaManual" class="tl-gc-modal" hidden>
+    <div class="tl-gc-modal__backdrop" data-close-delete-vaga-modal></div>
+    <section class="tl-gc-modal__dialog tl-gc-modal__dialog--confirm" role="dialog" aria-modal="true" aria-labelledby="tituloModalExcluirVaga">
+      <form id="formExcluirVagaManual" class="tl-gc-vacancy-form">
+        <input type="hidden" name="identificador_vaga" />
+        <div class="tl-gc-modal__head">
+          <div>
+            <span>A&ccedil;&atilde;o Administrativa</span>
+            <h2 id="tituloModalExcluirVaga">Excluir Vaga</h2>
+            <p id="subtituloModalExcluirVaga">Essa Vaga Ser&aacute; Removida Definitivamente Do Sistema.</p>
+          </div>
+          <button class="tl-gc-icon-btn" type="button" aria-label="Fechar" data-close-delete-vaga-modal>&times;</button>
+        </div>
+        <label class="tl-gc-form-field">Senha Do Administrador
+          <input name="senha_administrador" type="password" autocomplete="current-password" required />
+        </label>
+        <div class="tl-gc-modal__actions">
+          <button class="tl-gc-action tl-gc-action--secondary" type="button" data-close-delete-vaga-modal>Cancelar</button>
+          <button id="btnExcluirVaga" class="tl-gc-action tl-gc-action--danger" type="submit">Excluir Definitivamente</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div id="modalVagasSla" class="tl-gc-modal" hidden>
+    <div class="tl-gc-modal__backdrop" data-close-sla-modal></div>
+    <section class="tl-gc-modal__dialog tl-gc-modal__dialog--sla" role="dialog" aria-modal="true" aria-labelledby="tituloModalVagasSla">
+      <div class="tl-gc-sla-modal">
+        <div class="tl-gc-modal__head">
+          <div>
+            <span>Vagas Abertas</span>
+            <h2 id="tituloModalVagasSla">SLA Das Vagas</h2>
+            <p id="subtituloModalVagasSla"></p>
+          </div>
+          <button class="tl-gc-icon-btn" type="button" aria-label="Fechar" data-close-sla-modal>&times;</button>
+        </div>
+        <div id="listaSlaVagas" class="tl-gc-sla-list"></div>
+        <div class="tl-gc-modal__actions">
+          <button class="tl-gc-action tl-gc-action--secondary" type="button" data-close-sla-modal>Fechar</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="modalProdutividadeCorretor" class="tl-gc-modal" hidden>
+    <div class="tl-gc-modal__backdrop" data-close-corretor-prod-modal></div>
+    <section class="tl-gc-modal__dialog tl-gc-modal__dialog--corretor-prod" role="dialog" aria-modal="true" aria-labelledby="tituloModalProdutividadeCorretor">
+      <div id="detalheProdutividadeCorretor" class="tl-gc-corretor-modal"></div>
+    </section>
+  </div>
+
+  <div id="modalForecastManual" class="tl-gc-modal" hidden>
+    <div class="tl-gc-modal__backdrop" data-close-forecast-modal></div>
+    <section class="tl-gc-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="tituloModalForecast">
+      <form id="formForecastManual" class="tl-gc-vacancy-form">
+        <input type="hidden" name="chave_gestor" />
+        <input type="hidden" name="gestor" />
+        <input type="hidden" name="equipe_resumo" />
+        <input type="hidden" name="equipes" />
+        <input type="hidden" name="mes_referencia" />
+        <input type="hidden" name="ano_referencia" />
+        <input type="hidden" name="forecast_padrao" />
+        <div class="tl-gc-modal__head">
+          <div>
+            <span>Forecast Mensal</span>
+            <h2 id="tituloModalForecast">Editar Forecast</h2>
+            <p id="subtituloModalForecast"></p>
+          </div>
+          <button class="tl-gc-icon-btn" type="button" aria-label="Fechar" data-close-forecast-modal>&times;</button>
+        </div>
+        <div class="tl-gc-form-grid tl-gc-form-grid--single">
+          <label>Forecast <input name="forecast" type="number" min="0" max="9999" step="1" required /></label>
+        </div>
+        <label class="tl-gc-form-field">Observa&ccedil;&atilde;o <textarea name="observacao" rows="3" maxlength="500" placeholder="Opcional"></textarea></label>
+        <div class="tl-gc-modal__actions">
+          <button class="tl-gc-action tl-gc-action--secondary" type="button" data-close-forecast-modal>Cancelar</button>
+          <button id="btnSalvarForecast" class="tl-gc-action" type="submit">Salvar Forecast</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</body>
+</html>
