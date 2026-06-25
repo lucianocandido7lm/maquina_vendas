@@ -164,8 +164,17 @@ async function runDatabricksChecks(start, end) {
             WHEN TO_DATE(dt_visita) BETWEEN ${quoteDate(start)} AND ${quoteDate(end)}
              AND idlead IS NOT NULL THEN idlead END) AS visitas,
           COUNT(DISTINCT CASE
-            WHEN TO_DATE(data_venda) BETWEEN ${quoteDate(start)} AND ${quoteDate(end)}
-             AND idreserva IS NOT NULL THEN idreserva END) AS vendas,
+            WHEN TO_DATE(dt_cadastro_reserva) BETWEEN ${quoteDate(start)} AND ${quoteDate(end)}
+             AND idreserva IS NOT NULL
+            THEN CONCAT(
+              DATE_FORMAT(TO_DATE(dt_cadastro_reserva), 'yyyy-MM'),
+              '|',
+              COALESCE(
+                CAST(idcliente_canonico AS STRING),
+                NULLIF(REGEXP_REPLACE(COALESCE(cliente_documento, dim_lead_cliente_documento, ''), '\\\\D', ''), ''),
+                CAST(idreserva AS STRING)
+              )
+            ) END) AS vendas,
           COUNT(DISTINCT CASE
             WHEN TO_DATE(COALESCE(dt_repasse, dt_assinatura_contrato)) BETWEEN ${quoteDate(start)} AND ${quoteDate(end)}
              AND fl_repasse_assinado = true THEN idrepasse END) AS repasses,
@@ -263,7 +272,7 @@ async function runPostgresChecks(start, end) {
 
     const leadDateExpr = dateExpr('dt_lead', 'dt_ultima_conversao_lead');
     const visitaDateExpr = dateExpr('dt_visita', 'dt_visita_realizada');
-    const vendaDateExpr = 'data_venda';
+    const vendaDateExpr = 'dt_cadastro_reserva';
     const repasseDateExpr = dateExpr('dt_repasse', 'dt_assinatura_contrato');
 
     const q = `
@@ -271,7 +280,10 @@ async function runPostgresChecks(start, end) {
         SELECT
           COUNT(DISTINCT idlead) FILTER (WHERE ${leadDateExpr}::date BETWEEN $1 AND $2 AND idlead IS NOT NULL) AS leads,
           COUNT(DISTINCT idlead) FILTER (WHERE ${visitaDateExpr}::date BETWEEN $1 AND $2 AND idlead IS NOT NULL) AS visitas,
-          COUNT(DISTINCT idreserva) FILTER (WHERE ${vendaDateExpr}::date BETWEEN $1 AND $2 AND idreserva IS NOT NULL) AS vendas,
+          COUNT(DISTINCT concat(to_char(date_trunc('month', dt_cadastro_reserva), 'YYYY-MM'), '|', coalesce(idcliente_canonico::text, nullif(regexp_replace(coalesce(cliente_documento, dim_lead_cliente_documento, ''), '\\D', '', 'g'), ''), idreserva::text))) FILTER (
+            WHERE ${vendaDateExpr}::date BETWEEN $1 AND $2
+              AND idreserva IS NOT NULL
+          ) AS vendas,
           COUNT(DISTINCT idrepasse) FILTER (
             WHERE ${repasseDateExpr}::date BETWEEN $1 AND $2
               AND fl_repasse_assinado = true

@@ -27,6 +27,10 @@ const FILTER_DEFAULTS = {
   sdr: 'todos',
   origem: 'todas',
   empreendimentoReduzido: 'todos',
+  situacaoAtual: 'todas',
+  idReserva: 'todos',
+  repasseNoMes: 'todos',
+  agente: 'todos',
 };
 
 const BLANK_FILTER_VALUE = '__blank__';
@@ -91,6 +95,7 @@ const SEGMENTED_KPI_INDICATORS = {
   distratos: ['DISTRATOS'],
   cancelamentos: ['CANCELAMENTOS'],
 };
+const SEGMENTED_OPERATION_DIM_LOOKUP_ENABLED = String(process.env.SEGMENTED_OPERATION_DIM_LOOKUP || 'false').toLowerCase() === 'true';
 
 const getSdrImobiliariaLookupSql = () => `
   SELECT
@@ -155,8 +160,13 @@ const getSegmentedSdrImobiliariaNameExpr = (alias = 's', lookupAlias = null) => 
 const getSegmentedOperationDimExpr = (field, alias = 's') => {
   const prefix = alias ? `${alias}.` : '';
   const sourceColumn = field === 'regiaoOperacao' ? 'regiao_operacao' : 'empreendimento_operacao_nome';
-  const dimColumn = field === 'regiaoOperacao' ? 'regiao' : 'empreendimento';
   const rawExpr = `NULLIF(TRIM((${prefix}${sourceColumn})::text), '')`;
+  if (!SEGMENTED_OPERATION_DIM_LOOKUP_ENABLED) {
+    // Performance-first default: use segmented source columns directly.
+    // Correlated lookup on dim_empreendimento can be enabled explicitly by env flag.
+    return rawExpr;
+  }
+  const dimColumn = field === 'regiaoOperacao' ? 'regiao' : 'empreendimento';
   const dimExpr = `(
       SELECT NULLIF(TRIM((d.${dimColumn})::text), '')
       FROM public.dim_empreendimento d
@@ -190,14 +200,14 @@ const hierarchyActiveAtDateSql = (dateExpr) => `
 
 const HIERARCHY_IMOBILIARIA_KEY_SQL = `COALESCE(NULLIF(TRIM(h.imobiliaria_nome_dim), ''), NULLIF(TRIM(h.imobiliaria_nome), ''))`;
 const HIERARCHY_CORRETOR_KEY_SQL = `
-  COALESCE(
-    NULLIF(TRIM(h.documento_norm), ''),
-    NULLIF(TRIM(h.documento), ''),
-    NULLIF(TRIM(h.email_norm), ''),
-    NULLIF(TRIM(h.corretor_ativo_mes_key), ''),
-    NULLIF(TRIM(h.corretor_ativo_nome), ''),
-    NULLIF(TRIM(h.nome), '')
-  )
+  CASE
+    WHEN UPPER(TRIM(COALESCE(h.tipo_funcionario, ''))) = 'CORRETOR' THEN
+      COALESCE(
+        NULLIF(TRIM(h.documento_norm), ''),
+        NULLIF(TRIM(h.documento), '')
+      )
+    ELSE NULL
+  END
 `;
 const EMPREENDIMENTO_JOIN_KEY_EXPR = (alias = '') => {
   const prefix = alias ? `${alias}.` : '';
@@ -222,6 +232,11 @@ const getSdrGestorExpr = (alias = '') => {
 const getSdrAtivoMatchExpr = (alias = '') => {
   const prefix = alias ? `${alias}.` : '';
   return `NULLIF(TRIM(${prefix}sdr_nome), '')`;
+};
+
+const getHierarchyJoinNameExpr = (joinCol = 'corretor_nome', alias = '') => {
+  if (joinCol === 'sdr_nome') return getSdrNomeExpr(alias);
+  return getCorretorNomeExpr(alias);
 };
 
 const sanitizeCorretorValue = (value) => {
@@ -263,7 +278,7 @@ const FUNNEL_STAGES = [
   { key: 'visita', label: 'VISITA', order: 4, source: 'base', aggregate: 'distinct', keyColumn: 'idlead', dateCandidates: ['data_visita_realizada', 'dt_visita_realizada', 'dt_visita'], rule: 'Visitas efetivamente realizadas no periodo.' },
   { key: 'proposta', label: 'PROPOSTA', order: 5, source: 'workflow', aggregate: 'countrows', statuses: ['Proposta'], rule: 'Eventos de workflow na situacao Proposta.' },
   { key: 'prop_aprovada_condicionada', label: 'PROP. APROVADA / CONDICIONADA', order: 6, source: 'propostas', aggregate: 'distinct', keyColumn: 'idprecadastro', statuses: ['APROVADA', 'CONDICIONADA', 'CONDICIONADO', 'CONDICIONADO PENDENTE'], rule: 'Analises aprovadas ou condicionadas com resposta no periodo.' },
-  { key: 'vendas', label: 'VENDAS', order: 7, source: 'base', aggregate: 'distinct', keyColumn: 'idreserva', dateCandidates: ['data_reserva', 'referencia_data_reserva', 'dt_cadastro_reserva', 'data_venda'], rule: 'Reservas iniciadas no periodo, independente do status posterior.' },
+  { key: 'vendas', label: 'VENDAS', order: 7, source: 'base', aggregate: 'distinct', keyColumn: 'idreserva', dateCandidates: ['dt_cadastro_reserva'], rule: 'Uma venda por cliente no mes; se houver mais de uma reserva, usa a reserva mais recente por dt_cadastro_reserva.' },
   { key: 'vendas_finalizadas', label: 'VENDAS FINALIZADAS', order: 8, source: 'base', aggregate: 'distinct', keyColumn: 'idreserva', dateCandidates: ['data_reserva', 'referencia_data_reserva', 'dt_cadastro_reserva', 'data_venda'], statusColumnCandidates: ['reserva_situacao', 'reserva_situacao_nome', 'situacao_reserva'], statusValue: 'Venda finalizada', rule: 'Reservas finalizadas, usando a data da reserva.' },
   { key: 'repasse', label: 'REPASSE', order: 9, source: 'base', aggregate: 'distinct', keyColumn: 'idrepasse', dateCandidates: ['data_assinatura_de_contrato', 'dt_assinatura_contrato', 'dt_repasse'], extraWhere: 'fl_repasse_assinado = true', rule: 'Contratos de repasse assinados no periodo.' },
 ];
@@ -356,13 +371,58 @@ const CACHE_TTL_BY_ROUTE_MS = {
   '/api/v1/dashboard/bottlenecks': 3 * 60 * 1000,
   '/api/v1/dashboard/sla-repasse-insights': 3 * 60 * 1000,
   '/api/v1/dashboard/sla-finalizacao-insights': 3 * 60 * 1000,
-  '/api/v1/dashboard/filters': 60 * 1000,
-  '/api/v1/dashboard/segmented/filters': 60 * 1000,
+  '/api/v1/dashboard/ipc-insights': 60 * 1000,
+  '/api/v1/dashboard/filters': 2 * 60 * 1000,
+  '/api/v1/dashboard/segmented/filters': 2 * 60 * 1000,
+  '/api/v1/dashboard/reservas/filters': 2 * 60 * 1000,
+  '/api/v1/dashboard/filters/search': 60 * 1000,
+  '/api/v1/dashboard/reservas/trends': 60 * 1000,
+  '/api/v1/dashboard/reservas/breakdown': 60 * 1000,
+  '/api/v1/dashboard/reservas/table': 30 * 1000,
+  '/api/v1/dashboard/reservas/metas': 60 * 1000,
+  '/api/v1/dashboard/funnel/history': 30 * 1000,
+  '/api/v1/dashboard/corretores/consolidado': 30 * 1000,
+  '/api/v1/dashboard/corretores/foguetes': 30 * 1000,
+  '/api/v1/dashboard/corretores/foguetes/frequencia': 30 * 1000,
+  '/api/v1/dashboard/corretores/diario': 30 * 1000,
+  '/api/v1/dashboard/corretores/detalhes': 30 * 1000,
+  '/api/v1/dashboard/funnel': 30 * 1000,
+  '/api/v1/dashboard/funnel/goals': 30 * 1000,
+  '/api/v1/dashboard/funnel/detail': 30 * 1000,
+  '/api/v1/dashboard/funnel/audit': 30 * 1000,
 };
 
 const getCacheTtlMs = (pathName) => CACHE_TTL_BY_ROUTE_MS[pathName] ?? 0;
 const clearDashboardCache = () => {
   DASHBOARD_CACHE.clear();
+};
+
+const RESERVA_QUERY_KEYS = new Set(['situacaoAtual', 'idReserva', 'repasseNoMes', 'agente']);
+
+const buildNormalizedCacheKey = (req) => {
+  const pathName = req.path;
+  const query = req.query || {};
+  const entries = [];
+
+  Object.entries(query).forEach(([key, raw]) => {
+    if (raw == null) return;
+    if (!pathName.startsWith('/api/v1/dashboard/reservas') && RESERVA_QUERY_KEYS.has(key)) return;
+
+    const values = Array.isArray(raw) ? raw : [raw];
+    values
+      .flatMap((value) => String(value).split(','))
+      .map((value) => value.trim())
+      .filter((value) => value !== '')
+      .forEach((value) => entries.push([key, value]));
+  });
+
+  entries.sort(([aKey, aVal], [bKey, bVal]) => {
+    if (aKey === bKey) return aVal.localeCompare(bVal, 'pt-BR');
+    return aKey.localeCompare(bKey, 'pt-BR');
+  });
+
+  if (entries.length === 0) return pathName;
+  return `${pathName}?${new URLSearchParams(entries).toString()}`;
 };
 
 const getObservedReferenceDate = (endDate) => {
@@ -382,7 +442,7 @@ app.use((req, res, next) => {
     return next();
   }
 
-  const cacheKey = req.originalUrl;
+  const cacheKey = buildNormalizedCacheKey(req);
   const now = Date.now();
   const cached = DASHBOARD_CACHE.get(cacheKey);
 
@@ -410,14 +470,54 @@ app.use((req, res, next) => {
   return next();
 });
 
+const FILTER_PERF_PATHS = new Set([
+  '/api/v1/dashboard/filters',
+  '/api/v1/dashboard/filters/search',
+  '/api/v1/dashboard/segmented/filters',
+  '/api/v1/dashboard/reservas/filters',
+]);
+
+app.use((req, res, next) => {
+  if (!FILTER_PERF_PATHS.has(req.path)) return next();
+  const startedAt = process.hrtime.bigint();
+  res.on('finish', () => {
+    const endedAt = process.hrtime.bigint();
+    const durationMs = Number(endedAt - startedAt) / 1e6;
+    if (durationMs >= 1200) {
+      console.warn('[filters][slow]', {
+        path: req.path,
+        ms: Number(durationMs.toFixed(1)),
+        status: res.statusCode,
+        query: req.query,
+      });
+    }
+  });
+  return next();
+});
+
+const envTrim = (name, fallback = '') => {
+  const raw = process.env[name];
+  if (raw == null) return fallback;
+  return String(raw).trim();
+};
+
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
+  user: envTrim('DB_USER'),
+  host: envTrim('DB_HOST'),
+  database: envTrim('DB_NAME'),
+  password: envTrim('DB_PASSWORD'),
+  port: Number(envTrim('DB_PORT', '5432')),
+  query_timeout: Number(envTrim('DB_QUERY_TIMEOUT_MS', '20000')),
   ssl: { rejectUnauthorized: false }
 });
+
+const FILTER_QUERY_TIMEOUT_MS = Number(envTrim('FILTER_QUERY_TIMEOUT_MS', '5000'));
+const runTimedQuery = (queryable, text, values = [], timeoutMs = FILTER_QUERY_TIMEOUT_MS) => queryable.query({
+  text,
+  values,
+  query_timeout: timeoutMs,
+});
+const runFilterQuery = (text, values = []) => runTimedQuery(pool, text, values);
 
 pool.query('SELECT NOW()', (err, res) => {
   if (err) console.error('âŒ Erro ao conectar no Postgres:', err);
@@ -462,6 +562,17 @@ const hasEmpreendimentoDimReady = async () => {
   return empreendimentoDimReadyCache;
 };
 
+const hasActiveEmpreendimentoDimFilter = (queryFilters = {}) => {
+  const dimFields = ['cidade', 'origem', 'empreendimento', 'unidade', 'empreendimentoReduzido'];
+  return dimFields.some((field) => {
+    const value = queryFilters[field];
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+    return Boolean(value && value !== FILTER_DEFAULTS[field]);
+  });
+};
+
 const ensureGoalsTable = async () => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS dashboard_goals (
@@ -494,6 +605,19 @@ const ensureGoalsTable = async () => {
       goal.quality_style,
     ]))
   );
+};
+
+const ensureReservasMetasTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.dashboard_reservas_metas (
+      id BIGSERIAL PRIMARY KEY,
+      regiao TEXT NOT NULL,
+      imobiliaria TEXT NOT NULL,
+      meta NUMERIC NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (regiao, imobiliaria)
+    );
+  `);
 };
 
 const ensureDimImobiliariaTable = async () => {
@@ -539,16 +663,71 @@ const ensureDimImobiliariaTable = async () => {
   `);
 };
 
+const ensureDashboardFilterIndexes = async () => {
+  const indexStatements = [
+    // Text-search acceleration for ILIKE filters/search endpoints
+    `CREATE EXTENSION IF NOT EXISTS pg_trgm`,
+
+    // Fast path for /filters (lite) and /filters/search via comercial_kpi_daily
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_data_cidade ON public.comercial_kpi_daily (data, cidade)`,
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_data_empreendimento_reduzido ON public.comercial_kpi_daily (data, empreendimento_reduzido)`,
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_data_empreendimento ON public.comercial_kpi_daily (data, empreendimento)`,
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_data_imobiliaria ON public.comercial_kpi_daily (data, imobiliaria)`,
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_data_origem ON public.comercial_kpi_daily (data, origem)`,
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_data_corretor ON public.comercial_kpi_daily (data, corretor)`,
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_data_gerencia ON public.comercial_kpi_daily (data, gerencia)`,
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_data_coordenacao ON public.comercial_kpi_daily (data, coordenacao)`,
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_data_sdr ON public.comercial_kpi_daily (data, sdr)`,
+
+    // Fast path for segmented filters by operation/corretor/sdr axes
+    `CREATE INDEX IF NOT EXISTS idx_seg_data_ind_regiao_operacao ON public.comercial_indicador_segmentacao (data_evento, indicador, regiao_operacao)`,
+    `CREATE INDEX IF NOT EXISTS idx_seg_data_ind_empreendimento_operacao ON public.comercial_indicador_segmentacao (data_evento, indicador, empreendimento_operacao_nome)`,
+    `CREATE INDEX IF NOT EXISTS idx_seg_data_ind_imobiliaria_operacao ON public.comercial_indicador_segmentacao (data_evento, indicador, imobiliaria_operacao_nome)`,
+    `CREATE INDEX IF NOT EXISTS idx_seg_data_ind_corretor_ativo ON public.comercial_indicador_segmentacao (data_evento, indicador, corretor_ativo_nome)`,
+    `CREATE INDEX IF NOT EXISTS idx_seg_data_ind_regiao_corretor ON public.comercial_indicador_segmentacao (data_evento, indicador, regiao_corretor)`,
+    `CREATE INDEX IF NOT EXISTS idx_seg_data_ind_imobiliaria_corretor ON public.comercial_indicador_segmentacao (data_evento, indicador, imobiliaria_corretor)`,
+    `CREATE INDEX IF NOT EXISTS idx_seg_data_ind_sdr_ativo ON public.comercial_indicador_segmentacao (data_evento, indicador, sdr_ativo_nome) WHERE fl_indicador_sdr_aplicavel IS TRUE`,
+
+    // Trigram indexes for fast ILIKE on typeahead/search endpoints
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_cidade_trgm ON public.comercial_kpi_daily USING gin (LOWER(COALESCE(cidade, '')) gin_trgm_ops)`,
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_empreendimento_trgm ON public.comercial_kpi_daily USING gin (LOWER(COALESCE(empreendimento, '')) gin_trgm_ops)`,
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_empreendimento_reduzido_trgm ON public.comercial_kpi_daily USING gin (LOWER(COALESCE(empreendimento_reduzido, '')) gin_trgm_ops)`,
+    `CREATE INDEX IF NOT EXISTS idx_kpi_daily_imobiliaria_trgm ON public.comercial_kpi_daily USING gin (LOWER(COALESCE(imobiliaria, '')) gin_trgm_ops)`,
+    `CREATE INDEX IF NOT EXISTS idx_seg_regiao_operacao_trgm ON public.comercial_indicador_segmentacao USING gin (LOWER(COALESCE(regiao_operacao, '')) gin_trgm_ops)`,
+    `CREATE INDEX IF NOT EXISTS idx_seg_empreendimento_operacao_trgm ON public.comercial_indicador_segmentacao USING gin (LOWER(COALESCE(empreendimento_operacao_nome, '')) gin_trgm_ops)`,
+    `CREATE INDEX IF NOT EXISTS idx_seg_imobiliaria_operacao_trgm ON public.comercial_indicador_segmentacao USING gin (LOWER(COALESCE(imobiliaria_operacao_nome, '')) gin_trgm_ops)`,
+    `CREATE INDEX IF NOT EXISTS idx_seg_corretor_ativo_trgm ON public.comercial_indicador_segmentacao USING gin (LOWER(COALESCE(corretor_ativo_nome, '')) gin_trgm_ops)`,
+  ];
+
+  for (const sql of indexStatements) {
+    try {
+      await pool.query(sql);
+    } catch (err) {
+      console.warn('[indexes] Falha ao criar índice', { sql, error: err?.message });
+    }
+  }
+};
+
 loadBaseColumns();
 ensureGoalsTable().then(() => {
   console.log('✅ Tabela dashboard_goals pronta');
 }).catch((err) => {
   console.error('❌ Falha ao preparar dashboard_goals', err?.message);
 });
+ensureReservasMetasTable().then(() => {
+  console.log('✅ Tabela dashboard_reservas_metas pronta');
+}).catch((err) => {
+  console.error('❌ Falha ao preparar dashboard_reservas_metas', err?.message);
+});
 ensureDimImobiliariaTable().then(() => {
   console.log('✅ Tabela dim_imobiliaria pronta');
 }).catch((err) => {
   console.error('❌ Falha ao preparar dim_imobiliaria', err?.message);
+});
+ensureDashboardFilterIndexes().then(() => {
+  console.log('✅ Índices de filtros validados');
+}).catch((err) => {
+  console.error('❌ Falha ao validar índices de filtros', err?.message);
 });
 
 const getEmpreendimentoReduzidoExpr = (alias = '') => {
@@ -576,6 +755,20 @@ const getEmpreendimentoDimExpr = (column, baseAlias = '') => `(
   LIMIT 1
 )`;
 
+const getCidadeExpr = (alias = '', useEmpreendimentoDim = false) => {
+  const prefix = alias ? `${alias}.` : '';
+  const cidadeFonteExpr = baseColumns?.has('fonte_lead_cidade')
+    ? `NULLIF(TRIM(${prefix}fonte_lead_cidade), '')`
+    : 'NULL';
+  const cidadeLeadExpr = baseColumns?.has('lead_cidade')
+    ? `NULLIF(TRIM(${prefix}lead_cidade), '')`
+    : 'NULL';
+  const cidadeDimExpr = useEmpreendimentoDim
+    ? `NULLIF(TRIM(${getEmpreendimentoDimExpr('cidade', alias)}), '')`
+    : 'NULL';
+  return `COALESCE(${cidadeDimExpr}, ${cidadeFonteExpr}, ${cidadeLeadExpr})`;
+};
+
 const getImobiliariaExpr = (alias = '') => {
   const prefix = alias ? `${alias}.` : '';
   if (baseColumns?.has('imobiliaria_nome_dim') && baseColumns?.has('imobiliaria_nome')) {
@@ -600,8 +793,79 @@ const pickBaseColumn = (preferred, fallback) => {
 const KPI_DATE_COLUMNS = {
   lead: () => pickBaseColumn('dt_lead', 'dt_ultima_conversao_lead'),
   visita: () => pickBaseColumn('dt_visita', 'dt_visita_realizada'),
-  venda: () => 'data_venda',
+  venda: () => 'dt_cadastro_reserva',
   repasse: () => pickBaseColumn('dt_repasse', 'dt_assinatura_contrato'),
+};
+
+const pickBaseExpr = (candidates, { alias = 'b', cast = 'text', nullable = true } = {}) => {
+  const col = pickAvailableColumn(baseColumns || new Set(), candidates);
+  if (!col) return nullable ? `NULL::${cast}` : null;
+  return `${alias}.${col}`;
+};
+
+const getReservaComputedExpressions = (alias = 'b') => {
+  const cadastroDateExpr = pickBaseExpr(['dt_cadastro_reserva', 'data_reserva', 'referencia_data_reserva'], { alias, cast: 'date' });
+  const situacaoReservaExpr = pickBaseExpr(['reserva_situacao_nome', 'situacao_reserva', 'reserva_situacao'], { alias });
+  const situacaoRepasseExpr = pickBaseExpr(['repasse_situacao_nome', 'situacao_repasse'], { alias });
+  const obsFinalizacaoExpr = pickBaseExpr(['reserva_obs_finalizacao', 'reserva_campos_adicionais_reserva_obs_finalizacao'], { alias });
+  const repasseNoMesExpr = pickBaseExpr(['reserva_repasse_no_mes', 'reserva_campos_adicionais_reserva_repasse_no_mes'], { alias });
+  const riscoCairExpr = repasseNoMesExpr;
+  const probAssinaturaExpr = pickBaseExpr(['repasse_probabilidade_de_assinatura', 'repasse_campos_adicionais_repasse_probabilidade_de_assinatura'], { alias });
+  const qrExpr = pickBaseExpr(['reserva_data_qr', 'reserva_campos_adicionais_data_qr'], { alias, cast: 'date' });
+  const kitCefExpr = pickBaseExpr(['reserva_kit_cef', 'reserva_campos_adicionais_reserva_kit_cef'], { alias });
+  const kitAgehabExpr = pickBaseExpr(['reserva_kit_agehab', 'reserva_campos_adicionais_reserva_kit_agehab'], { alias });
+  const envioCehopExpr = pickBaseExpr(['repasse_data_envio_cehop', 'repasse_campos_adicionais_repasse_data_envio_cehop'], { alias, cast: 'date' });
+  const conformidadeCehopExpr = pickBaseExpr(['repasse_data_conformidade_cehop', 'repasse_campos_adicionais_repasse_data_conformidade_cehop'], { alias, cast: 'date' });
+  const inconformidadeCehopExpr = pickBaseExpr(['repasse_data_inconformidade_cehop', 'repasse_campos_adicionais_repasse_data_da_inconformidade_cehop'], { alias, cast: 'date' });
+  const reenvioCehopExpr = pickBaseExpr(['repasse_data_reenvio_cehop', 'repasse_campos_adicionais_repasse_data_do_reenvio_cehop'], { alias, cast: 'date' });
+  const dataUltimaSituacaoExpr = pickBaseExpr(['data_ultima_alteracao_situacao', 'dt_referencia_reserva_data', 'dt_referencia_reserva', 'dt_cadastro_reserva'], { alias, cast: 'date' });
+
+  const pipelineSourceExpr = `LOWER(COALESCE((${situacaoReservaExpr})::text, '')) || ' ' || LOWER(COALESCE((${situacaoRepasseExpr})::text, '')) || ' ' || LOWER(COALESCE((${obsFinalizacaoExpr})::text, ''))`;
+  const pipelineStageExpr = `
+    CASE
+      WHEN ${pipelineSourceExpr} LIKE '%venda finalizada%' THEN 'Venda finalizada'
+      WHEN ${pipelineSourceExpr} LIKE '%aprovado diretoria%' OR ${pipelineSourceExpr} LIKE '%diretoria%' THEN 'Aprovado Diretoria'
+      WHEN ${pipelineSourceExpr} LIKE '%assinatura 7lm%' OR ${pipelineSourceExpr} LIKE '%assinatura%' THEN 'Assinatura 7LM'
+      WHEN ${pipelineSourceExpr} LIKE '%fase creditu%' OR ${pipelineSourceExpr} LIKE '%creditu%' THEN 'Fase CreditÚ'
+      WHEN ${pipelineSourceExpr} LIKE '%credito%' OR ${pipelineSourceExpr} LIKE '%cef%' OR ${pipelineSourceExpr} LIKE '%caixa%' OR ${pipelineSourceExpr} LIKE '%financ%' THEN 'Crédito'
+      WHEN ${pipelineSourceExpr} LIKE '%envio sienge%' OR ${pipelineSourceExpr} LIKE '%sienge%' OR ${pipelineSourceExpr} LIKE '%envio mega%' THEN 'Envio SIENGE'
+      WHEN ${pipelineSourceExpr} LIKE '%secretaria%' THEN 'Secretaria de Vendas'
+      ELSE 'Em processo'
+    END
+  `;
+  const slaLimitExpr = `
+    CASE
+      WHEN (${pipelineStageExpr}) = 'Em processo' THEN 7
+      WHEN (${pipelineStageExpr}) = 'Secretaria de Vendas' THEN 1
+      WHEN (${pipelineStageExpr}) = 'Envio SIENGE' THEN 1
+      WHEN (${pipelineStageExpr}) = 'Crédito' THEN 1
+      WHEN (${pipelineStageExpr}) = 'Fase CreditÚ' THEN 2
+      WHEN (${pipelineStageExpr}) = 'Assinatura 7LM' THEN 1
+      WHEN (${pipelineStageExpr}) = 'Aprovado Diretoria' THEN 1
+      WHEN (${pipelineStageExpr}) = 'Venda finalizada' THEN 10
+      ELSE NULL
+    END
+  `;
+
+  return {
+    cadastroDateExpr,
+    situacaoReservaExpr,
+    situacaoRepasseExpr,
+    obsFinalizacaoExpr,
+    repasseNoMesExpr,
+    riscoCairExpr,
+    probAssinaturaExpr,
+    qrExpr,
+    kitCefExpr,
+    kitAgehabExpr,
+    envioCehopExpr,
+    conformidadeCehopExpr,
+    inconformidadeCehopExpr,
+    reenvioCehopExpr,
+    dataUltimaSituacaoExpr,
+    pipelineStageExpr,
+    slaLimitExpr,
+  };
 };
 
 const normalizeFiltersFromQuery = (query) => {
@@ -616,6 +880,10 @@ const normalizeFiltersFromQuery = (query) => {
     origem: query.origem,
     sdr: query.sdr,
     empreendimentoReduzido: query.empreendimentoReduzido,
+    situacaoAtual: query.situacaoAtual,
+    idReserva: query.idReserva,
+    repasseNoMes: query.repasseNoMes,
+    agente: query.agente,
   };
 
   // Generic normalization for all filterable fields to support multi-select (arrays)
@@ -646,6 +914,51 @@ const normalizeFiltersFromQuery = (query) => {
   if (Array.isArray(norm.corretor)) {
     norm.corretor = norm.corretor.map((value) => sanitizeCorretorValue(value));
   }
+
+  const parseQueryFilterValues = (rawValue) => {
+    if (Array.isArray(rawValue)) {
+      return rawValue
+        .flatMap((item) => String(item ?? '').split(','))
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .filter((item) => item !== 'todos' && item !== 'todas');
+    }
+    if (typeof rawValue === 'string' && rawValue.trim()) {
+      return rawValue
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .filter((item) => item !== 'todos' && item !== 'todas');
+    }
+    return [];
+  };
+
+  // Backward/forward compatibility:
+  // Many endpoints still consume legacy filters, while the UI currently drives segmented keys.
+  // When legacy keys are empty, we project segmented selections into equivalent legacy dimensions.
+  const applyFallback = (targetKey, sourceKey, transform = null) => {
+    if (Array.isArray(norm[targetKey]) && norm[targetKey].length > 0) return;
+    const sourceValues = parseQueryFilterValues(query[sourceKey]);
+    if (!sourceValues.length) return;
+    norm[targetKey] = transform ? sourceValues.map(transform).filter(Boolean) : sourceValues;
+  };
+
+  applyFallback('empreendimentoReduzido', 'regiaoOperacao');
+  applyFallback('imobiliaria', 'imobiliariaOperacao');
+  applyFallback('corretor', 'corretorOperacao', sanitizeCorretorValue);
+  applyFallback('sdr', 'sdrOperacao');
+
+  applyFallback('corretor', 'corretorAtivo', sanitizeCorretorValue);
+  applyFallback('gerencia', 'gestorCorretor');
+  applyFallback('coordenacao', 'coordenadorCorretor');
+  applyFallback('imobiliaria', 'imobiliariaCorretor');
+  applyFallback('empreendimentoReduzido', 'regiaoCorretor');
+
+  applyFallback('sdr', 'sdrAtivo');
+  applyFallback('gerencia', 'gestorSdr');
+  applyFallback('coordenacao', 'coordenadorSdr');
+  applyFallback('imobiliaria', 'imobiliariaSdr');
+  applyFallback('empreendimentoReduzido', 'regiaoSdr');
 
   return norm;
 };
@@ -679,11 +992,93 @@ const normalizeSegmentedFiltersFromQuery = (query) => {
   return norm;
 };
 
+const RESERVA_FILTER_FIELDS = new Set(['situacaoAtual', 'idReserva', 'repasseNoMes', 'agente']);
+
+const normalizeReservaFiltersFromQuery = (query) => {
+  const norm = {};
+
+  RESERVA_FILTER_FIELDS.forEach((key) => {
+    const rawValue = query[key];
+    if (Array.isArray(rawValue)) {
+      norm[key] = rawValue
+        .flatMap((item) => String(item ?? '').split(','))
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .filter((item) => item !== 'todos' && item !== 'todas');
+      return;
+    }
+
+    if (typeof rawValue === 'string' && rawValue.trim()) {
+      norm[key] = rawValue
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .filter((item) => item !== 'todos' && item !== 'todas');
+      return;
+    }
+
+    norm[key] = [];
+  });
+
+  return norm;
+};
+
+const getReservaFieldExpr = (field, alias = 'b', startExpr = '$1::date', endExpr = '$2::date') => {
+  const prefix = alias ? `${alias}.` : '';
+
+  if (field === 'situacaoAtual') {
+    const candidates = [
+      `${prefix}reserva_situacao_nome`,
+      `${prefix}repasse_situacao_nome`,
+      `${prefix}lead_situacao`,
+      `${prefix}situacao`,
+    ].filter((expr) => baseColumns?.has(expr.split('.').pop()));
+    if (!candidates.length) return null;
+    return `COALESCE(${candidates.join(', ')})`;
+  }
+
+  if (field === 'idReserva') {
+    if (!baseColumns?.has('idreserva')) return null;
+    return `${prefix}idreserva::text`;
+  }
+
+  if (field === 'repasseNoMes') {
+    const repasseCol = KPI_DATE_COLUMNS.repasse();
+    if (!baseColumns?.has(repasseCol)) return null;
+    return `CASE WHEN ${prefix}${repasseCol}::date BETWEEN ${startExpr} AND ${endExpr} THEN 'com_repasse' ELSE 'sem_repasse' END`;
+  }
+
+  if (field === 'agente') {
+    const agentCol = pickAvailableColumn(baseColumns || new Set(), [
+      'agente_nome',
+      'agente',
+      'nome_agente',
+      'agente_responsavel',
+      'consultor_nome',
+      'consultor',
+    ]);
+    if (!agentCol) return null;
+    return `${prefix}${agentCol}`;
+  }
+
+  return null;
+};
+
 const normalizeSegmentedIndicators = (query) => {
   const explicit = query.indicador ?? query.indicadores;
-  const rawValues = explicit
-    ? (Array.isArray(explicit) ? explicit : String(explicit).split(','))
-    : SEGMENTED_KPI_INDICATORS[String(query.kpi || 'leads').trim().toLowerCase()];
+  const hasExplicitIndicators = explicit != null && String(explicit).trim() !== '';
+  const hasKpiHint = query.kpi != null && String(query.kpi).trim() !== '';
+
+  let rawValues;
+  if (hasExplicitIndicators) {
+    rawValues = Array.isArray(explicit) ? explicit : String(explicit).split(',');
+  } else if (hasKpiHint) {
+    rawValues = SEGMENTED_KPI_INDICATORS[String(query.kpi).trim().toLowerCase()];
+  } else {
+    // For filter-option endpoints and generic segmented queries, default to the
+    // full segmented scope instead of only LEADS to avoid missing options.
+    rawValues = SEGMENTED_SUMMARY_INDICATORS;
+  }
 
   const indicators = (rawValues || SEGMENTED_KPI_INDICATORS.leads)
     .map((item) => String(item ?? '').trim().toUpperCase())
@@ -1126,6 +1521,13 @@ const hasActiveSegmentedFiltersFromQuery = (query) => {
   return Object.values(filters).some((value) => Array.isArray(value) && value.length > 0);
 };
 
+const shouldUseSegmentedOverviewMode = (query) => {
+  const explicitMode = String(query?.segmented ?? query?.useSegmented ?? query?.source ?? '')
+    .trim()
+    .toLowerCase();
+  return explicitMode === 'true' || explicitMode === '1' || explicitMode === 'segmented';
+};
+
 const SEGMENTED_SUMMARY_INDICATORS = [
   'LEADS',
   'VISITA',
@@ -1371,7 +1773,12 @@ const buildSegmentedOverviewPayload = async ({ start, end, prevStart, prevEnd, h
   };
 };
 
-const buildFilters = (queryFilters, { startIndex = 1, alias = '', useEmpreendimentoDim = false } = {}) => {
+const buildFilters = (queryFilters, {
+  startIndex = 1,
+  alias = '',
+  useEmpreendimentoDim = false,
+  includeReservaFilters = false,
+} = {}) => {
   const params = [];
   let where = '';
   let parameterIndex = startIndex;
@@ -1430,6 +1837,12 @@ const buildFilters = (queryFilters, { startIndex = 1, alias = '', useEmpreendime
 
     if (field === 'empreendimentoReduzido') {
       const clause = buildMixedFilterClause(empreendimentoReduzidoExpr, value);
+      where += ` AND ${clause}`;
+      return;
+    }
+
+    if (field === 'cidade') {
+      const clause = buildMixedFilterClause(getCidadeExpr(alias, useEmpreendimentoDim), value);
       where += ` AND ${clause}`;
       return;
     }
@@ -1607,6 +2020,23 @@ const buildFilters = (queryFilters, { startIndex = 1, alias = '', useEmpreendime
     parameterIndex += 1;
   });
 
+  if (includeReservaFilters) {
+    const reservaFilters = normalizeReservaFiltersFromQuery(queryFilters);
+    const addReservaClause = (field) => {
+      const values = reservaFilters[field];
+      if (!Array.isArray(values) || values.length === 0) return;
+      const expr = getReservaFieldExpr(field, alias || 'b');
+      if (!expr) return;
+      const clause = buildMixedFilterClause(expr, values);
+      where += ` AND ${clause}`;
+    };
+
+    addReservaClause('situacaoAtual');
+    addReservaClause('idReserva');
+    addReservaClause('repasseNoMes');
+    addReservaClause('agente');
+  }
+
   return { where, params };
 };
 
@@ -1618,7 +2048,7 @@ const getTableColumns = async (client, qualifiedName) => {
   }
 
   const [schemaName, tableName] = qualifiedName.split('.');
-  const result = await client.query(`
+  const result = await runTimedQuery(client, `
     SELECT column_name
     FROM information_schema.columns
     WHERE table_schema = $1
@@ -1642,7 +2072,7 @@ const getWorkflowSource = async (client) => {
   }
 
   for (const tableName of FUNNEL_WORKFLOW_TABLE_CANDIDATES) {
-    const exists = await client.query('SELECT to_regclass($1) AS table_regclass', [tableName]);
+    const exists = await runTimedQuery(client, 'SELECT to_regclass($1) AS table_regclass', [tableName]);
     if (!exists.rows[0]?.table_regclass) continue;
 
     const columns = await getTableColumns(client, tableName);
@@ -2019,7 +2449,12 @@ const buildEmpreendimentoDimFilters = (queryFilters, { startIndex = 1, alias = '
   return { where, params };
 };
 
-const buildHierarchyOnlyFilters = (queryFilters, { startIndex = 1, alias = 'h', useEmpreendimentoDim = false } = {}) => {
+const buildHierarchyOnlyFilters = (queryFilters, {
+  startIndex = 1,
+  alias = 'h',
+  useEmpreendimentoDim = false,
+  joinCol = 'corretor_nome',
+} = {}) => {
   const params = [];
   let where = '';
   let parameterIndex = startIndex;
@@ -2052,13 +2487,14 @@ const buildHierarchyOnlyFilters = (queryFilters, { startIndex = 1, alias = 'h', 
   const columns = {
     corretor: 'nome',
     gerencia: 'gestor_nome',
-    coordenacao: 'coordenador_nome'
+    coordenacao: 'coordenador_nome',
+    sdr: joinCol === 'sdr_nome' ? 'nome' : 'sdr_nome',
   };
 
   Object.entries(columns).forEach(([field, column]) => {
     let value = queryFilters[field];
     if (!value || value === FILTER_DEFAULTS[field]) return;
-    if (Array.isArray(value) && (value.length === 0 || value.includes('todos'))) return;
+    if (Array.isArray(value) && (value.length === 0 || value.includes('todos') || value.includes('todas'))) return;
     let expr = `${prefix}${column}`;
     if (field === 'corretor') {
       const normalizeInput = (input) => sanitizeCorretorValue(input)?.toLowerCase();
@@ -2082,8 +2518,9 @@ const buildHierarchyOnlyFilters = (queryFilters, { startIndex = 1, alias = 'h', 
   // New logic: Filter hierarchy by transaction-level attributes (City, Project, etc.)
   // This ensures the denominator (Active Corretores) responds to regional filters.
   const transactionFilters = {
-    cidade: 'lead_cidade',
+    cidade: getCidadeExpr('b_inner', useEmpreendimentoDim),
     empreendimento: useEmpreendimentoDim ? 'd.empreendimento' : 'empreendimento_nome',
+    unidade: 'unidade_nome',
     origem: 'lead_origem_nome',
     empreendimentoReduzido: useEmpreendimentoDim ? 'd.regiao' : getEmpreendimentoReduzidoExpr('b_inner')
   };
@@ -2094,42 +2531,77 @@ const buildHierarchyOnlyFilters = (queryFilters, { startIndex = 1, alias = 'h', 
   });
 
   if (activeTransactionFilters.length > 0) {
-    let subWhere = '1=1';
-    activeTransactionFilters.forEach(([field, column]) => {
-      const val = queryFilters[field];
-      const clause = buildMixedFilterClause(column, val);
-      subWhere += ` AND ${clause}`;
-    });
-
-    let dateLimit = '';
-    // IMPORTANT: transaction filters MUST be date-limited to be performant.
-    // If start/end are not provided, we fallback to a safe range or skip (to avoid scanning whole table)
     const effectiveStart = queryFilters.start || queryFilters.startDate;
     const effectiveEnd = queryFilters.end || queryFilters.endDate;
 
-    if (effectiveStart && effectiveEnd) {
+    const kpiFilterColumns = {
+      cidade: 'k_inner.cidade',
+      empreendimento: 'k_inner.empreendimento',
+      origem: 'k_inner.origem',
+      empreendimentoReduzido: 'k_inner.empreendimento_reduzido',
+    };
+    const canUseKpiSource = activeTransactionFilters.every(([field]) => Boolean(kpiFilterColumns[field]));
+
+    if (canUseKpiSource && effectiveStart && effectiveEnd) {
+      let subWhere = '1=1';
+      activeTransactionFilters.forEach(([field]) => {
+        const val = queryFilters[field];
+        const clause = buildMixedFilterClause(kpiFilterColumns[field], val);
+        subWhere += ` AND ${clause}`;
+      });
+
       params.push(effectiveStart, effectiveEnd);
-      dateLimit = `AND (dt_assinatura_contrato::date BETWEEN $${parameterIndex} AND $${parameterIndex + 1} OR dt_cadastro_reserva::date BETWEEN $${parameterIndex} AND $${parameterIndex + 1})`;
+      const dateClause = `k_inner.data BETWEEN $${parameterIndex} AND $${parameterIndex + 1}`;
       parameterIndex += 2;
+      const hierarchyJoinExpr = joinCol === 'sdr_nome'
+        ? `NULLIF(TRIM(k_inner.sdr), '')`
+        : `NULLIF(TRIM(k_inner.corretor), '')`;
+
+      where += `
+        AND h.nome IN (
+          SELECT DISTINCT ${hierarchyJoinExpr}
+          FROM public.comercial_kpi_daily k_inner
+          WHERE ${subWhere}
+            AND ${dateClause}
+            AND ${hierarchyJoinExpr} IS NOT NULL
+        )
+      `;
     } else {
-      // If no dates, we still apply the filter but it will be slower. 
-      // However, most callers now pass dates.
-      dateLimit = '';
+      let subWhere = '1=1';
+      activeTransactionFilters.forEach(([field, column]) => {
+        const val = queryFilters[field];
+        const clause = buildMixedFilterClause(column, val);
+        subWhere += ` AND ${clause}`;
+      });
+
+      let dateLimit = '';
+      // IMPORTANT: transaction filters MUST be date-limited to be performant.
+      // If start/end are not provided, we fallback to a safe range or skip (to avoid scanning whole table)
+      if (effectiveStart && effectiveEnd) {
+        params.push(effectiveStart, effectiveEnd);
+        dateLimit = `AND (dt_assinatura_contrato::date BETWEEN $${parameterIndex} AND $${parameterIndex + 1} OR dt_cadastro_reserva::date BETWEEN $${parameterIndex} AND $${parameterIndex + 1})`;
+        parameterIndex += 2;
+      } else {
+        // If no dates, we still apply the filter but it will be slower.
+        // However, most callers now pass dates.
+        dateLimit = '';
+      }
+
+      const dimJoin = useEmpreendimentoDim
+        ? `LEFT JOIN public.dim_empreendimento d ON d.idempreendimento = ${EMPREENDIMENTO_JOIN_KEY_EXPR('b_inner')}`
+        : '';
+
+      const hierarchyJoinExpr = getHierarchyJoinNameExpr(joinCol, 'b_inner');
+      where += `
+        AND h.nome IN (
+          SELECT DISTINCT ${hierarchyJoinExpr}
+          FROM public.comercial_base b_inner
+          ${dimJoin}
+          WHERE ${subWhere}
+            ${dateLimit}
+        )
+      `;
     }
-
-    const dimJoin = useEmpreendimentoDim
-      ? `LEFT JOIN public.dim_empreendimento d ON d.idempreendimento = ${EMPREENDIMENTO_JOIN_KEY_EXPR('b_inner')}`
-      : '';
-
-    where += `
-      AND h.nome IN (
-        SELECT DISTINCT ${getCorretorNomeExpr('b_inner')}
-        FROM public.comercial_base b_inner
-        ${dimJoin}
-        WHERE ${subWhere}
-          ${dateLimit}
-      )
-    `;
   }
 
   return { where, params };
@@ -2157,6 +2629,7 @@ const buildDailyAggregateFilters = (queryFilters, { startIndex = 1, alias = 'd' 
   addInFilter('cidade', queryFilters.cidade);
   addInFilter('origem', queryFilters.origem);
   addInFilter('empreendimento', queryFilters.empreendimento);
+  addInFilter('unidade', queryFilters.unidade);
   addInFilter('empreendimento_reduzido', queryFilters.empreendimentoReduzido);
   addInFilter('sdr', queryFilters.sdr);
   addInFilter('corretor', queryFilters.corretor);
@@ -2211,7 +2684,7 @@ app.get('/api/v1/dashboard/summary', async (req, res) => {
   const ipcReferenceDate = getObservedReferenceDate(end);
 
   try {
-    if (hasActiveSegmentedFiltersFromQuery(req.query)) {
+    if (shouldUseSegmentedOverviewMode(req.query) && hasActiveSegmentedFiltersFromQuery(req.query)) {
       const segmentedFilters = normalizeSegmentedFiltersFromQuery(req.query);
       const payload = await buildSegmentedSummaryPayload(start, end, segmentedFilters);
       return res.json(payload);
@@ -2286,7 +2759,7 @@ app.get('/api/v1/dashboard/summary', async (req, res) => {
             FROM months m
             LEFT JOIN public.vw_hierarquia_cvcrm h
               ON h.mes_referencia = m.mes_referencia
-             AND LOWER(COALESCE(h.ativo_negocio, '')) = 's'
+             AND ${hierarchyActiveAtDateSql(`(m.mes_referencia + INTERVAL '1 month - 1 day')::date`)}
              ${hDaily.where}
             GROUP BY m.mes_referencia
           )
@@ -2333,7 +2806,10 @@ app.get('/api/v1/dashboard/summary', async (req, res) => {
       SELECT 
         COUNT(DISTINCT idlead) FILTER (WHERE ${getDayRangeSql(leadDateCol)} AND idlead IS NOT NULL) as total_leads,
         COUNT(DISTINCT idlead) FILTER (WHERE ${getDayRangeSql(visitaDateCol)} AND idlead IS NOT NULL) as total_visitas,
-        COUNT(DISTINCT idreserva) FILTER (WHERE ${getDayRangeSql(vendaDateCol)} AND idreserva IS NOT NULL) as total_vendas,
+        COUNT(DISTINCT concat(to_char(date_trunc('month', dt_cadastro_reserva), 'YYYY-MM'), '|', coalesce(idcliente_canonico::text, nullif(regexp_replace(coalesce(cliente_documento, dim_lead_cliente_documento, ''), '\\D', '', 'g'), ''), idreserva::text))) FILTER (
+          WHERE ${getDayRangeSql(vendaDateCol)}
+            AND idreserva IS NOT NULL
+        ) as total_vendas,
         COUNT(DISTINCT idrepasse) FILTER (WHERE ${getDayRangeSql(repasseDateCol)} AND fl_repasse_assinado = true) as total_repasses,
         AVG(sla_finalizacao_dias) FILTER (WHERE ${getDayRangeSql('dt_contrato_contabilizado')}) as avg_sla_finalizacao,
         AVG(sla_repasse_dias) FILTER (WHERE ${getDayRangeSql(repasseDateCol)}) as avg_sla_repasse
@@ -2411,7 +2887,7 @@ app.get('/api/v1/dashboard/summary', async (req, res) => {
         FROM months m
         LEFT JOIN public.vw_hierarquia_cvcrm h
           ON h.mes_referencia = m.mes_referencia
-         AND LOWER(COALESCE(h.ativo_negocio, '')) = 's'
+         AND ${hierarchyActiveAtDateSql(`(m.mes_referencia + INTERVAL '1 month - 1 day')::date`)}
          ${hierarchyWhere}
         GROUP BY m.mes_referencia
       )
@@ -2497,7 +2973,7 @@ app.get('/api/v1/dashboard/trends', async (req, res) => {
   const { start, end } = dateRange;
 
   try {
-    if (hasActiveSegmentedFiltersFromQuery(req.query)) {
+    if (shouldUseSegmentedOverviewMode(req.query) && hasActiveSegmentedFiltersFromQuery(req.query)) {
       const segmentedFilters = normalizeSegmentedFiltersFromQuery(req.query);
       const rows = await buildSegmentedDailySeries(start, end, segmentedFilters);
       return res.json(rows);
@@ -2538,7 +3014,9 @@ app.get('/api/v1/dashboard/trends', async (req, res) => {
       hierarchy_daily AS (
         SELECT
           d.data,
-          COUNT(DISTINCT h.documento) AS corretores,
+          COUNT(DISTINCT ${HIERARCHY_CORRETOR_KEY_SQL}) FILTER (
+            WHERE ${HIERARCHY_CORRETOR_KEY_SQL} IS NOT NULL
+          ) AS corretores,
           COUNT(DISTINCT ${HIERARCHY_IMOBILIARIA_KEY_SQL}) FILTER (WHERE ${HIERARCHY_IMOBILIARIA_KEY_SQL} IS NOT NULL) AS imobiliarias
         FROM days d
         LEFT JOIN public.vw_hierarquia_cvcrm h
@@ -2573,7 +3051,7 @@ app.get('/api/v1/dashboard/trends', async (req, res) => {
       ORDER BY d.data ASC
     `;
 
-    const { rows } = await pool.query(q, queryParams);
+    const { rows } = await runFilterQuery(q, queryParams);
     res.json(rows.map((row) => ({
       data: row.data.toISOString().split('T')[0],
       leads: Number(row.leads) || 0,
@@ -2620,7 +3098,7 @@ app.get('/api/v1/dashboard/overview', async (req, res) => {
   }
 
   try {
-    if (hasActiveSegmentedFiltersFromQuery(req.query)) {
+    if (shouldUseSegmentedOverviewMode(req.query) && hasActiveSegmentedFiltersFromQuery(req.query)) {
       const segmentedFilters = normalizeSegmentedFiltersFromQuery(req.query);
       const payload = await buildSegmentedOverviewPayload({
         start,
@@ -2918,7 +3396,14 @@ app.get('/api/v1/dashboard/overview', async (req, res) => {
     };
 
     const hFiltersCurrent = buildHierarchyOnlyFilters({...filters, start, end}, { startIndex: 1, alias: 'h', useEmpreendimentoDim });
-    const hCorretoresQuery = `SELECT COUNT(DISTINCT documento) AS count FROM public.vw_hierarquia_cvcrm h WHERE ${hierarchyActiveAtDateSql(`$${hFiltersCurrent.params.length + 1}::date`)} ${hFiltersCurrent.where}`;
+    const hCorretoresQuery = `
+      SELECT COUNT(DISTINCT ${HIERARCHY_CORRETOR_KEY_SQL}) FILTER (
+        WHERE ${HIERARCHY_CORRETOR_KEY_SQL} IS NOT NULL
+      ) AS count
+      FROM public.vw_hierarquia_cvcrm h
+      WHERE ${hierarchyActiveAtDateSql(`$${hFiltersCurrent.params.length + 1}::date`)}
+      ${hFiltersCurrent.where}
+    `;
     const hImobsQuery = `SELECT COUNT(DISTINCT ${HIERARCHY_IMOBILIARIA_KEY_SQL}) AS count FROM public.vw_hierarquia_cvcrm h WHERE ${hierarchyActiveAtDateSql(`$${hFiltersCurrent.params.length + 1}::date`)} AND ${HIERARCHY_IMOBILIARIA_KEY_SQL} IS NOT NULL ${hFiltersCurrent.where}`;
     const currentHierarchyReferenceDate = getObservedReferenceDate(end);
 
@@ -3299,7 +3784,7 @@ app.get('/api/v1/dashboard/breakdown', async (req, res) => {
   try {
     const useEmpreendimentoDim = await hasEmpreendimentoDimReady();
     const axisColumns = {
-      cidade: 'lead_cidade',
+      cidade: getCidadeExpr('', useEmpreendimentoDim),
       empreendimento: useEmpreendimentoDim ? getEmpreendimentoDimExpr('empreendimento') : 'empreendimento_nome',
       origem: 'lead_origem_nome',
       corretor: 'corretor_nome',
@@ -3336,8 +3821,8 @@ app.get('/api/v1/dashboard/breakdown', async (req, res) => {
     const isEventKpi = kpi === 'cancelamentos' || kpi === 'distratos';
     if (kpi === 'vendas') {
       dateCol = KPI_DATE_COLUMNS.venda();
-      countField = 'COUNT(DISTINCT idreserva)';
-      caseCountField = 'COUNT(DISTINCT idreserva)';
+      countField = "COUNT(DISTINCT concat(to_char(date_trunc('month', dt_cadastro_reserva), 'YYYY-MM'), '|', coalesce(idcliente_canonico::text, nullif(regexp_replace(coalesce(cliente_documento, dim_lead_cliente_documento, ''), '\\D', '', 'g'), ''), idreserva::text))) FILTER (WHERE idreserva IS NOT NULL)";
+      caseCountField = countField;
     }
     if (kpi === 'visitas') { dateCol = 'dt_visita_realizada'; }
     if (kpi === 'propostas') {
@@ -3440,7 +3925,7 @@ app.get('/api/v1/dashboard/breakdown', async (req, res) => {
         const eventDateCol = kpi === 'cancelamentos' ? 'data_cancelamento' : 'referencia_data';
 
           const targetCol = (() => {
-            if (axis === 'cidade') return 'b.lead_cidade';
+            if (axis === 'cidade') return getCidadeExpr('b', useEmpreendimentoDim);
             if (axis === 'empreendimento') return useEmpreendimentoDim ? getEmpreendimentoDimExpr('empreendimento', 'b') : `${eventAlias}.empreendimento_nome`;
             if (axis === 'empreendimentoReduzido') return useEmpreendimentoDim ? getEmpreendimentoDimExpr('regiao', 'b') : getEmpreendimentoReduzidoExpr('b');
             if (axis === 'imobiliaria') return getImobiliariaExpr('b');
@@ -3476,7 +3961,7 @@ app.get('/api/v1/dashboard/breakdown', async (req, res) => {
             ? `pc.proposta_status_atual IN ('APROVADA','CONDICIONADA','REPROVADA')`
             : `pc.proposta_status_atual = '${propostaStatus}'`;
           const targetCol = (() => {
-            if (axis === 'cidade') return 'b.lead_cidade';
+            if (axis === 'cidade') return getCidadeExpr('b', useEmpreendimentoDim);
             if (axis === 'empreendimento') return useEmpreendimentoDim ? getEmpreendimentoDimExpr('empreendimento', 'b') : 'b.empreendimento_nome';
             if (axis === 'empreendimentoReduzido') return useEmpreendimentoDim ? getEmpreendimentoDimExpr('regiao', 'b') : getEmpreendimentoReduzidoExpr('b');
             if (axis === 'imobiliaria') return getImobiliariaExpr('b');
@@ -3672,7 +4157,7 @@ app.get('/api/v1/dashboard/segmented/breakdown', async (req, res) => {
           LIMIT ${limit}
         `;
       }
-      const result = await pool.query(sql, queryParams);
+      const result = await runFilterQuery(sql, queryParams);
       byAxis[axis] = result.rows.map((row) => ({
         label: row.label,
         value: Number(row.value) || 0,
@@ -3732,7 +4217,7 @@ app.get('/api/v1/dashboard/bottlenecks', async (req, res) => {
       ${where}
     `;
 
-    const { rows } = await pool.query(q, queryParams);
+    const { rows } = await runFilterQuery(q, queryParams);
     const result = rows[0];
 
     res.json({
@@ -3780,13 +4265,19 @@ app.get('/api/v1/dashboard/ipc-insights', async (req, res) => {
     }
 
     const hFiltersCurrent = buildHierarchyOnlyFilters({...normalized, start, end}, { startIndex: 1, alias: 'h', useEmpreendimentoDim });
-    const hCorretoresQuery = `SELECT COUNT(DISTINCT documento) FROM public.vw_hierarquia_cvcrm h WHERE ${hierarchyActiveAtDateSql(`$${hFiltersCurrent.params.length + 1}::date`)} ${hFiltersCurrent.where}`;
+    const hCorretoresQuery = `
+      SELECT COUNT(DISTINCT ${HIERARCHY_CORRETOR_KEY_SQL})
+      FROM public.vw_hierarquia_cvcrm h
+      WHERE ${hierarchyActiveAtDateSql(`$${hFiltersCurrent.params.length + 1}::date`)}
+        AND ${HIERARCHY_CORRETOR_KEY_SQL} IS NOT NULL
+        ${hFiltersCurrent.where}
+    `;
     const hImobsQuery = `SELECT COUNT(DISTINCT ${HIERARCHY_IMOBILIARIA_KEY_SQL}) FROM public.vw_hierarquia_cvcrm h WHERE ${hierarchyActiveAtDateSql(`$${hFiltersCurrent.params.length + 1}::date`)} AND ${HIERARCHY_IMOBILIARIA_KEY_SQL} IS NOT NULL ${hFiltersCurrent.where}`;
 
     const currentSummaryPromiseFull = (async () => {
-      const repasses = await pool.query(`SELECT COUNT(DISTINCT idrepasse) FROM comercial_base b WHERE ${getDayRangeSql(`b.${repasseDateCol}`)} ${where}`, queryParams);
-      const corretores = await pool.query(hCorretoresQuery, [...hFiltersCurrent.params, end]);
-      const imobs = await pool.query(hImobsQuery, [...hFiltersCurrent.params, end]);
+      const repasses = await runFilterQuery(`SELECT COUNT(DISTINCT idrepasse) FROM comercial_base b WHERE ${getDayRangeSql(`b.${repasseDateCol}`)} ${where}`, queryParams);
+      const corretores = await runFilterQuery(hCorretoresQuery, [...hFiltersCurrent.params, end]);
+      const imobs = await runFilterQuery(hImobsQuery, [...hFiltersCurrent.params, end]);
       return { 
         total_repasses: repasses.rows[0].count, 
         corretores: corretores.rows[0].count, 
@@ -3795,9 +4286,9 @@ app.get('/api/v1/dashboard/ipc-insights', async (req, res) => {
     })();
 
     const prevSummaryPromiseFull = (async () => {
-      const repasses = await pool.query(`SELECT COUNT(DISTINCT idrepasse) FROM comercial_base b WHERE ${getDayRangeSql(`b.${repasseDateCol}`)} ${where}`, [prevDateRange.start, prevDateRange.end, ...params]);
-      const corretores = await pool.query(hCorretoresQuery, [...hFiltersCurrent.params, prevDateRange.end]);
-      const imobs = await pool.query(hImobsQuery, [...hFiltersCurrent.params, prevDateRange.end]);
+      const repasses = await runFilterQuery(`SELECT COUNT(DISTINCT idrepasse) FROM comercial_base b WHERE ${getDayRangeSql(`b.${repasseDateCol}`)} ${where}`, [prevDateRange.start, prevDateRange.end, ...params]);
+      const corretores = await runFilterQuery(hCorretoresQuery, [...hFiltersCurrent.params, prevDateRange.end]);
+      const imobs = await runFilterQuery(hImobsQuery, [...hFiltersCurrent.params, prevDateRange.end]);
       return { 
         total_repasses: repasses.rows[0].count, 
         corretores: corretores.rows[0].count, 
@@ -3806,7 +4297,7 @@ app.get('/api/v1/dashboard/ipc-insights', async (req, res) => {
     })();
 
     // 2. Rankings (keep these as they correctly handle base filters)
-    const topCorretoresPromise = pool.query(`
+    const topCorretoresPromise = runFilterQuery(`
       SELECT 
         COALESCE(corretor_nome, 'N/D') as label,
         COUNT(DISTINCT idrepasse) as value,
@@ -3819,7 +4310,7 @@ app.get('/api/v1/dashboard/ipc-insights', async (req, res) => {
       LIMIT 15
     `, queryParams);
 
-    const topImobiliariasPromise = pool.query(`
+    const topImobiliariasPromise = runFilterQuery(`
       SELECT 
         COALESCE(imobiliaria_nome_dim, imobiliaria_nome, 'N/D') as label,
         COUNT(DISTINCT idrepasse) as value,
@@ -3882,12 +4373,16 @@ app.get('/api/v1/dashboard/sla-repasse-insights', async (req, res) => {
 
   try {
     const useEmpreendimentoDim = await hasEmpreendimentoDimReady();
-    const { where, params } = buildFilters(filters, { startIndex: 3, alias: 'b', useEmpreendimentoDim });
+    const { where, params } = buildFilters(filters, {
+      startIndex: 3,
+      alias: 'b',
+      useEmpreendimentoDim,
+    });
     const queryParams = [start, end, ...params];
     const segmentedFilters = normalizeSegmentedFiltersFromQuery(req.query);
 
     const [summaryResult, topCorretoresResult, topSlaResult, pendingCasesResult, pendingStatusResult, segmentedTopBreakdowns] = await Promise.all([
-      pool.query(`
+      runFilterQuery(`
         SELECT
           COUNT(*) FILTER (WHERE b.dt_contrato_contabilizado::date BETWEEN $1::date AND $2::date) AS contabilizados_periodo,
           COUNT(*) FILTER (
@@ -3903,7 +4398,7 @@ app.get('/api/v1/dashboard/sla-repasse-insights', async (req, res) => {
         FROM comercial_base b
         WHERE 1=1 ${where}
       `, queryParams),
-      pool.query(`
+      runFilterQuery(`
         SELECT
           COALESCE(b.corretor_nome, 'Sem informacao') AS corretor,
           COUNT(DISTINCT b.idrepasse)::int AS assinaturas
@@ -3915,7 +4410,7 @@ app.get('/api/v1/dashboard/sla-repasse-insights', async (req, res) => {
         ORDER BY 2 DESC, 1 ASC
         LIMIT 12
       `, queryParams),
-      pool.query(`
+      runFilterQuery(`
         SELECT
           COALESCE(b.corretor_nome, 'Sem informacao') AS corretor,
           b.journey_id,
@@ -3931,7 +4426,7 @@ app.get('/api/v1/dashboard/sla-repasse-insights', async (req, res) => {
         ORDER BY sla_dias DESC NULLS LAST, b.dt_assinatura_contrato DESC
         LIMIT 12
       `, queryParams),
-      pool.query(`
+      runFilterQuery(`
         SELECT
           COALESCE(b.corretor_nome, 'Sem informacao') AS corretor,
           b.journey_id,
@@ -3947,7 +4442,7 @@ app.get('/api/v1/dashboard/sla-repasse-insights', async (req, res) => {
         ORDER BY dias_sem_assinatura DESC NULLS LAST
         LIMIT 20
       `, queryParams),
-      pool.query(`
+      runFilterQuery(`
         SELECT
           COALESCE(b.repasse_situacao_nome, 'Sem informacao') AS situacao_repasse,
           COUNT(*)::int AS total
@@ -4032,12 +4527,16 @@ app.get('/api/v1/dashboard/sla-finalizacao-insights', async (req, res) => {
 
   try {
     const useEmpreendimentoDim = await hasEmpreendimentoDimReady();
-    const { where, params } = buildFilters(filters, { startIndex: 3, alias: 'b', useEmpreendimentoDim });
+    const { where, params } = buildFilters(filters, {
+      startIndex: 3,
+      alias: 'b',
+      useEmpreendimentoDim,
+    });
     const queryParams = [start, end, ...params];
     const segmentedFilters = normalizeSegmentedFiltersFromQuery(req.query);
 
     const [summaryResult, topCorretoresResult, topSlaResult, pendingCasesResult, pendingStatusResult, segmentedTopBreakdowns] = await Promise.all([
-      pool.query(`
+      runFilterQuery(`
         SELECT
           COUNT(*) FILTER (WHERE b.dt_cadastro_reserva::date BETWEEN $1::date AND $2::date) AS reservas_periodo,
           COUNT(*) FILTER (WHERE b.dt_contrato_contabilizado::date BETWEEN $1::date AND $2::date) AS contabilizacoes_periodo,
@@ -4052,7 +4551,7 @@ app.get('/api/v1/dashboard/sla-finalizacao-insights', async (req, res) => {
         FROM comercial_base b
         WHERE 1=1 ${where}
       `, queryParams),
-      pool.query(`
+      runFilterQuery(`
         SELECT
           COALESCE(b.corretor_nome, 'Sem informacao') AS corretor,
           COUNT(DISTINCT b.idreserva)::int AS assinaturas
@@ -4064,7 +4563,7 @@ app.get('/api/v1/dashboard/sla-finalizacao-insights', async (req, res) => {
         ORDER BY 2 DESC, 1 ASC
         LIMIT 12
       `, queryParams),
-      pool.query(`
+      runFilterQuery(`
         SELECT
           COALESCE(b.corretor_nome, 'Sem informacao') AS corretor,
           b.journey_id,
@@ -4081,7 +4580,7 @@ app.get('/api/v1/dashboard/sla-finalizacao-insights', async (req, res) => {
         ORDER BY sla_dias DESC NULLS LAST, b.dt_contrato_contabilizado DESC
         LIMIT 12
       `, queryParams),
-      pool.query(`
+      runFilterQuery(`
         SELECT
           COALESCE(b.corretor_nome, 'Sem informacao') AS corretor,
           b.journey_id,
@@ -4098,7 +4597,7 @@ app.get('/api/v1/dashboard/sla-finalizacao-insights', async (req, res) => {
         ORDER BY dias_sem_assinatura DESC NULLS LAST
         LIMIT 20
       `, queryParams),
-      pool.query(`
+      runFilterQuery(`
         SELECT
           COALESCE(b.reserva_situacao_nome, 'Sem informacao') AS situacao_repasse,
           COUNT(*)::int AS total
@@ -4203,28 +4702,173 @@ app.get('/api/v1/dashboard/segmented/filters', async (req, res) => {
     { value: allValue, label: allLabel },
     ...addBlankOption(items.map((value) => ({ value, label: value }))),
   ];
+  const requestedFields = new Set(
+    String(req.query.fields || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => Object.prototype.hasOwnProperty.call(SEGMENTED_FILTER_COLUMNS, item)),
+  );
 
   try {
-    const getSegmentedOptions = async (field) => {
-      if (!sdrApplicable && SEGMENTED_SDR_AXIS_FIELDS.has(field)) {
-        return [];
+    const hasActiveSdrSelection = SEGMENTED_SDR_FILTER_FIELDS.size > 0
+      && Array.from(SEGMENTED_SDR_FILTER_FIELDS).some((key) => Array.isArray(filters[key]) && filters[key].length > 0);
+    const { where, params } = buildSegmentedFilterWhere(filters, {
+      startIndex: 4,
+      alias: 's',
+      includeSdrFilters: sdrApplicable,
+    });
+
+    const filterFields = Object.keys(SEGMENTED_FILTER_COLUMNS)
+      .filter((field) => sdrApplicable || !SEGMENTED_SDR_AXIS_FIELDS.has(field))
+      .filter((field) => requestedFields.size === 0 || requestedFields.has(field));
+    const includeSdrImobiliariaLookup = filterFields.includes('imobiliariaSdr');
+    if (!filterFields.length) {
+      return res.json({
+        operation: {
+          regiaoOperacao: makeOptions([], 'todas', 'Todas as regiões da operação'),
+          imobiliariaOperacao: makeOptions([], 'todas', 'Todas as imobiliárias da operação'),
+          corretorOperacao: makeOptions([], 'todos', 'Todos os corretores da operação'),
+          empreendimento: makeOptions([], 'todos', 'Todos os empreendimentos'),
+          unidade: makeOptions([], 'todos', 'Todas as unidades'),
+          origem: makeOptions([], 'todas', 'Todas as origens'),
+          sdrOperacao: makeOptions([], 'todos', 'Todos os SDRs da operação'),
+        },
+        corretorAtivo: {
+          corretorAtivo: makeOptions([], 'todos', 'Todos os corretores ativos'),
+          gestorCorretor: makeOptions([], 'todas', 'Todas as gerências do corretor'),
+          coordenadorCorretor: makeOptions([], 'todas', 'Todas as coordenações do corretor'),
+          regiaoCorretor: makeOptions([], 'todas', 'Todas as regiões do corretor'),
+          imobiliariaCorretor: makeOptions([], 'todas', 'Todas as imobiliárias do corretor'),
+        },
+        sdrAtivo: {
+          sdrAtivo: makeOptions([], 'todos', 'Todos os SDRs ativos'),
+          gestorSdr: makeOptions([], 'todas', 'Todas as gerências do SDR'),
+          coordenadorSdr: makeOptions([], 'todas', 'Todas as coordenações do SDR'),
+          regiaoSdr: makeOptions([], 'todas', 'Todas as regiões do SDR'),
+          imobiliariaSdr: makeOptions([], 'todas', 'Todas as imobiliárias do SDR'),
+        },
+        meta: {
+          source: 'comercial_indicador_segmentacao',
+          indicators,
+          sdrApplicable,
+          lite,
+          limit: optionLimit,
+          startDate: start,
+          endDate: end,
+          requestedFields: [],
+        },
+      });
+    }
+
+    const fieldExprs = Object.fromEntries(
+      filterFields.map((field) => {
+        const isSdrImobiliariaField = field === 'imobiliariaSdr';
+        return [field, getSegmentedFieldExpr(field, 's', isSdrImobiliariaField ? 'si' : null)];
+      }),
+    );
+    const requiresSdrDataset = hasActiveSdrSelection || filterFields.some((field) => SEGMENTED_SDR_AXIS_FIELDS.has(field));
+    const effectiveIndicators = requiresSdrDataset
+      ? indicators
+      : indicators.filter((indicator) => !SEGMENTED_SDR_INDICATORS.has(indicator));
+    const indicatorsForQuery = effectiveIndicators.length > 0 ? effectiveIndicators : indicators;
+
+    // Lite mode: fetch options per field in controlled batches.
+    // This avoids one large materialized CTE and keeps latency stable under filter pressure.
+    if (lite) {
+      const fetchFieldValues = async (field) => {
+        const isSdrImobiliariaField = field === 'imobiliariaSdr';
+        const fieldExpr = fieldExprs[field];
+        const sql = `
+          ${isSdrImobiliariaField ? `WITH sdr_imobiliaria_lookup AS (${getSdrImobiliariaLookupSql()})` : ''}
+          SELECT DISTINCT (${fieldExpr})::text AS value
+          FROM public.comercial_indicador_segmentacao s
+          ${isSdrImobiliariaField ? `
+          LEFT JOIN LATERAL (
+            SELECT lookup.imobiliaria_nome
+            FROM sdr_imobiliaria_lookup lookup
+            WHERE lookup.imobiliaria_id = NULLIF(TRIM((s.imobiliaria_sdr)::text), '')
+              AND (lookup.mes_referencia = s.mes_referencia OR lookup.mes_referencia IS NULL)
+            ORDER BY (lookup.mes_referencia IS NULL), lookup.imobiliaria_nome
+            LIMIT 1
+          ) si ON TRUE
+          ` : ''}
+          WHERE s.data_evento BETWEEN $1::date AND $2::date
+            AND s.indicador = ANY($3::text[])
+            ${SEGMENTED_SDR_AXIS_FIELDS.has(field) ? 'AND s.fl_indicador_sdr_aplicavel IS TRUE' : ''}
+            ${where}
+            AND NULLIF(TRIM(COALESCE(((${fieldExpr})::text), '')), '') IS NOT NULL
+          ORDER BY 1
+          LIMIT ${optionLimit}
+        `;
+        const { rows } = await runFilterQuery(sql, [start, end, indicatorsForQuery, ...params]);
+        return rows.map((row) => row.value);
+      };
+
+      const values = Object.fromEntries(
+        Object.keys(SEGMENTED_FILTER_COLUMNS).map((field) => [field, []]),
+      );
+      const batchSize = 3;
+      for (let offset = 0; offset < filterFields.length; offset += batchSize) {
+        const chunk = filterFields.slice(offset, offset + batchSize);
+        const loaded = await Promise.all(
+          chunk.map(async (field) => [field, await fetchFieldValues(field)]),
+        );
+        loaded.forEach(([field, list]) => {
+          values[field] = list;
+        });
       }
 
-      const localFilters = { ...filters, [field]: [] };
-      const { where, params } = buildSegmentedFilterWhere(localFilters, {
-        startIndex: 4,
-        alias: 's',
-        excludeField: field,
-        includeSdrFilters: sdrApplicable,
+      return res.json({
+        operation: {
+          regiaoOperacao: makeOptions(values.regiaoOperacao || [], 'todas', 'Todas as regiões da operação'),
+          imobiliariaOperacao: makeOptions(values.imobiliariaOperacao || [], 'todas', 'Todas as imobiliárias da operação'),
+          corretorOperacao: makeOptions(values.corretorOperacao || [], 'todos', 'Todos os corretores da operação'),
+          empreendimento: makeOptions(values.empreendimento || [], 'todos', 'Todos os empreendimentos'),
+          unidade: makeOptions(values.unidade || [], 'todos', 'Todas as unidades'),
+          origem: makeOptions(values.origem || [], 'todas', 'Todas as origens'),
+          sdrOperacao: makeOptions(values.sdrOperacao || [], 'todos', 'Todos os SDRs da operação'),
+        },
+        corretorAtivo: {
+          corretorAtivo: makeOptions(values.corretorAtivo || [], 'todos', 'Todos os corretores ativos'),
+          gestorCorretor: makeOptions(values.gestorCorretor || [], 'todas', 'Todas as gerências do corretor'),
+          coordenadorCorretor: makeOptions(values.coordenadorCorretor || [], 'todas', 'Todas as coordenações do corretor'),
+          regiaoCorretor: makeOptions(values.regiaoCorretor || [], 'todas', 'Todas as regiões do corretor'),
+          imobiliariaCorretor: makeOptions(values.imobiliariaCorretor || [], 'todas', 'Todas as imobiliárias do corretor'),
+        },
+        sdrAtivo: {
+          sdrAtivo: makeOptions(values.sdrAtivo || [], 'todos', 'Todos os SDRs ativos'),
+          gestorSdr: makeOptions(values.gestorSdr || [], 'todas', 'Todas as gerências do SDR'),
+          coordenadorSdr: makeOptions(values.coordenadorSdr || [], 'todas', 'Todas as coordenações do SDR'),
+          regiaoSdr: makeOptions(values.regiaoSdr || [], 'todas', 'Todas as regiões do SDR'),
+          imobiliariaSdr: makeOptions(values.imobiliariaSdr || [], 'todas', 'Todas as imobiliárias do SDR'),
+        },
+        meta: {
+          source: 'comercial_indicador_segmentacao',
+          indicators: indicatorsForQuery,
+          sdrApplicable,
+          lite,
+          limit: optionLimit,
+          startDate: start,
+          endDate: end,
+          requestedFields: requestedFields.size ? Array.from(requestedFields) : null,
+          mode: 'field_query_batched',
+        },
       });
-      const isSdrImobiliariaField = field === 'imobiliariaSdr';
-      const fieldExpr = getSegmentedFieldExpr(field, 's', isSdrImobiliariaField ? 'si' : null);
+    }
 
-      const sql = `
-        ${isSdrImobiliariaField ? `WITH sdr_imobiliaria_lookup AS (${getSdrImobiliariaLookupSql()})` : ''}
-        SELECT DISTINCT (${fieldExpr})::text AS value
+    const sql = `
+      ${includeSdrImobiliariaLookup ? `WITH sdr_imobiliaria_lookup AS (${getSdrImobiliariaLookupSql()}),` : 'WITH'}
+      filtered AS MATERIALIZED (
+        SELECT
+          ${filterFields.map((field) => {
+            const baseExpr = `NULLIF(TRIM(COALESCE(((${fieldExprs[field]})::text), '')), '')`;
+            if (SEGMENTED_SDR_AXIS_FIELDS.has(field)) {
+              return `CASE WHEN s.fl_indicador_sdr_aplicavel IS TRUE THEN ${baseExpr} ELSE NULL END AS "${field}"`;
+            }
+            return `${baseExpr} AS "${field}"`;
+          }).join(',\n          ')}
         FROM public.comercial_indicador_segmentacao s
-        ${isSdrImobiliariaField ? `
+        ${includeSdrImobiliariaLookup ? `
         LEFT JOIN LATERAL (
           SELECT lookup.imobiliaria_nome
           FROM sdr_imobiliaria_lookup lookup
@@ -4236,23 +4880,30 @@ app.get('/api/v1/dashboard/segmented/filters', async (req, res) => {
         ` : ''}
         WHERE s.data_evento BETWEEN $1::date AND $2::date
           AND s.indicador = ANY($3::text[])
-          ${SEGMENTED_SDR_AXIS_FIELDS.has(field) ? 'AND s.fl_indicador_sdr_aplicavel IS TRUE' : ''}
           ${where}
-          AND NULLIF(TRIM(COALESCE((${fieldExpr})::text, '')), '') IS NOT NULL
-        ORDER BY 1
-        LIMIT ${optionLimit}
-      `;
-      const result = await pool.query(sql, [start, end, indicators, ...params]);
-      return result.rows.map((row) => row.value);
-    };
+      )
+      SELECT
+        ${filterFields.map((field) => `
+        (
+          SELECT COALESCE(ARRAY_AGG(v ORDER BY v), ARRAY[]::text[])
+          FROM (
+            SELECT DISTINCT "${field}" AS v
+            FROM filtered
+            WHERE "${field}" IS NOT NULL
+            ORDER BY 1
+            LIMIT ${optionLimit}
+          ) options_${field}
+        ) AS "${field}"`).join(',\n        ')}
+    `;
 
-    const entries = await Promise.all(
-      Object.keys(SEGMENTED_FILTER_COLUMNS).map(async (field) => [
-        field,
-        await getSegmentedOptions(field),
-      ])
+    const result = await runFilterQuery(sql, [start, end, indicatorsForQuery, ...params]);
+    const row = result.rows?.[0] || {};
+    const values = Object.fromEntries(
+      Object.keys(SEGMENTED_FILTER_COLUMNS).map((field) => [field, []]),
     );
-    const values = Object.fromEntries(entries);
+    filterFields.forEach((field) => {
+      values[field] = Array.isArray(row[field]) ? row[field] : [];
+    });
 
     return res.json({
       operation: {
@@ -4280,24 +4931,50 @@ app.get('/api/v1/dashboard/segmented/filters', async (req, res) => {
       },
       meta: {
         source: 'comercial_indicador_segmentacao',
-        indicators,
+        indicators: indicatorsForQuery,
         sdrApplicable,
         lite,
         limit: optionLimit,
         startDate: start,
         endDate: end,
+        requestedFields: requestedFields.size ? Array.from(requestedFields) : null,
       },
     });
   } catch (err) {
     console.error('[segmented/filters] error', err?.message || err);
-    return res.status(500).json({ error: 'Erro ao buscar filtros segmentados' });
+    const fallback = [{ value: BLANK_FILTER_VALUE, label: BLANK_FILTER_LABEL }];
+    return res.json({
+      operation: {
+        regiaoOperacao: fallback,
+        imobiliariaOperacao: fallback,
+        corretorOperacao: fallback,
+        empreendimento: fallback,
+        unidade: fallback,
+        origem: fallback,
+        sdrOperacao: fallback,
+      },
+      corretorAtivo: {
+        corretorAtivo: fallback,
+        gestorCorretor: fallback,
+        coordenadorCorretor: fallback,
+        regiaoCorretor: fallback,
+        imobiliariaCorretor: fallback,
+      },
+      sdrAtivo: {
+        sdrAtivo: fallback,
+        gestorSdr: fallback,
+        coordenadorSdr: fallback,
+        regiaoSdr: fallback,
+        imobiliariaSdr: fallback,
+      },
+      meta: { source: 'fallback', error: 'Erro ao buscar filtros segmentados' },
+    });
   }
 });
 
-// 4. Filtros
-app.get('/api/v1/dashboard/filters', async (req, res) => {
+app.get('/api/v1/dashboard/reservas/filters', async (req, res) => {
   try {
-    if (!baseColumns || !baseColumns.has('sdr_nome')) {
+    if (!baseColumns) {
       await loadBaseColumns();
     }
 
@@ -4308,12 +4985,126 @@ app.get('/api/v1/dashboard/filters', async (req, res) => {
 
     const { start, end } = dateRange;
     const normalized = normalizeFiltersFromQuery(req.query);
-    const baseFilters = { ...normalized, start, end };
+    const reserva = normalizeReservaFiltersFromQuery(req.query);
+    const lite = String(req.query.lite || 'false').toLowerCase() === 'true';
+    const optionLimit = parsePositiveInt(req.query.limit, lite ? 120 : 500, 1000);
+    const reservaFieldKeys = ['situacaoAtual', 'idReserva', 'repasseNoMes', 'agente'];
+    const requestedFields = new Set(
+      String(req.query.fields || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => reservaFieldKeys.includes(item)),
+    );
+    const wants = (key) => requestedFields.size === 0 || requestedFields.has(key);
+    const useEmpreendimentoDim = hasActiveEmpreendimentoDimFilter(normalized)
+      ? await hasEmpreendimentoDimReady()
+      : false;
 
-    const useEmpreendimentoDim = await hasEmpreendimentoDimReady();
+    const baseFilters = { ...normalized, ...reserva };
+    const withoutField = (field) => ({ ...baseFilters, [field]: [] });
+    const dateWindowSql = `(
+      b.dt_ultima_conversao_lead::date BETWEEN $1::date AND $2::date
+      OR b.dt_visita_realizada::date BETWEEN $1::date AND $2::date
+      OR b.data_venda::date BETWEEN $1::date AND $2::date
+      OR b.dt_cancelamento_reserva::date BETWEEN $1::date AND $2::date
+      OR b.dt_assinatura_contrato::date BETWEEN $1::date AND $2::date
+      OR b.dt_cadastro_reserva::date BETWEEN $1::date AND $2::date
+      OR b.dt_contrato_contabilizado::date BETWEEN $1::date AND $2::date
+    )`;
+
+    const getOptions = async (field, expr) => {
+      if (!expr) return [];
+      const localFilters = withoutField(field);
+      const { where, params } = buildFilters(localFilters, {
+        startIndex: 3,
+        alias: 'b',
+        useEmpreendimentoDim,
+      });
+      const sql = `
+        SELECT DISTINCT (${expr})::text AS value
+        FROM comercial_base b
+        WHERE ${dateWindowSql}
+          ${where}
+          AND NULLIF(TRIM(COALESCE(((${expr})::text), '')), '') IS NOT NULL
+        ORDER BY 1
+        LIMIT ${optionLimit}
+      `;
+      const { rows } = await runFilterQuery(sql, [start, end, ...params]);
+      return rows.map((r) => r.value);
+    };
+
+    const situacaoExpr = getReservaFieldExpr('situacaoAtual', 'b', '$1::date', '$2::date');
+    const idReservaExpr = getReservaFieldExpr('idReserva', 'b', '$1::date', '$2::date');
+    const repasseExpr = getReservaFieldExpr('repasseNoMes', 'b', '$1::date', '$2::date');
+    const agenteExpr = getReservaFieldExpr('agente', 'b', '$1::date', '$2::date');
+
+    const [situacoes, ids, repasses, agentes] = await Promise.all([
+      wants('situacaoAtual') ? getOptions('situacaoAtual', situacaoExpr) : Promise.resolve([]),
+      wants('idReserva') ? getOptions('idReserva', idReservaExpr) : Promise.resolve([]),
+      wants('repasseNoMes') ? getOptions('repasseNoMes', repasseExpr) : Promise.resolve([]),
+      wants('agente') ? getOptions('agente', agenteExpr) : Promise.resolve([]),
+    ]);
+
+    const addBlankOption = (items) => [{ value: BLANK_FILTER_VALUE, label: BLANK_FILTER_LABEL }, ...items];
+    const repasseLabels = {
+      com_repasse: 'Com repasse no período',
+      sem_repasse: 'Sem repasse no período',
+    };
+
+    return res.json({
+      situacaoAtual: [{ value: 'todas', label: 'Todas as situações' }, ...addBlankOption(situacoes.map((v) => ({ value: v, label: v })))],
+      idReserva: [{ value: 'todos', label: 'Todos os IDs de reserva' }, ...addBlankOption(ids.map((v) => ({ value: v, label: v })))],
+      repasseNoMes: [{ value: 'todos', label: 'Todos os cenários de repasse' }, ...addBlankOption(repasses.map((v) => ({ value: v, label: repasseLabels[v] || v })))],
+      agente: [{ value: 'todos', label: 'Todos os agentes' }, ...addBlankOption(agentes.map((v) => ({ value: v, label: v })))],
+      meta: {
+        lite,
+        limit: optionLimit,
+        startDate: start,
+        endDate: end,
+        requestedFields: requestedFields.size ? Array.from(requestedFields) : null,
+      },
+    });
+  } catch (err) {
+    console.error('[reservas/filters] error', err?.message || err);
+    const fallback = [{ value: BLANK_FILTER_VALUE, label: BLANK_FILTER_LABEL }];
+    return res.json({
+      situacaoAtual: fallback,
+      idReserva: fallback,
+      repasseNoMes: fallback,
+      agente: fallback,
+      meta: { source: 'fallback', error: 'Erro ao buscar filtros de reservas' },
+    });
+  }
+});
+
+// 4. Filtros
+app.get('/api/v1/dashboard/filters', async (req, res) => {
+  try {
+    const dateRange = getDateRange(req.query);
+    if (dateRange.error) {
+      return res.status(400).json({ error: dateRange.error });
+    }
+
+    const { start, end } = dateRange;
+    const normalized = normalizeFiltersFromQuery(req.query);
+    const baseFilters = { ...normalized, start, end };
 
     const lite = String(req.query.lite || 'false').toLowerCase() === 'true';
     const optionLimit = parsePositiveInt(req.query.limit, lite ? 120 : 500, 1000);
+    const legacyFieldKeys = ['cidade', 'corretor', 'coordenacao', 'gerencia', 'sdr', 'empreendimento', 'imobiliaria', 'empreendimentoReduzido', 'origem'];
+    const requestedFields = new Set(
+      String(req.query.fields || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => legacyFieldKeys.includes(item)),
+    );
+    const wants = (key) => requestedFields.size === 0 || requestedFields.has(key);
+    const needsEmpreendimentoDim = hasActiveEmpreendimentoDimFilter(normalized)
+      || wants('empreendimento')
+      || wants('empreendimentoReduzido');
+    const useEmpreendimentoDim = needsEmpreendimentoDim
+      ? await hasEmpreendimentoDimReady()
+      : false;
 
     const withoutField = (field) => ({ ...baseFilters, [field]: [] });
 
@@ -4327,9 +5118,79 @@ app.get('/api/v1/dashboard/filters', async (req, res) => {
       OR b.dt_contrato_contabilizado::date BETWEEN $1::date AND $2::date
     )`;
 
+    const toOptionItems = (values) => (Array.isArray(values) ? values : [])
+      .map((v) => String(v ?? '').trim())
+      .filter(Boolean)
+      .map((v) => ({ value: v, label: v }));
+
+    const addBlankOption = (items) => [{ value: BLANK_FILTER_VALUE, label: BLANK_FILTER_LABEL }, ...items];
+
+    if (lite) {
+      const dailyQuery = buildDailyAggregateFilters(baseFilters, { startIndex: 3, alias: 'k' });
+      const liteFieldExpr = (enabled, alias, column) => {
+        if (!enabled) return `'{}'::text[] AS ${alias}`;
+        return `COALESCE((SELECT ARRAY_AGG(v) FROM (SELECT DISTINCT ${column} AS v FROM filtered WHERE NULLIF(TRIM(COALESCE(${column}, '')), '') IS NOT NULL ORDER BY 1 LIMIT ${optionLimit}) src), '{}'::text[]) AS ${alias}`;
+      };
+      const liteSql = `
+        WITH filtered AS MATERIALIZED (
+          SELECT
+            k.cidade::text AS cidade,
+            k.empreendimento::text AS empreendimento,
+            k.empreendimento_reduzido::text AS empreendimento_reduzido,
+            k.origem::text AS origem,
+            k.corretor::text AS corretor,
+            k.gerencia::text AS gerencia,
+            k.coordenacao::text AS coordenacao,
+            k.imobiliaria::text AS imobiliaria,
+            k.sdr::text AS sdr
+          FROM comercial_kpi_daily k
+          WHERE k.data BETWEEN $1::date AND $2::date
+            ${dailyQuery.where}
+        )
+        SELECT
+          ${liteFieldExpr(wants('cidade'), 'cidades', 'cidade')},
+          ${liteFieldExpr(wants('empreendimento'), 'empreendimentos', 'empreendimento')},
+          ${liteFieldExpr(wants('empreendimentoReduzido'), 'regioes_empreendimento', 'empreendimento_reduzido')},
+          ${liteFieldExpr(wants('origem'), 'origens', 'origem')},
+          ${liteFieldExpr(wants('corretor'), 'corretores', 'corretor')},
+          ${liteFieldExpr(wants('gerencia'), 'gerencias', 'gerencia')},
+          ${liteFieldExpr(wants('coordenacao'), 'coordenacoes', 'coordenacao')},
+          ${liteFieldExpr(wants('imobiliaria'), 'imobiliarias', 'imobiliaria')},
+          ${liteFieldExpr(wants('sdr'), 'sdrs', 'sdr')}
+      `;
+      const liteResult = await runFilterQuery(liteSql, [start, end, ...dailyQuery.params]);
+      const liteRow = liteResult.rows?.[0] || {};
+
+      return res.json({
+        cidade: [{ value: 'todas', label: 'Todas as cidades' }, ...addBlankOption(toOptionItems(wants('cidade') ? liteRow.cidades : []))],
+        corretor: [{ value: 'todos', label: 'Todos os corretores' }, ...addBlankOption(toOptionItems(wants('corretor') ? liteRow.corretores : []))],
+        coordenacao: [{ value: 'todas', label: 'Todas as coordenações' }, ...addBlankOption(toOptionItems(wants('coordenacao') ? liteRow.coordenacoes : []))],
+        gerencia: [{ value: 'todas', label: 'Todas as gerências' }, ...addBlankOption(toOptionItems(wants('gerencia') ? liteRow.gerencias : []))],
+        sdr: [{ value: 'todos', label: 'Todos os SDRs' }, ...addBlankOption(toOptionItems(wants('sdr') ? liteRow.sdrs : []))],
+        empreendimento: [{ value: 'todos', label: 'Todos os empreendimentos' }, ...addBlankOption(toOptionItems(wants('empreendimento') ? liteRow.empreendimentos : []))],
+        imobiliaria: [{ value: 'todas', label: 'Todas as imobiliárias' }, ...addBlankOption(toOptionItems(wants('imobiliaria') ? liteRow.imobiliarias : []))],
+        empreendimentoReduzido: [{ value: 'todos', label: 'Todas as Regiões' }, ...addBlankOption(toOptionItems(wants('empreendimentoReduzido') ? liteRow.regioes_empreendimento : []))],
+        origem: [{ value: 'todas', label: 'Todas as origens' }, ...addBlankOption(toOptionItems(wants('origem') ? liteRow.origens : []))],
+        meta: {
+          lite,
+          limit: optionLimit,
+          mode: 'daily_consolidated',
+          requestedFields: requestedFields.size ? Array.from(requestedFields) : null,
+        },
+      });
+    }
+
+    if (!baseColumns || !baseColumns.has('sdr_nome')) {
+      await loadBaseColumns();
+    }
+
     const getBaseOptions = async (field, expr) => {
       const localFilters = withoutField(field);
-      const { where, params } = buildFilters(localFilters, { startIndex: 3, alias: 'b', useEmpreendimentoDim });
+      const { where, params } = buildFilters(localFilters, {
+        startIndex: 3,
+        alias: 'b',
+        useEmpreendimentoDim,
+      });
       const sql = `
         SELECT DISTINCT (${expr})::text AS value
         FROM comercial_base b
@@ -4339,7 +5200,7 @@ app.get('/api/v1/dashboard/filters', async (req, res) => {
         ORDER BY 1
         LIMIT ${optionLimit}
       `;
-      const { rows } = await pool.query(sql, [start, end, ...params]);
+      const { rows } = await runFilterQuery(sql, [start, end, ...params]);
       return rows.map((r) => r.value);
     };
 
@@ -4356,7 +5217,7 @@ app.get('/api/v1/dashboard/filters', async (req, res) => {
         ORDER BY 1
         LIMIT ${optionLimit}
       `;
-      const { rows } = await pool.query(sql, [...h.params, end]);
+      const { rows } = await runFilterQuery(sql, [...h.params, end]);
       return rows.map((r) => r.value);
     };
 
@@ -4371,18 +5232,20 @@ app.get('/api/v1/dashboard/filters', async (req, res) => {
       coordenadores,
       sdrs,
     ] = await Promise.all([
-      getBaseOptions('cidade', 'b.lead_cidade'),
-      getHierarchyOptions('corretor', 'h.nome'),
-      getBaseOptions('empreendimento', useEmpreendimentoDim ? getEmpreendimentoDimExpr('empreendimento', 'b') : 'b.empreendimento_nome'),
-      getHierarchyOptions('imobiliaria', HIERARCHY_IMOBILIARIA_KEY_SQL),
-      getBaseOptions('empreendimentoReduzido', useEmpreendimentoDim ? getEmpreendimentoDimExpr('regiao', 'b') : getEmpreendimentoReduzidoExpr('b')),
-      getBaseOptions('origem', 'b.lead_origem_nome'),
-      getHierarchyOptions('gerencia', 'h.gestor_nome'),
-      getHierarchyOptions('coordenacao', 'h.coordenador_nome'),
-      getHierarchyOptions('sdr', 'h.nome', 'public.vw_hierarquia_sdr', 'sdr_nome'),
+      wants('cidade') ? getBaseOptions('cidade', getCidadeExpr('b', useEmpreendimentoDim)) : Promise.resolve([]),
+      wants('corretor') ? getHierarchyOptions('corretor', 'h.nome') : Promise.resolve([]),
+      wants('empreendimento')
+        ? getBaseOptions('empreendimento', useEmpreendimentoDim ? getEmpreendimentoDimExpr('empreendimento', 'b') : 'b.empreendimento_nome')
+        : Promise.resolve([]),
+      wants('imobiliaria') ? getHierarchyOptions('imobiliaria', HIERARCHY_IMOBILIARIA_KEY_SQL) : Promise.resolve([]),
+      wants('empreendimentoReduzido')
+        ? getBaseOptions('empreendimentoReduzido', useEmpreendimentoDim ? getEmpreendimentoDimExpr('regiao', 'b') : getEmpreendimentoReduzidoExpr('b'))
+        : Promise.resolve([]),
+      wants('origem') ? getBaseOptions('origem', 'b.lead_origem_nome') : Promise.resolve([]),
+      wants('gerencia') ? getHierarchyOptions('gerencia', 'h.gestor_nome') : Promise.resolve([]),
+      wants('coordenacao') ? getHierarchyOptions('coordenacao', 'h.coordenador_nome') : Promise.resolve([]),
+      wants('sdr') ? getHierarchyOptions('sdr', 'h.nome', 'public.vw_hierarquia_sdr', 'sdr_nome') : Promise.resolve([]),
     ]);
-
-    const addBlankOption = (items) => [{ value: BLANK_FILTER_VALUE, label: BLANK_FILTER_LABEL }, ...items];
 
     res.json({
       cidade: [{ value: 'todas', label: 'Todas as cidades' }, ...addBlankOption(cidades.map(v => ({ value: v, label: v })))],
@@ -4401,56 +5264,253 @@ app.get('/api/v1/dashboard/filters', async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Erro ao buscar filtros' });
+    const fallback = [{ value: BLANK_FILTER_VALUE, label: BLANK_FILTER_LABEL }];
+    res.json({
+      cidade: fallback,
+      corretor: fallback,
+      coordenacao: fallback,
+      gerencia: fallback,
+      sdr: fallback,
+      empreendimento: fallback,
+      imobiliaria: fallback,
+      empreendimentoReduzido: fallback,
+      origem: fallback,
+      meta: { source: 'fallback', error: 'Erro ao buscar filtros' },
+    });
   }
 });
 
 app.get('/api/v1/dashboard/filters/search', async (req, res) => {
   const normalized = normalizeFiltersFromQuery(req.query);
   const filters = { ...normalized };
+  const segmentedFilters = normalizeSegmentedFiltersFromQuery(req.query);
+  const reservaFilters = normalizeReservaFiltersFromQuery(req.query);
   const field = String(req.query.field || '').trim();
   const term = String(req.query.q || '').trim();
   const limit = parsePositiveInt(req.query.limit, 40, 200);
-  const useEmpreendimentoDim = await hasEmpreendimentoDimReady();
-
-  const fieldConfig = {
-    cidade: { expr: 'lead_cidade', from: 'comercial_base b' },
-    empreendimento: useEmpreendimentoDim ? { expr: 'd.empreendimento', from: 'dim_empreendimento d', empreendimentoDimOnly: true } : { expr: 'empreendimento_nome', from: 'comercial_base b' },
-    origem: { expr: 'lead_origem_nome', from: 'comercial_base b' },
-    empreendimentoReduzido: useEmpreendimentoDim ? { expr: 'd.regiao', from: 'dim_empreendimento d', empreendimentoDimOnly: true } : { expr: getEmpreendimentoReduzidoExpr('b'), from: 'comercial_base b' },
-    corretor: { expr: 'h.nome', from: 'public.vw_hierarquia_cvcrm h', hierarchyOnly: true },
-    gerencia: { expr: 'h.gestor_nome', from: 'public.vw_hierarquia_cvcrm h', hierarchyOnly: true },
-    coordenacao: { expr: 'h.coordenador_nome', from: 'public.vw_hierarquia_cvcrm h', hierarchyOnly: true },
-    imobiliaria: { expr: HIERARCHY_IMOBILIARIA_KEY_SQL, from: 'public.vw_hierarquia_cvcrm h', hierarchyOnly: true },
-    sdr: { expr: 'h.nome', from: 'public.vw_hierarquia_sdr h', hierarchyOnly: true },
-  };
-
-  const config = fieldConfig[field];
-  if (!config) {
-    return res.status(400).json({ error: 'field invalido para busca incremental de filtros.' });
+  if (term.length < 2) {
+    return res.json({ field, q: term, options: [] });
   }
-
+  let useEmpreendimentoDim = null;
+  const ensureEmpreendimentoDimReady = async () => {
+    if (useEmpreendimentoDim === null) {
+      useEmpreendimentoDim = await hasEmpreendimentoDimReady();
+    }
+    return useEmpreendimentoDim;
+  };
+  const dateRange = getDateRange(req.query);
+  if (dateRange.error) {
+    return res.status(400).json({ error: dateRange.error });
+  }
+  const { start, end } = dateRange;
+  const withoutCurrentField = (obj, key) => ({
+    ...obj,
+    [key]: [],
+  });
+  const dailySearchColumns = {
+    cidade: 'd.cidade',
+    empreendimento: 'd.empreendimento',
+    empreendimentoReduzido: 'd.empreendimento_reduzido',
+    origem: 'd.origem',
+    corretor: 'd.corretor',
+    gerencia: 'd.gerencia',
+    coordenacao: 'd.coordenacao',
+    imobiliaria: 'd.imobiliaria',
+    sdr: 'd.sdr',
+  };
   try {
+    if (Object.prototype.hasOwnProperty.call(dailySearchColumns, field)) {
+      const localFilters = withoutCurrentField(filters, field);
+      const daily = buildDailyAggregateFilters(localFilters, { startIndex: 3, alias: 'd' });
+      const expr = dailySearchColumns[field];
+      const sql = `
+        SELECT DISTINCT ${expr}::text AS value
+        FROM comercial_kpi_daily d
+        WHERE d.data BETWEEN $1::date AND $2::date
+          ${daily.where}
+          AND NULLIF(TRIM(COALESCE(${expr}::text, '')), '') IS NOT NULL
+          AND ${expr}::text ILIKE $${daily.params.length + 3}
+        ORDER BY 1
+        LIMIT ${limit}
+      `;
+      const queryParams = [start, end, ...daily.params, `%${term}%`];
+      const { rows } = await runFilterQuery(sql, queryParams);
+      return res.json({
+        field,
+        q: term,
+        options: rows.map((r) => ({ value: r.value, label: r.value })),
+      });
+    }
+
+    const needsEmpreendimentoDim = (fieldKey) => {
+      if (fieldKey === 'empreendimento' || fieldKey === 'empreendimentoReduzido') return true;
+      const dimSensitiveFilters = [
+        'cidade',
+        'origem',
+        'empreendimento',
+        'unidade',
+        'empreendimentoReduzido',
+        'imobiliaria',
+      ];
+      return dimSensitiveFilters.some((key) => Array.isArray(filters[key]) && filters[key].length > 0);
+    };
+    const resolvedEmpreendimentoDim = needsEmpreendimentoDim(field)
+      ? await ensureEmpreendimentoDimReady()
+      : false;
+
+    const fieldConfig = {
+      cidade: { expr: getCidadeExpr('b', resolvedEmpreendimentoDim), from: 'comercial_base b' },
+      empreendimento: resolvedEmpreendimentoDim ? { expr: 'd.empreendimento', from: 'dim_empreendimento d', empreendimentoDimOnly: true } : { expr: 'empreendimento_nome', from: 'comercial_base b' },
+      origem: { expr: 'lead_origem_nome', from: 'comercial_base b' },
+      empreendimentoReduzido: resolvedEmpreendimentoDim ? { expr: 'd.regiao', from: 'dim_empreendimento d', empreendimentoDimOnly: true } : { expr: getEmpreendimentoReduzidoExpr('b'), from: 'comercial_base b' },
+      corretor: { expr: 'h.nome', from: 'public.vw_hierarquia_cvcrm h', hierarchyOnly: true },
+      gerencia: { expr: 'h.gestor_nome', from: 'public.vw_hierarquia_cvcrm h', hierarchyOnly: true },
+      coordenacao: { expr: 'h.coordenador_nome', from: 'public.vw_hierarquia_cvcrm h', hierarchyOnly: true },
+      imobiliaria: { expr: HIERARCHY_IMOBILIARIA_KEY_SQL, from: 'public.vw_hierarquia_cvcrm h', hierarchyOnly: true },
+      sdr: { expr: 'h.nome', from: 'public.vw_hierarquia_sdr h', hierarchyOnly: true },
+    };
+
+    if (Object.prototype.hasOwnProperty.call(SEGMENTED_FILTER_COLUMNS, field)) {
+      const indicators = normalizeSegmentedIndicators(req.query);
+      const sdrApplicable = isSdrSegmentApplicable(indicators);
+      if (!sdrApplicable && SEGMENTED_SDR_AXIS_FIELDS.has(field)) {
+        return res.json({ field, q: term, options: [] });
+      }
+
+      const localSegmented = { ...segmentedFilters, [field]: [] };
+      const { where, params } = buildSegmentedFilterWhere(localSegmented, {
+        startIndex: 4,
+        alias: 's',
+        excludeField: field,
+        includeSdrFilters: sdrApplicable,
+      });
+      const isSdrImobiliariaField = field === 'imobiliariaSdr';
+      const fieldExpr = getSegmentedFieldExpr(field, 's', isSdrImobiliariaField ? 'si' : null);
+      const searchWhere = term.length >= 2 ? ` AND (${fieldExpr})::text ILIKE $${params.length + 4}` : '';
+      const sql = `
+        ${isSdrImobiliariaField ? `WITH sdr_imobiliaria_lookup AS (${getSdrImobiliariaLookupSql()})` : ''}
+        SELECT DISTINCT (${fieldExpr})::text AS value
+        FROM public.comercial_indicador_segmentacao s
+        ${isSdrImobiliariaField ? `
+        LEFT JOIN LATERAL (
+          SELECT lookup.imobiliaria_nome
+          FROM sdr_imobiliaria_lookup lookup
+          WHERE lookup.imobiliaria_id = NULLIF(TRIM((s.imobiliaria_sdr)::text), '')
+            AND (lookup.mes_referencia = s.mes_referencia OR lookup.mes_referencia IS NULL)
+          ORDER BY (lookup.mes_referencia IS NULL), lookup.imobiliaria_nome
+          LIMIT 1
+        ) si ON TRUE
+        ` : ''}
+        WHERE s.data_evento BETWEEN $1::date AND $2::date
+          AND s.indicador = ANY($3::text[])
+          ${SEGMENTED_SDR_AXIS_FIELDS.has(field) ? 'AND s.fl_indicador_sdr_aplicavel IS TRUE' : ''}
+          ${where}
+          AND NULLIF(TRIM(COALESCE(((${fieldExpr})::text), '')), '') IS NOT NULL
+          ${searchWhere}
+        ORDER BY 1
+        LIMIT ${limit}
+      `;
+      const queryParams = [start, end, indicators, ...params];
+      if (term.length >= 2) queryParams.push(`%${term}%`);
+      const { rows } = await runFilterQuery(sql, queryParams);
+      return res.json({
+        field,
+        q: term,
+        options: rows.map((r) => ({ value: r.value, label: r.value })),
+      });
+    }
+
+    if (RESERVA_FILTER_FIELDS.has(field)) {
+      const localFilters = { ...filters, ...reservaFilters, [field]: [] };
+      const dateWindowSql = `(
+        b.dt_ultima_conversao_lead::date BETWEEN $1::date AND $2::date
+        OR b.dt_visita_realizada::date BETWEEN $1::date AND $2::date
+        OR b.data_venda::date BETWEEN $1::date AND $2::date
+        OR b.dt_cancelamento_reserva::date BETWEEN $1::date AND $2::date
+        OR b.dt_assinatura_contrato::date BETWEEN $1::date AND $2::date
+        OR b.dt_cadastro_reserva::date BETWEEN $1::date AND $2::date
+        OR b.dt_contrato_contabilizado::date BETWEEN $1::date AND $2::date
+      )`;
+      const expr = getReservaFieldExpr(field, 'b', '$1::date', '$2::date');
+      if (!expr) {
+        return res.json({ field, q: term, options: [] });
+      }
+
+      const { where, params } = buildFilters(localFilters, {
+        startIndex: 3,
+        alias: 'b',
+        useEmpreendimentoDim: resolvedEmpreendimentoDim,
+      });
+      const searchWhere = term.length >= 2 ? ` AND (${expr})::text ILIKE $${params.length + 3}` : '';
+      const sql = `
+        SELECT DISTINCT (${expr})::text AS value
+        FROM comercial_base b
+        WHERE ${dateWindowSql}
+          ${where}
+          AND NULLIF(TRIM(COALESCE(((${expr})::text), '')), '') IS NOT NULL
+          ${searchWhere}
+        ORDER BY 1
+        LIMIT ${limit}
+      `;
+      const queryParams = [start, end, ...params];
+      if (term.length >= 2) queryParams.push(`%${term}%`);
+      const { rows } = await runFilterQuery(sql, queryParams);
+      const repasseLabels = {
+        com_repasse: 'Com repasse no período',
+        sem_repasse: 'Sem repasse no período',
+      };
+      return res.json({
+        field,
+        q: term,
+        options: rows.map((r) => ({
+          value: r.value,
+          label: field === 'repasseNoMes' ? (repasseLabels[r.value] || r.value) : r.value,
+        })),
+      });
+    }
+
+    const config = fieldConfig[field];
+    if (!config) {
+      return res.status(400).json({ error: 'field invalido para busca incremental de filtros.' });
+    }
+
     const params = [];
     let where = '';
+    let usesDateParams = false;
+    const localFilters = withoutCurrentField(filters, field);
 
     if (config.hierarchyOnly) {
-      const h = buildHierarchyOnlyFilters({...filters, start: req.query.startDate, end: req.query.endDate}, { startIndex: 1, alias: 'h', useEmpreendimentoDim });
-      where += ` AND ${hierarchyActiveAtDateSql('CURRENT_DATE')} ${h.where}`;
-      params.push(...h.params);
+      const h = buildHierarchyOnlyFilters(
+        { ...localFilters, start: req.query.startDate, end: req.query.endDate },
+        { startIndex: 3, alias: 'h', useEmpreendimentoDim: resolvedEmpreendimentoDim, joinCol: field === 'sdr' ? 'sdr_nome' : 'corretor_nome' },
+      );
+      const activeDateParamIndex = h.params.length + 3;
+      where += ` AND ${hierarchyActiveAtDateSql(`$${activeDateParamIndex}::date`)} ${h.where}`;
+      params.push(...h.params, end);
+      usesDateParams = true;
     } else if (config.empreendimentoDimOnly) {
-      const d = buildEmpreendimentoDimFilters(filters, { startIndex: 1, alias: 'd' });
+      const d = buildEmpreendimentoDimFilters(localFilters, { startIndex: 1, alias: 'd' });
       where += ` ${d.where}`;
       params.push(...d.params);
     } else {
-      const b = buildFilters(filters, { startIndex: 1, alias: 'b', useEmpreendimentoDim });
+      const b = buildFilters(localFilters, { startIndex: 3, alias: 'b', useEmpreendimentoDim: resolvedEmpreendimentoDim });
       where += ` ${b.where}`;
+      where += ` AND (
+        b.dt_ultima_conversao_lead::date BETWEEN $1::date AND $2::date
+        OR b.dt_visita_realizada::date BETWEEN $1::date AND $2::date
+        OR b.data_venda::date BETWEEN $1::date AND $2::date
+        OR b.dt_cancelamento_reserva::date BETWEEN $1::date AND $2::date
+        OR b.dt_assinatura_contrato::date BETWEEN $1::date AND $2::date
+        OR b.dt_cadastro_reserva::date BETWEEN $1::date AND $2::date
+        OR b.dt_contrato_contabilizado::date BETWEEN $1::date AND $2::date
+      )`;
       params.push(...b.params);
+      usesDateParams = true;
     }
 
     if (term.length >= 2) {
       params.push(`%${term}%`);
-      where += ` AND ${config.expr} ILIKE $${params.length}`;
+      where += ` AND ${config.expr} ILIKE $${params.length + (usesDateParams ? 2 : 0)}`;
     }
 
     const sql = `
@@ -4462,7 +5522,8 @@ app.get('/api/v1/dashboard/filters/search', async (req, res) => {
       LIMIT ${limit}
     `;
 
-    const { rows } = await pool.query(sql, params);
+    const queryParams = usesDateParams ? [start, end, ...params] : params;
+    const { rows } = await runFilterQuery(sql, queryParams);
     return res.json({
       field,
       q: term,
@@ -4470,7 +5531,404 @@ app.get('/api/v1/dashboard/filters/search', async (req, res) => {
     });
   } catch (err) {
     console.error('[filters/search] error', err?.message || err);
-    return res.status(500).json({ error: 'Erro ao buscar opcoes incrementais de filtros.' });
+    return res.json({ field, q: term, options: [] });
+  }
+});
+
+app.get('/api/v1/dashboard/reservas/trends', async (req, res) => {
+  try {
+    const dateRange = getDateRange(req.query);
+    if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+    const { start, end } = dateRange;
+    const normalized = normalizeFiltersFromQuery(req.query);
+    const reservaFilters = normalizeReservaFiltersFromQuery(req.query);
+    const filters = { ...normalized, ...reservaFilters };
+    const useEmpreendimentoDim = hasActiveEmpreendimentoDimFilter(normalized)
+      ? await hasEmpreendimentoDimReady()
+      : false;
+    const computed = getReservaComputedExpressions('b');
+    const { where, params } = buildFilters(filters, {
+      startIndex: 3,
+      alias: 'b',
+      useEmpreendimentoDim,
+      includeReservaFilters: true,
+    });
+
+    const sql = `
+      SELECT
+        (${computed.cadastroDateExpr})::date AS data,
+        COUNT(DISTINCT b.idreserva)::int AS reservas
+      FROM comercial_base b
+      WHERE (${computed.cadastroDateExpr})::date BETWEEN $1::date AND $2::date
+        ${where}
+        AND b.idreserva IS NOT NULL
+      GROUP BY 1
+      ORDER BY 1
+    `;
+    const result = await runFilterQuery(sql, [start, end, ...params]);
+    return res.json(result.rows.map((row) => ({
+      data: row.data instanceof Date ? row.data.toISOString().slice(0, 10) : String(row.data).slice(0, 10),
+      reservas: Number(row.reservas) || 0,
+    })));
+  } catch (err) {
+    console.error('[reservas/trends] error', err?.message || err);
+    return res.json([]);
+  }
+});
+
+app.get('/api/v1/dashboard/reservas/breakdown', async (req, res) => {
+  try {
+    const dateRange = getDateRange(req.query);
+    if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+    const { start, end } = dateRange;
+    const axis = String(req.query.axis || 'all').trim().toLowerCase();
+    const normalized = normalizeFiltersFromQuery(req.query);
+    const reservaFilters = normalizeReservaFiltersFromQuery(req.query);
+    const filters = { ...normalized, ...reservaFilters };
+    const useEmpreendimentoDim = hasActiveEmpreendimentoDimFilter(normalized)
+      ? await hasEmpreendimentoDimReady()
+      : false;
+    const computed = getReservaComputedExpressions('b');
+    const { where, params } = buildFilters(filters, {
+      startIndex: 3,
+      alias: 'b',
+      useEmpreendimentoDim,
+      includeReservaFilters: true,
+    });
+    const commonParams = [start, end, ...params];
+
+    if (axis === 'situacao') {
+      const situationSql = `
+        WITH base AS (
+          SELECT
+            COALESCE(NULLIF(TRIM(((${computed.situacaoReservaExpr})::text), ''), 'Sem informacao') AS label,
+            COUNT(DISTINCT b.idreserva)::int AS reservas_situacoes,
+            COUNT(DISTINCT b.idreserva) FILTER (
+              WHERE (
+                (${computed.slaLimitExpr}) IS NOT NULL
+                AND COALESCE(EXTRACT(DAY FROM (CURRENT_DATE - (${computed.dataUltimaSituacaoExpr})::date)), 0) > (${computed.slaLimitExpr})
+              )
+            )::int AS sla_expirado
+          FROM comercial_base b
+          WHERE (${computed.cadastroDateExpr})::date BETWEEN $1::date AND $2::date
+            ${where}
+            AND b.idreserva IS NOT NULL
+          GROUP BY 1
+        )
+        SELECT *
+        FROM base
+        ORDER BY reservas_situacoes DESC, label ASC
+        LIMIT 200
+      `;
+      const result = await runFilterQuery(situationSql, commonParams);
+      return res.json({
+        items: result.rows.map((row) => ({
+          label: row.label,
+          reservas_situacoes: Number(row.reservas_situacoes) || 0,
+          sla_expirado: Number(row.sla_expirado) || 0,
+        })),
+      });
+    }
+
+    const regiaoExpr = useEmpreendimentoDim ? getEmpreendimentoDimExpr('regiao', 'b') : getEmpreendimentoReduzidoExpr('b');
+    const empreendimentoExpr = useEmpreendimentoDim ? getEmpreendimentoDimExpr('empreendimento', 'b') : 'b.empreendimento_nome';
+    const imobiliariaExpr = getImobiliariaExpr('b');
+
+    const buildAxisQuery = (expr) => `
+      SELECT
+        COALESCE(NULLIF(TRIM(((${expr})::text), ''), 'Sem informacao') AS label,
+        COUNT(DISTINCT b.idreserva)::int AS reservas
+      FROM comercial_base b
+      WHERE (${computed.cadastroDateExpr})::date BETWEEN $1::date AND $2::date
+        ${where}
+        AND b.idreserva IS NOT NULL
+      GROUP BY 1
+      ORDER BY reservas DESC, label ASC
+      LIMIT 200
+    `;
+
+    const [imobiliariaRows, regiaoRows, empreendimentoRows] = await Promise.all([
+      runFilterQuery(buildAxisQuery(imobiliariaExpr), commonParams),
+      runFilterQuery(buildAxisQuery(regiaoExpr), commonParams),
+      runFilterQuery(buildAxisQuery(empreendimentoExpr), commonParams),
+    ]);
+
+    return res.json({
+      byAxis: {
+        imobiliaria: imobiliariaRows.rows.map((row) => ({ label: row.label, reservas: Number(row.reservas) || 0 })),
+        regiao: regiaoRows.rows.map((row) => ({ label: row.label, reservas: Number(row.reservas) || 0 })),
+        empreendimento: empreendimentoRows.rows.map((row) => ({ label: row.label, reservas: Number(row.reservas) || 0 })),
+      },
+    });
+  } catch (err) {
+    console.error('[reservas/breakdown] error', err?.message || err);
+    return res.json({
+      byAxis: {
+        imobiliaria: [],
+        regiao: [],
+        empreendimento: [],
+      },
+      items: [],
+    });
+  }
+});
+
+app.get('/api/v1/dashboard/reservas/table', async (req, res) => {
+  try {
+    const dateRange = getDateRange(req.query);
+    if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+    const { start, end } = dateRange;
+    const limit = parsePositiveInt(req.query.limit, 200, 2000);
+    const normalized = normalizeFiltersFromQuery(req.query);
+    const reservaFilters = normalizeReservaFiltersFromQuery(req.query);
+    const filters = { ...normalized, ...reservaFilters };
+    const useEmpreendimentoDim = hasActiveEmpreendimentoDimFilter(normalized)
+      ? await hasEmpreendimentoDimReady()
+      : false;
+    const computed = getReservaComputedExpressions('b');
+    const { where, params } = buildFilters(filters, {
+      startIndex: 3,
+      alias: 'b',
+      useEmpreendimentoDim,
+      includeReservaFilters: true,
+    });
+    const empreendimentoExpr = useEmpreendimentoDim ? getEmpreendimentoDimExpr('empreendimento', 'b') : 'b.empreendimento_nome';
+    const regiaoExpr = useEmpreendimentoDim ? getEmpreendimentoDimExpr('regiao', 'b') : getEmpreendimentoReduzidoExpr('b');
+    const detailAxis = String(req.query.detailAxis || '').trim();
+    const detailValue = String(req.query.detailValue || '').trim();
+    const detailMetric = String(req.query.detailMetric || '').trim();
+    const extraClauses = [];
+    const extraParams = [];
+    let nextParam = 3 + params.length;
+
+    if (detailValue) {
+      if (detailAxis === 'imobiliaria') {
+        extraParams.push(detailValue);
+        extraClauses.push(`${getImobiliariaExpr('b')} = $${nextParam}`);
+        nextParam += 1;
+      } else if (detailAxis === 'regiao') {
+        extraParams.push(detailValue);
+        extraClauses.push(`(${regiaoExpr})::text = $${nextParam}`);
+        nextParam += 1;
+      } else if (detailAxis === 'empreendimento') {
+        extraParams.push(detailValue);
+        extraClauses.push(`(${empreendimentoExpr})::text = $${nextParam}`);
+        nextParam += 1;
+      } else if (detailAxis === 'pipeline') {
+        extraParams.push(`%${detailValue.toLowerCase()}%`);
+        extraClauses.push(`LOWER((${computed.pipelineStageExpr})::text) LIKE $${nextParam}`);
+        nextParam += 1;
+      }
+    }
+
+    if (detailMetric === 'sla_expirado') {
+      extraClauses.push(`(${computed.slaLimitExpr}) IS NOT NULL`);
+      extraClauses.push(`COALESCE(EXTRACT(DAY FROM (CURRENT_DATE - (${computed.dataUltimaSituacaoExpr})::date)), 0) > (${computed.slaLimitExpr})`);
+    }
+
+    const sql = `
+      SELECT
+        b.idreserva,
+        b.idrepasse,
+        COALESCE(NULLIF(TRIM((b.corretor_nome)::text), ''), 'Sem corretor') AS corretor,
+        (${empreendimentoExpr})::text AS empreendimento_nome,
+        (${regiaoExpr})::text AS regiao_empreendimento,
+        (${getImobiliariaExpr('b')})::text AS imobiliaria,
+        (${computed.situacaoReservaExpr})::text AS reserva_situacao_nome,
+        (${computed.situacaoRepasseExpr})::text AS repasse_situacao_nome,
+        (${computed.obsFinalizacaoExpr})::text AS reserva_obs_finalizacao,
+        (${computed.cadastroDateExpr})::date AS dt_cadastro_reserva,
+        (${computed.dataUltimaSituacaoExpr})::date AS data_ultima_alteracao_situacao,
+        COALESCE(EXTRACT(DAY FROM (CURRENT_DATE - (${computed.dataUltimaSituacaoExpr})::date)), 0)::int AS criado_ha,
+        (${computed.slaLimitExpr})::int AS sla_limite_dias,
+        CASE
+          WHEN (${computed.slaLimitExpr}) IS NULL THEN '-'
+          WHEN COALESCE(EXTRACT(DAY FROM (CURRENT_DATE - (${computed.dataUltimaSituacaoExpr})::date)), 0) > (${computed.slaLimitExpr}) THEN 'SLA Expirado'
+          ELSE 'Dentro do SLA'
+        END AS sla_classificacao,
+        b.sla_finalizacao_dias,
+        b.sla_repasse_dias,
+        (${computed.repasseNoMesExpr})::text AS reserva_repasse_no_mes,
+        (${computed.riscoCairExpr})::text AS risco_cair,
+        (${computed.probAssinaturaExpr})::text AS repasse_probabilidade_de_assinatura,
+        (${computed.qrExpr})::date AS reserva_data_qr,
+        (${computed.kitCefExpr})::text AS reserva_kit_cef,
+        (${computed.kitAgehabExpr})::text AS reserva_kit_agehab,
+        (${computed.envioCehopExpr})::date AS repasse_data_envio_cehop,
+        (${computed.conformidadeCehopExpr})::date AS repasse_data_conformidade_cehop,
+        (${computed.inconformidadeCehopExpr})::date AS repasse_data_inconformidade_cehop,
+        (${computed.reenvioCehopExpr})::date AS repasse_data_reenvio_cehop,
+        (${computed.pipelineStageExpr})::text AS pipeline_stage
+      FROM comercial_base b
+      WHERE (${computed.cadastroDateExpr})::date BETWEEN $1::date AND $2::date
+        ${where}
+        ${extraClauses.length ? `AND ${extraClauses.join(' AND ')}` : ''}
+        AND b.idreserva IS NOT NULL
+      ORDER BY (${computed.cadastroDateExpr})::date DESC NULLS LAST, b.idreserva DESC NULLS LAST
+      LIMIT ${limit}
+    `;
+
+    const queryParams = [start, end, ...params, ...extraParams];
+    const result = await runFilterQuery(sql, queryParams);
+    return res.json({
+      items: result.rows,
+      pagination: {
+        total: result.rows.length,
+        page: 1,
+        limit,
+      },
+    });
+  } catch (err) {
+    console.error('[reservas/table] error', err?.message || err);
+    return res.json({
+      items: [],
+      pagination: {
+        total: 0,
+        page: 1,
+        limit,
+      },
+    });
+  }
+});
+
+app.get('/api/v1/dashboard/reservas/metas', async (req, res) => {
+  try {
+    const dateRange = getDateRange(req.query);
+    if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+    const { start, end } = dateRange;
+    const normalized = normalizeFiltersFromQuery(req.query);
+    const reservaFilters = normalizeReservaFiltersFromQuery(req.query);
+    const filters = { ...normalized, ...reservaFilters };
+    const useEmpreendimentoDim = hasActiveEmpreendimentoDimFilter(normalized)
+      ? await hasEmpreendimentoDimReady()
+      : false;
+    const computed = getReservaComputedExpressions('b');
+    const { where, params } = buildFilters(filters, {
+      startIndex: 3,
+      alias: 'b',
+      useEmpreendimentoDim,
+      includeReservaFilters: true,
+    });
+    const regiaoExpr = useEmpreendimentoDim ? getEmpreendimentoDimExpr('regiao', 'b') : getEmpreendimentoReduzidoExpr('b');
+    const imobiliariaExpr = getImobiliariaExpr('b');
+    const repasseDateCol = KPI_DATE_COLUMNS.repasse();
+
+    const sql = `
+      WITH base AS (
+        SELECT
+          COALESCE(NULLIF(TRIM(((${regiaoExpr})::text), ''), 'Sem informacao') AS regiao,
+          COALESCE(NULLIF(TRIM(((${imobiliariaExpr})::text), ''), 'Sem informacao') AS imobiliaria,
+          COUNT(DISTINCT b.idreserva) FILTER (
+            WHERE LOWER(COALESCE((${computed.situacaoReservaExpr})::text, '')) NOT LIKE '%cancel%'
+              AND LOWER(COALESCE((${computed.situacaoReservaExpr})::text, '')) NOT LIKE '%distrato%'
+              AND LOWER(COALESCE((${computed.situacaoReservaExpr})::text, '')) NOT LIKE '%venda finalizada%'
+          )::int AS reservas_situacoes,
+          COUNT(DISTINCT b.idreserva) FILTER (WHERE LOWER(COALESCE((${computed.repasseNoMesExpr})::text, '')) = 'nao')::int AS mes_seguinte,
+          COUNT(DISTINCT b.idreserva) FILTER (WHERE LOWER(COALESCE((${computed.repasseNoMesExpr})::text, '')) LIKE '%probabilidade de cair%')::int AS prob_cair,
+          COUNT(DISTINCT b.idrepasse) FILTER (
+            WHERE b.idrepasse IS NOT NULL
+              AND b.${repasseDateCol}::date BETWEEN $1::date AND $2::date
+          )::int AS repasses_assinados,
+          COUNT(DISTINCT b.idrepasse) FILTER (
+            WHERE b.idrepasse IS NOT NULL
+              AND b.dt_assinatura_contrato IS NULL
+              AND LOWER(COALESCE((${computed.probAssinaturaExpr})::text, '')) IN ('sim', 'talvez')
+          )::int AS mp_reserva
+        FROM comercial_base b
+        WHERE (${computed.cadastroDateExpr})::date BETWEEN $1::date AND $2::date
+          ${where}
+          AND b.idreserva IS NOT NULL
+        GROUP BY 1, 2
+      )
+      SELECT
+        b.*,
+        GREATEST((b.reservas_situacoes - b.mes_seguinte - b.prob_cair), 0)::int AS mes_atual,
+        (GREATEST((b.reservas_situacoes - b.mes_seguinte - b.prob_cair), 0) + b.mp_reserva + b.repasses_assinados)::int AS prev_repasse,
+        COALESCE(m.meta, 0)::numeric AS meta_ajustada
+      FROM base b
+      LEFT JOIN public.dashboard_reservas_metas m
+        ON m.regiao = b.regiao
+       AND m.imobiliaria = b.imobiliaria
+      ORDER BY b.regiao ASC, b.imobiliaria ASC
+    `;
+
+    const result = await runFilterQuery(sql, [start, end, ...params]);
+    const items = result.rows.map((row) => {
+      const metaAjustada = Number(row.meta_ajustada) || 0;
+      const prevRepasse = Number(row.prev_repasse) || 0;
+      return {
+        regiao: row.regiao,
+        imobiliaria: row.imobiliaria,
+        reservas_situacoes: Number(row.reservas_situacoes) || 0,
+        mes_seguinte: Number(row.mes_seguinte) || 0,
+        prob_cair: Number(row.prob_cair) || 0,
+        mes_atual: Number(row.mes_atual) || 0,
+        mp_reserva: Number(row.mp_reserva) || 0,
+        repasses_assinados: Number(row.repasses_assinados) || 0,
+        prev_repasse: prevRepasse,
+        meta_ajustada: metaAjustada,
+        alcancado_meta: metaAjustada > 0 ? Number(((prevRepasse / metaAjustada) * 100).toFixed(1)) : 0,
+      };
+    });
+
+    const totalsByRegionMap = new Map();
+    items.forEach((item) => {
+      const current = totalsByRegionMap.get(item.regiao) || {
+        regiao: item.regiao,
+        imobiliaria: 'TOTAL',
+        reservas_situacoes: 0,
+        mes_seguinte: 0,
+        prob_cair: 0,
+        mes_atual: 0,
+        mp_reserva: 0,
+        repasses_assinados: 0,
+        prev_repasse: 0,
+        meta_ajustada: 0,
+        alcancado_meta: 0,
+      };
+      current.reservas_situacoes += item.reservas_situacoes;
+      current.mes_seguinte += item.mes_seguinte;
+      current.prob_cair += item.prob_cair;
+      current.mes_atual += item.mes_atual;
+      current.mp_reserva += item.mp_reserva;
+      current.repasses_assinados += item.repasses_assinados;
+      current.prev_repasse += item.prev_repasse;
+      current.meta_ajustada += item.meta_ajustada;
+      totalsByRegionMap.set(item.regiao, current);
+    });
+    const totalsByRegion = Array.from(totalsByRegionMap.values()).map((item) => ({
+      ...item,
+      alcancado_meta: item.meta_ajustada > 0 ? Number(((item.prev_repasse / item.meta_ajustada) * 100).toFixed(1)) : 0,
+    }));
+
+    return res.json({ items, totalsByRegion });
+  } catch (err) {
+    console.error('[reservas/metas] error', err?.message || err);
+    return res.json({ items: [], totalsByRegion: [] });
+  }
+});
+
+app.post('/api/v1/dashboard/reservas/metas', async (req, res) => {
+  try {
+    const regiao = String(req.body?.regiao || '').trim();
+    const imobiliaria = String(req.body?.imobiliaria || '').trim();
+    const meta = Number(req.body?.meta);
+    if (!regiao || !imobiliaria || !Number.isFinite(meta) || meta < 0) {
+      return res.status(400).json({ error: 'Parâmetros inválidos para salvar meta de reserva' });
+    }
+
+    await pool.query(`
+      INSERT INTO public.dashboard_reservas_metas (regiao, imobiliaria, meta, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (regiao, imobiliaria)
+      DO UPDATE SET meta = EXCLUDED.meta, updated_at = NOW()
+    `, [regiao, imobiliaria, meta]);
+
+    clearDashboardCache();
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[reservas/metas][save] error', err?.message || err);
+    return res.status(500).json({ error: 'Erro ao salvar meta de reserva' });
   }
 });
 
@@ -4586,7 +6044,7 @@ app.get('/api/v1/leads', async (req, res) => {
     `;
 
     const queryParams = [start, end, ...params, limit, offset];
-    const result = await pool.query(sql, queryParams);
+    const result = await runFilterQuery(sql, queryParams);
 
     return res.json({
       page,
@@ -4648,7 +6106,7 @@ app.get('/api/v1/dashboard/funnel', async (req, res) => {
         continue;
       }
 
-      const result = await client.query(query.sql, query.params);
+      const result = await runTimedQuery(client, query.sql, query.params);
       const value = Number(result.rows[0]?.value) || 0;
       stages.push({
         ...stage,
@@ -4737,7 +6195,7 @@ app.get('/api/v1/dashboard/funnel/detail', async (req, res) => {
       });
     }
 
-    const result = await client.query(query.sql, query.params);
+    const result = await runTimedQuery(client, query.sql, query.params);
     const total = Number(result.rows[0]?.total_count) || 0;
     return res.json({
       stage: stage.label,
@@ -4788,7 +6246,7 @@ app.get('/api/v1/dashboard/funnel/goals', async (req, res) => {
         stages.push({ ...stage, value: 0, sourceAvailable: false });
         continue;
       }
-      const result = await client.query(query.sql, query.params);
+      const result = await runTimedQuery(client, query.sql, query.params);
       stages.push({ ...stage, value: Number(result.rows[0]?.value) || 0, sourceAvailable: true });
     }
 
@@ -4867,8 +6325,8 @@ app.get('/api/v1/dashboard/funnel/audit', async (req, res) => {
       }
 
       const [visualResult, detailResult] = await Promise.all([
-        client.query(visualQuery.sql, visualQuery.params),
-        client.query(detailQuery.sql, detailQuery.params),
+        runTimedQuery(client, visualQuery.sql, visualQuery.params),
+        runTimedQuery(client, detailQuery.sql, detailQuery.params),
       ]);
       const visual = Number(visualResult.rows[0]?.value) || 0;
       const detail = Number(detailResult.rows[0]?.total_count) || 0;
@@ -4892,6 +6350,644 @@ app.get('/api/v1/dashboard/funnel/audit', async (req, res) => {
     return res.status(500).json({ error: 'Erro ao auditar funil', details: err?.message || 'Erro desconhecido no Postgres' });
   } finally {
     if (client) client.release();
+  }
+});
+
+app.get('/api/v1/dashboard/funnel/history', async (req, res) => {
+  const dateRange = getDateRange(req.query);
+  if (dateRange.error) {
+    return res.status(400).json({ error: dateRange.error });
+  }
+
+  const normalized = normalizeFiltersFromQuery(req.query);
+  const filters = { ...normalized };
+  const { start, end } = dateRange;
+
+  const ids = {
+    idlead: String(req.query.idlead || '').trim(),
+    idprecadastro: String(req.query.idprecadastro || '').trim(),
+    idreserva: String(req.query.idreserva || '').trim(),
+    idrepasse: String(req.query.idrepasse || '').trim(),
+  };
+
+  if (!ids.idlead && !ids.idprecadastro && !ids.idreserva && !ids.idrepasse) {
+    return res.json({ lead: [], proposta: [], reserva: [], total: 0 });
+  }
+
+  try {
+    const useEmpreendimentoDim = await hasEmpreendimentoDimReady();
+    const { where, params } = buildFilters(filters, { startIndex: 3, alias: 'b', useEmpreendimentoDim });
+    const idClauses = [];
+    const idParams = [];
+    let index = 3 + params.length;
+
+    if (ids.idlead) {
+      idParams.push(ids.idlead);
+      idClauses.push(`b.idlead::text = $${index}`);
+      index += 1;
+    }
+    if (ids.idprecadastro) {
+      idParams.push(ids.idprecadastro);
+      idClauses.push(`b.idprecadastro::text = $${index}`);
+      index += 1;
+    }
+    if (ids.idreserva) {
+      idParams.push(ids.idreserva);
+      idClauses.push(`b.idreserva::text = $${index}`);
+      index += 1;
+    }
+    if (ids.idrepasse) {
+      idParams.push(ids.idrepasse);
+      idClauses.push(`b.idrepasse::text = $${index}`);
+      index += 1;
+    }
+
+    const sql = `
+      SELECT
+        b.idlead::text AS idlead,
+        b.idprecadastro::text AS idprecadastro,
+        b.idreserva::text AS idreserva,
+        b.idrepasse::text AS idrepasse,
+        b.dt_ultima_conversao_lead::timestamp AS dt_ultima_conversao_lead,
+        b.dt_visita_realizada::timestamp AS dt_visita_realizada,
+        b.dt_resposta_analise_precadastro::timestamp AS dt_resposta_analise_precadastro,
+        b.dt_cadastro_reserva::timestamp AS dt_cadastro_reserva,
+        b.data_venda::timestamp AS data_venda,
+        b.dt_assinatura_contrato::timestamp AS dt_assinatura_contrato,
+        b.lead_situacao::text AS lead_situacao,
+        b.precadastro_situacao_nome::text AS precadastro_situacao_nome,
+        b.reserva_situacao_nome::text AS reserva_situacao_nome,
+        b.repasse_situacao_nome::text AS repasse_situacao_nome
+      FROM comercial_base b
+      WHERE (
+        b.dt_ultima_conversao_lead::date BETWEEN $1::date AND $2::date
+        OR b.dt_visita_realizada::date BETWEEN $1::date AND $2::date
+        OR b.dt_resposta_analise_precadastro::date BETWEEN $1::date AND $2::date
+        OR b.dt_cadastro_reserva::date BETWEEN $1::date AND $2::date
+        OR b.data_venda::date BETWEEN $1::date AND $2::date
+        OR b.dt_assinatura_contrato::date BETWEEN $1::date AND $2::date
+      )
+      ${where}
+      AND (${idClauses.join(' OR ')})
+      ORDER BY COALESCE(
+        b.dt_assinatura_contrato,
+        b.data_venda,
+        b.dt_cadastro_reserva,
+        b.dt_resposta_analise_precadastro,
+        b.dt_visita_realizada,
+        b.dt_ultima_conversao_lead
+      ) DESC NULLS LAST
+      LIMIT 300
+    `;
+
+    const result = await runFilterQuery(sql, [start, end, ...params, ...idParams]);
+    const lead = [];
+    const proposta = [];
+    const reserva = [];
+
+    result.rows.forEach((row) => {
+      if (row.dt_ultima_conversao_lead) {
+        lead.push({
+          data: row.dt_ultima_conversao_lead,
+          evento: 'Lead convertido',
+          situacao: row.lead_situacao || 'Sem informação',
+          idlead: row.idlead,
+        });
+      }
+      if (row.dt_visita_realizada) {
+        lead.push({
+          data: row.dt_visita_realizada,
+          evento: 'Visita',
+          situacao: row.lead_situacao || 'Sem informação',
+          idlead: row.idlead,
+        });
+      }
+      if (row.dt_resposta_analise_precadastro) {
+        proposta.push({
+          data: row.dt_resposta_analise_precadastro,
+          evento: 'Resposta análise',
+          situacao: row.precadastro_situacao_nome || 'Sem informação',
+          idprecadastro: row.idprecadastro,
+        });
+      }
+      if (row.dt_cadastro_reserva) {
+        reserva.push({
+          data: row.dt_cadastro_reserva,
+          evento: 'Reserva cadastrada',
+          situacao: row.reserva_situacao_nome || 'Sem informação',
+          idreserva: row.idreserva,
+        });
+      }
+      if (row.data_venda) {
+        reserva.push({
+          data: row.data_venda,
+          evento: 'Venda',
+          situacao: row.reserva_situacao_nome || 'Sem informação',
+          idreserva: row.idreserva,
+        });
+      }
+      if (row.dt_assinatura_contrato) {
+        reserva.push({
+          data: row.dt_assinatura_contrato,
+          evento: 'Repasse assinado',
+          situacao: row.repasse_situacao_nome || 'Sem informação',
+          idrepasse: row.idrepasse,
+        });
+      }
+    });
+
+    const sortByDate = (items) => items.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+    sortByDate(lead);
+    sortByDate(proposta);
+    sortByDate(reserva);
+
+    return res.json({
+      lead,
+      proposta,
+      reserva,
+      total: lead.length + proposta.length + reserva.length,
+    });
+  } catch (err) {
+    console.error('[funnel/history] postgres_error', { message: err?.message, code: err?.code, detail: err?.detail });
+    return res.json({ lead: [], proposta: [], reserva: [], total: 0 });
+  }
+});
+
+app.get('/api/v1/dashboard/corretores/consolidado', async (req, res) => {
+  const dateRange = getDateRange(req.query);
+  if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+
+  const { start, end } = dateRange;
+  const filters = normalizeSegmentedFiltersFromQuery(req.query);
+  const search = String(req.query.search || '').trim().toLowerCase();
+  const page = parsePositiveInt(req.query.page, 1, 100000);
+  const pageSize = parsePositiveInt(req.query.pageSize, 50, 200);
+  const sort = String(req.query.sort || 'repasses').trim();
+  const order = String(req.query.order || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+  const offset = (page - 1) * pageSize;
+
+  try {
+    const { where, params } = buildSegmentedFilterWhere(filters, {
+      startIndex: 3,
+      alias: 's',
+      includeSdrFilters: true,
+    });
+
+    const sortable = new Set(['corretor', 'equipe', 'gerente', 'coordenador', 'regiao', 'visitas', 'agendamentos', 'propostas_aprovadas', 'propostas_condicionadas', 'propostas_reprovadas', 'propostas', 'vendas', 'vendas_finalizadas', 'repasses', 'distratos', 'cancelamentos']);
+    const sortColumn = sortable.has(sort) ? sort : 'repasses';
+    const searchClause = search ? `AND LOWER(COALESCE(s.corretor_ativo_nome, '')) LIKE $${3 + params.length}` : '';
+    const queryParams = search ? [start, end, ...params, `%${search}%`] : [start, end, ...params];
+
+    const sql = `
+      WITH grouped AS (
+        SELECT
+          COALESCE(NULLIF(TRIM(s.corretor_ativo_nome), ''), 'Sem corretor') AS corretor,
+          COALESCE(NULLIF(TRIM(s.imobiliaria_corretor), ''), 'Sem equipe') AS equipe,
+          COALESCE(NULLIF(TRIM(s.gestor_corretor), ''), 'Sem gestor') AS gerente,
+          COALESCE(NULLIF(TRIM(s.coordenador_corretor), ''), 'Sem coordenador') AS coordenador,
+          COALESCE(NULLIF(TRIM(s.regiao_corretor), ''), 'Sem região') AS regiao,
+          SUM(CASE WHEN s.indicador = 'VISITA' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS visitas,
+          SUM(CASE WHEN s.indicador = 'AGENDAMENTOS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS agendamentos,
+          SUM(CASE WHEN s.indicador = 'PASTAS APROVADAS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS propostas_aprovadas,
+          SUM(CASE WHEN s.indicador = 'PASTAS CONDICIONADAS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS propostas_condicionadas,
+          SUM(CASE WHEN s.indicador = 'PASTAS REPROVADAS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS propostas_reprovadas,
+          SUM(CASE WHEN s.indicador = 'PASTAS COM RESPOSTAS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS propostas,
+          SUM(CASE WHEN s.indicador = 'VENDA GERADAS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS vendas,
+          SUM(CASE WHEN s.indicador = 'VENDA FINALIZADA' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS vendas_finalizadas,
+          SUM(CASE WHEN s.indicador = 'REPASSE' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS repasses,
+          SUM(CASE WHEN s.indicador = 'DISTRATOS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS distratos,
+          SUM(CASE WHEN s.indicador = 'CANCELAMENTOS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS cancelamentos
+        FROM public.comercial_indicador_segmentacao s
+        WHERE s.data_evento BETWEEN $1::date AND $2::date
+          ${where}
+          ${searchClause}
+        GROUP BY 1, 2, 3, 4, 5
+      ),
+      counted AS (
+        SELECT *, COUNT(*) OVER() AS total_count
+        FROM grouped
+      )
+      SELECT *
+      FROM counted
+      ORDER BY ${sortColumn} ${order}, corretor ASC
+      LIMIT ${pageSize}
+      OFFSET ${offset}
+    `;
+
+    const result = await runFilterQuery(sql, queryParams);
+    const total = Number(result.rows[0]?.total_count) || 0;
+    const pages = pageSize > 0 ? Math.ceil(total / pageSize) : 1;
+
+    return res.json({
+      items: result.rows.map((row) => ({
+        ...row,
+        total_count: undefined,
+        corretor_identity_key: (row.corretor || '').toLowerCase(),
+      })),
+      pagination: { total, pages, page, pageSize },
+      summary: null,
+    });
+  } catch (err) {
+    console.error('[corretores/consolidado] error', err?.message || err);
+    return res.json({
+      items: [],
+      pagination: { total: 0, pages: 0, page, pageSize },
+      summary: null,
+    });
+  }
+});
+
+app.get('/api/v1/dashboard/corretores/foguetes', async (req, res) => {
+  const dateRange = getDateRange(req.query);
+  if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+
+  const { start, end } = dateRange;
+  const filters = normalizeSegmentedFiltersFromQuery(req.query);
+  const search = String(req.query.search || '').trim().toLowerCase();
+  const page = parsePositiveInt(req.query.page, 1, 100000);
+  const pageSize = parsePositiveInt(req.query.pageSize, 50, 200);
+  const offset = (page - 1) * pageSize;
+
+  try {
+    const { where, params } = buildSegmentedFilterWhere(filters, {
+      startIndex: 3,
+      alias: 's',
+      includeSdrFilters: true,
+    });
+    const searchClause = search ? `AND LOWER(COALESCE(s.corretor_ativo_nome, '')) LIKE $${3 + params.length}` : '';
+    const queryParams = search ? [start, end, ...params, `%${search}%`] : [start, end, ...params];
+
+    const sql = `
+      WITH grouped AS (
+        SELECT
+          COALESCE(NULLIF(TRIM(s.corretor_ativo_nome), ''), 'Sem corretor') AS corretor,
+          COALESCE(NULLIF(TRIM(s.imobiliaria_corretor), ''), 'Sem equipe') AS equipe,
+          COALESCE(NULLIF(TRIM(s.gestor_corretor), ''), 'Sem gestor') AS gerente,
+          COALESCE(NULLIF(TRIM(s.coordenador_corretor), ''), 'Sem coordenador') AS coordenador,
+          COALESCE(NULLIF(TRIM(s.regiao_corretor), ''), 'Sem região') AS regiao,
+          SUM(CASE WHEN s.indicador = 'AGENDAMENTOS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS agendamentos,
+          SUM(CASE WHEN s.indicador = 'VISITA' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS visitas,
+          SUM(CASE WHEN s.indicador = 'PASTAS COM RESPOSTAS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS propostas,
+          SUM(CASE WHEN s.indicador = 'PASTAS APROVADAS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS propostas_aprovadas,
+          SUM(CASE WHEN s.indicador = 'PASTAS CONDICIONADAS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS propostas_condicionadas,
+          SUM(CASE WHEN s.indicador = 'PASTAS REPROVADAS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS propostas_reprovadas,
+          SUM(CASE WHEN s.indicador = 'VENDA GERADAS' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS vendas,
+          SUM(CASE WHEN s.indicador = 'REPASSE' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS repasses
+        FROM public.comercial_indicador_segmentacao s
+        WHERE s.data_evento BETWEEN $1::date AND $2::date
+          ${where}
+          ${searchClause}
+        GROUP BY 1, 2, 3, 4, 5
+      ),
+      counted AS (
+        SELECT *, COUNT(*) OVER() AS total_count
+        FROM grouped
+      )
+      SELECT *
+      FROM counted
+      ORDER BY repasses DESC, corretor ASC
+      LIMIT ${pageSize}
+      OFFSET ${offset}
+    `;
+
+    const result = await runFilterQuery(sql, queryParams);
+    const items = result.rows.map((row) => ({
+      ...row,
+      total_count: undefined,
+      corretor_identity_key: (row.corretor || '').toLowerCase(),
+      funcionario_identificador: row.corretor,
+      funcionario_email: null,
+      funcionario_tipo_vinculo: null,
+      funcionario_status: null,
+    }));
+
+    const total = Number(result.rows[0]?.total_count) || 0;
+    const pages = pageSize > 0 ? Math.ceil(total / pageSize) : 1;
+    const qualificationStartDate = start;
+    const qualificationEndDate = end;
+    const empreendimentos = [];
+    const corretoresRepasses = items.map((item) => ({
+      corretor: item.corretor,
+      repasses_mes_anterior: Number(item.repasses) || 0,
+    }));
+
+    return res.json({
+      items,
+      pagination: { total, pages, page, pageSize },
+      meta: { qualificationStartDate, qualificationEndDate },
+      summary: {
+        foguetes: {
+          corretores: items.length,
+          vendas: items.reduce((acc, item) => acc + (Number(item.vendas) || 0), 0),
+          repasses: items.reduce((acc, item) => acc + (Number(item.repasses) || 0), 0),
+        },
+        fato: {
+          visitas: items.reduce((acc, item) => acc + (Number(item.visitas) || 0), 0),
+          propostas: items.reduce((acc, item) => acc + (Number(item.propostas) || 0), 0),
+        },
+        qualificacao: {
+          corretores_com_repasse_mes_anterior: corretoresRepasses.filter((item) => item.repasses_mes_anterior > 0).length,
+          corretores_acima_corte_fato: corretoresRepasses.filter((item) => item.repasses_mes_anterior >= 2).length,
+        },
+        empreendimentos_foguetes: empreendimentos,
+        top_empreendimentos: empreendimentos,
+        corretores_repasses_mes_anterior: corretoresRepasses,
+      },
+    });
+  } catch (err) {
+    console.error('[corretores/foguetes] error', err?.message || err);
+    return res.json({
+      items: [],
+      pagination: { total: 0, pages: 0, page, pageSize },
+      meta: { qualificationStartDate: start, qualificationEndDate: end },
+      summary: {
+        foguetes: { corretores: 0, vendas: 0, repasses: 0 },
+        fato: { visitas: 0, propostas: 0 },
+        qualificacao: { corretores_com_repasse_mes_anterior: 0, corretores_acima_corte_fato: 0 },
+        empreendimentos_foguetes: [],
+        top_empreendimentos: [],
+        corretores_repasses_mes_anterior: [],
+      },
+    });
+  }
+});
+
+app.get('/api/v1/dashboard/corretores/foguetes/frequencia', async (req, res) => {
+  const dateRange = getDateRange(req.query);
+  if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+  const { start, end } = dateRange;
+  const filters = normalizeSegmentedFiltersFromQuery(req.query);
+  const limit = parsePositiveInt(req.query.limit, 120, 500);
+
+  try {
+    const { where, params } = buildSegmentedFilterWhere(filters, {
+      startIndex: 3,
+      alias: 's',
+      includeSdrFilters: true,
+    });
+    const sql = `
+      SELECT
+        COALESCE(NULLIF(TRIM(s.corretor_ativo_nome), ''), 'Sem corretor') AS corretor,
+        SUM(CASE WHEN s.indicador = 'REPASSE' THEN COALESCE(s.valor_realizado, 1) ELSE 0 END)::int AS repasses,
+        COUNT(DISTINCT DATE_TRUNC('month', s.data_evento)) FILTER (WHERE s.indicador = 'REPASSE')::int AS meses_com_repasse
+      FROM public.comercial_indicador_segmentacao s
+      WHERE s.data_evento BETWEEN $1::date AND $2::date
+        ${where}
+      GROUP BY 1
+      ORDER BY repasses DESC, corretor ASC
+      LIMIT ${limit}
+    `;
+    const result = await runFilterQuery(sql, [start, end, ...params]);
+    const items = result.rows.map((row) => {
+      const repasses = Number(row.repasses) || 0;
+      const meses = Number(row.meses_com_repasse) || 0;
+      let frequency_class = 'nao_foguete';
+      if (repasses >= 6 || meses >= 3) frequency_class = 'recorrente';
+      else if (repasses >= 3 || meses >= 2) frequency_class = 'em_aceleracao';
+      else if (repasses > 0) frequency_class = 'pontual';
+      return {
+        corretor: row.corretor,
+        repasses,
+        meses_com_repasse: meses,
+        frequency_class,
+      };
+    });
+    return res.json({
+      items,
+      pagination: { total: items.length, limit },
+      meta: { startDate: start, endDate: end },
+    });
+  } catch (err) {
+    console.error('[corretores/foguetes/frequencia] error', err?.message || err);
+    return res.json({
+      items: [],
+      pagination: { total: 0, limit },
+      meta: { startDate: start, endDate: end },
+    });
+  }
+});
+
+app.get('/api/v1/dashboard/corretores/diario', async (req, res) => {
+  const dateRange = getDateRange(req.query);
+  if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+  const { start, end } = dateRange;
+  const filters = normalizeSegmentedFiltersFromQuery(req.query);
+  const search = String(req.query.search || '').trim().toLowerCase();
+
+  const indicatorMap = [
+    ['visitas', 'VISITA'],
+    ['agendamentos', 'AGENDAMENTOS'],
+    ['propostas_aprovadas', 'PASTAS APROVADAS'],
+    ['propostas_condicionadas', 'PASTAS CONDICIONADAS'],
+    ['propostas_reprovadas', 'PASTAS REPROVADAS'],
+    ['propostas', 'PASTAS COM RESPOSTAS'],
+    ['vendas', 'VENDA GERADAS'],
+    ['vendas_finalizadas', 'VENDA FINALIZADA'],
+    ['repasses', 'REPASSE'],
+    ['distratos', 'DISTRATOS'],
+    ['cancelamentos', 'CANCELAMENTOS'],
+  ];
+
+  try {
+    const { where, params } = buildSegmentedFilterWhere(filters, {
+      startIndex: 3,
+      alias: 's',
+      includeSdrFilters: true,
+    });
+    const searchClause = search ? `AND LOWER(COALESCE(s.corretor_ativo_nome, '')) LIKE $${3 + params.length}` : '';
+    const queryParams = search ? [start, end, ...params, `%${search}%`] : [start, end, ...params];
+    const sql = `
+      SELECT
+        s.data_evento::date AS data,
+        COALESCE(NULLIF(TRIM(s.corretor_ativo_nome), ''), 'Sem corretor') AS corretor,
+        COALESCE(NULLIF(TRIM(s.imobiliaria_corretor), ''), 'Sem equipe') AS equipe,
+        COALESCE(NULLIF(TRIM(s.gestor_corretor), ''), 'Sem gestor') AS gerente,
+        COALESCE(NULLIF(TRIM(s.coordenador_corretor), ''), 'Sem coordenador') AS coordenador,
+        s.indicador,
+        SUM(COALESCE(s.valor_realizado, 1))::int AS value
+      FROM public.comercial_indicador_segmentacao s
+      WHERE s.data_evento BETWEEN $1::date AND $2::date
+        ${where}
+        ${searchClause}
+      GROUP BY 1, 2, 3, 4, 5, 6
+    `;
+    const result = await runFilterQuery(sql, queryParams);
+
+    const days = [];
+    const dayCursor = new Date(`${start}T00:00:00Z`);
+    const dayEnd = new Date(`${end}T00:00:00Z`);
+    while (dayCursor <= dayEnd) {
+      const data = dayCursor.toISOString().slice(0, 10);
+      const utcDay = dayCursor.getUTCDay() || 7;
+      days.push({
+        data,
+        ano: dayCursor.getUTCFullYear(),
+        mes: dayCursor.getUTCMonth() + 1,
+        dia: dayCursor.getUTCDate(),
+        dia_semana: utcDay,
+      });
+      dayCursor.setUTCDate(dayCursor.getUTCDate() + 1);
+    }
+
+    const brokers = new Map();
+    result.rows.forEach((row) => {
+      const key = row.corretor;
+      if (!brokers.has(key)) {
+        const indicadores = indicatorMap.map(([indicatorKey]) => ({
+          key: indicatorKey,
+          label: indicatorKey,
+          total: 0,
+          valores: {},
+        }));
+        brokers.set(key, {
+          corretor: row.corretor,
+          corretor_identity_key: row.corretor.toLowerCase(),
+          equipe: row.equipe,
+          gerente: row.gerente,
+          coordenador: row.coordenador,
+          indicadores,
+        });
+      }
+      const broker = brokers.get(key);
+      const mapped = indicatorMap.find(([, indicator]) => indicator === row.indicador);
+      if (!mapped) return;
+      const indicatorKey = mapped[0];
+      const indicator = broker.indicadores.find((item) => item.key === indicatorKey);
+      if (!indicator) return;
+      const value = Number(row.value) || 0;
+      indicator.total += value;
+      indicator.valores[row.data instanceof Date ? row.data.toISOString().slice(0, 10) : String(row.data).slice(0, 10)] = value;
+    });
+
+    return res.json({
+      items: Array.from(brokers.values()),
+      dias: days,
+      indicadores: indicatorMap.map(([key]) => ({ key, label: key })),
+      pagination: { total: brokers.size, pages: 1, page: 1, pageSize: brokers.size || 1 },
+      summary: null,
+    });
+  } catch (err) {
+    console.error('[corretores/diario] error', err?.message || err);
+    return res.json({
+      items: [],
+      dias: [],
+      indicadores: indicatorMap.map(([key]) => ({ key, label: key })),
+      pagination: { total: 0, pages: 0, page: 1, pageSize: 0 },
+      summary: null,
+    });
+  }
+});
+
+app.get('/api/v1/dashboard/corretores/detalhes', async (req, res) => {
+  const dateRange = getDateRange(req.query);
+  if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+  const { start, end } = dateRange;
+  const limit = parsePositiveInt(req.query.limit, 120, 400);
+  const indicator = String(req.query.indicador || '').trim().toLowerCase();
+  const corretor = String(req.query.corretor || '').trim();
+  const regiaoDetalhe = String(req.query.regiaoDetalhe || '').trim();
+  const data = String(req.query.data || '').trim();
+  const normalized = normalizeFiltersFromQuery(req.query);
+
+  const dateClauseByIndicator = {
+    visitas: 'b.dt_visita_realizada::date',
+    agendamentos: 'b.dt_visita_realizada::date',
+    propostas_aprovadas: 'b.dt_resposta_analise_precadastro::date',
+    propostas_condicionadas: 'b.dt_resposta_analise_precadastro::date',
+    propostas_reprovadas: 'b.dt_resposta_analise_precadastro::date',
+    propostas: 'b.dt_resposta_analise_precadastro::date',
+    vendas: 'b.dt_cadastro_reserva::date',
+    vendas_finalizadas: 'b.data_venda::date',
+    repasses: 'b.dt_assinatura_contrato::date',
+    distratos: 'd.referencia_data::date',
+    cancelamentos: 'b.dt_cancelamento_reserva::date',
+  };
+
+  try {
+    const useEmpreendimentoDim = await hasEmpreendimentoDimReady();
+    const { where, params } = buildFilters(normalized, { startIndex: 3, alias: 'b', useEmpreendimentoDim });
+    const eventDateExpr = dateClauseByIndicator[indicator] || 'COALESCE(b.dt_assinatura_contrato::date, b.data_venda::date, b.dt_cadastro_reserva::date, b.dt_resposta_analise_precadastro::date, b.dt_visita_realizada::date, b.dt_ultima_conversao_lead::date)';
+    const detailKeyExpr = indicator === 'vendas'
+      ? "concat(to_char(date_trunc('month', b.dt_cadastro_reserva), 'YYYY-MM'), '|', coalesce(b.idcliente_canonico::text, nullif(regexp_replace(coalesce(b.cliente_documento, b.dim_lead_cliente_documento, ''), '\\D', '', 'g'), ''), b.idreserva::text))"
+      : 'COALESCE(b.fato_jornada_comercial_key::text, b.journey_id::text, b.idlead::text, b.idreserva::text, b.idrepasse::text)';
+    const extraClauses = [];
+    const extraParams = [];
+    let idx = 3 + params.length;
+
+    if (corretor) {
+      extraParams.push(corretor);
+      extraClauses.push(`COALESCE(${getCorretorNomeExpr('b')}, 'Sem corretor') = $${idx}`);
+      idx += 1;
+    }
+    if (regiaoDetalhe) {
+      const regiaoExpr = useEmpreendimentoDim ? getEmpreendimentoDimExpr('regiao', 'b') : getEmpreendimentoReduzidoExpr('b');
+      extraParams.push(regiaoDetalhe);
+      extraClauses.push(`(${regiaoExpr})::text = $${idx}`);
+      idx += 1;
+    }
+    if (data) {
+      extraParams.push(data);
+      extraClauses.push(`${eventDateExpr} = $${idx}::date`);
+      idx += 1;
+    }
+    if (indicator === 'vendas') {
+      extraClauses.push("b.idreserva IS NOT NULL");
+    }
+
+    const sql = `
+      WITH base AS (
+        SELECT
+          ${detailKeyExpr} AS detalhe_chave,
+          b.*,
+          ${eventDateExpr} AS data_evento
+        FROM comercial_base b
+        LEFT JOIN comercial_distratos d ON d.idreserva = b.idreserva
+        WHERE ${eventDateExpr} BETWEEN $1::date AND $2::date
+          ${where}
+          ${extraClauses.length ? `AND ${extraClauses.join(' AND ')}` : ''}
+      ),
+      counted AS (
+        SELECT *, COUNT(*) OVER() AS total_count
+        FROM base
+      )
+      SELECT *
+      FROM counted
+      ORDER BY data_evento DESC NULLS LAST, detalhe_chave DESC
+      LIMIT ${limit}
+    `;
+
+    const result = await runFilterQuery(sql, [start, end, ...params, ...extraParams]);
+    const total = Number(result.rows[0]?.total_count) || 0;
+    return res.json({
+      items: result.rows.map((row) => {
+        const copy = { ...row };
+        delete copy.total_count;
+        return copy;
+      }),
+      pagination: { total, limit, page: 1 },
+      indicadorLabel: indicator.toUpperCase(),
+      meta: {
+        source: 'comercial_base',
+        audit: {
+          scope: String(req.query.aba || 'corretores'),
+          detailEntity: 'journey',
+        },
+      },
+    });
+  } catch (err) {
+    console.error('[corretores/detalhes] error', err?.message || err);
+    return res.json({
+      items: [],
+      pagination: { total: 0, limit, page: 1 },
+      indicadorLabel: indicator.toUpperCase(),
+      meta: {
+        source: 'fallback',
+        audit: {
+          scope: String(req.query.aba || 'corretores'),
+          detailEntity: 'journey',
+        },
+      },
+    });
   }
 });
 

@@ -132,6 +132,48 @@ Resumo operacional:
 - `Inativos/Outros` entra nos totais operacionais, mas nao entra no denominador
   de IPC.
 
+## Regra Do Funil Comercial
+
+Na etapa `RESERVA` do Funil Comercial:
+
+- tabela: `connect_comercial.comercial_base`;
+- data canonica: `dt_cadastro_reserva`;
+- contagem: uma reserva por cliente no mes;
+- chave do cliente: `idcliente_canonico`; se ausente, CPF/CNPJ normalizado; se
+  ausente, `idreserva`;
+- deduplicacao: quando o cliente tiver mais de uma reserva no periodo, usar a
+  reserva com maior `dt_cadastro_reserva`; no empate, usar a referencia mais
+  recente e depois a linha nao cancelada;
+- regra: conta a reserva mais recente do cliente no periodo.
+
+Nao usar `data_venda` nem `dt_contrato_contabilizado` como base do indicador
+`RESERVA`.
+
+`CANCELADO` e `DISTRATO` aparecem no painel do funil como indicadores laterais
+por periodo e filtros gerais. Eles nao entram no calculo de conversao entre
+etapas e nao alteram `% Conversao`, `% Anterior`, metas dinamicas ou tendencia.
+
+O `SLA - Medio` do funil e a media de dias entre a data da etapa atual e a data
+da proxima etapa do mesmo cliente/chave operacional. Exemplo: em `AGENDAMENTO`,
+mede a diferenca entre a data do agendamento e a proxima data de `VISITA`.
+
+No funil, o filtro de `cidade` e ignorado/removido da tela. Os filtros gerais de
+regiao, empreendimento, imobiliaria, corretor, SDR e origem continuam ativos.
+
+## Drill-Down Do Consolidado De Metas
+
+Na aba `Consolidado De Metas` do Funil de Vendas, o clique em uma linha deve
+abrir a aba `Detalhamento Operacional` com a mesma etapa e o mesmo escopo de
+datas da linha clicada:
+
+- tabela `Realizado e Meta Dinamica`: usa o trimestre consolidado retornado em
+  `quarterPeriod`;
+- tabela `Acompanhamento Atual`: usa o periodo atual retornado em `period`;
+- os filtros hierarquicos ativos continuam sendo enviados ao endpoint de
+  detalhe;
+- o total visual exibido no cabecalho do detalhe deve partir da linha clicada
+  ate a API retornar a conciliacao final.
+
 ## Como Criar Novo Bloco No Dashboard
 
 1. Definir pergunta de negocio.

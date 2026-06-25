@@ -8,7 +8,7 @@ const BI_OPTIONS = [
     description: 'Performance comercial consolidada',
     to: '/geral',
     icon: Gauge,
-    stats: ['Leads', 'Vendas', 'Repasses', 'IPC'],
+    stats: ['Leads', 'Reservas', 'Repasses', 'IPC'],
   },
   {
     title: 'BI de Reservas',
@@ -18,7 +18,7 @@ const BI_OPTIONS = [
     stats: ['Situações', 'SLA', 'Metas', 'Tabela'],
   },
   {
-    title: 'Funil de Vendas',
+    title: 'Funil Comercial',
     description: 'Movimentações, detalhe e metas em cascata',
     to: '/funil',
     icon: Funnel,

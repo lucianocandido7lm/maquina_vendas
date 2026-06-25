@@ -1326,6 +1326,10 @@
     return ["PENDENTE_APROVACAO_REGIONAL", "PENDENTE_APROVACAO"].includes(vagaStatusKey(item));
   }
 
+  function isVagaNecessidadeAtiva(item) {
+    return isVagaManualAberta(item) || isVagaPendenteAprovacao(item);
+  }
+
   function vagaQuantidade(item) {
     const value = toNumber(item?.quantidade_vagas ?? item?.quantidade ?? 1);
     if (!Number.isFinite(value) || value < 1) return 1;
@@ -1492,6 +1496,16 @@
     return normalizeText(item?.cargo) || "Cargo não informado";
   }
 
+  function vagaCargoField(item) {
+    const key = slugKey(vagaCargo(item));
+    if (!key) return "";
+    if (key.includes("gerente_regional")) return "gerente_regional";
+    if (key.includes("gerente_comercial")) return "gerente_comercial";
+    if (key.includes("gerente_de_vendas") || (key.includes("gerente") && key.includes("vendas"))) return "gerente_vendas";
+    if (key.includes("consultor") || key.includes("corretor")) return "consultor";
+    return "";
+  }
+
   function vagaAndamentos(item) {
     return Array.isArray(item?.andamentos)
       ? [...item.andamentos].sort((a, b) => new Date(b?.data_hora_criacao || 0) - new Date(a?.data_hora_criacao || 0))
@@ -1642,6 +1656,10 @@
 
   function vagaEquipeKey(item) {
     return slugKey(item?.equipe);
+  }
+
+  function vagaRegionScopeKey(item) {
+    return slugKey(item?.regiao || item?.regional || item?.localidade || item?.equipe);
   }
 
   function manualOpenVacanciesForTeams(teams) {
@@ -3715,6 +3733,32 @@
       .forEach((vacancy) => {
         vacancies.set(vacancy.key || `${field}:${slugKey(vacancy.equipe)}`, vacancy);
       });
+    const teamKeys = new Set([...(group.equipes || []), group.equipe].map(slugKey).filter(Boolean));
+    const regionKeys = new Set([...(group.regioes || []), ...(group.regioesDetalhadas || []), group.regiao].map(slugKey).filter(Boolean));
+    if (teamKeys.size || regionKeys.size) {
+      (state.vagasManuais || [])
+        .filter((vaga) => vagaCargoField(vaga) === field)
+        .filter((vaga) => {
+          const teamMatch = teamKeys.has(vagaEquipeKey(vaga));
+          const regionalMatch = field === "gerente_regional" && regionKeys.has(vagaRegionScopeKey(vaga));
+          return isVagaNecessidadeAtiva(vaga) && (teamMatch || regionalMatch);
+        })
+        .forEach((vaga) => {
+          const quantidade = vagaQuantidade(vaga);
+          const equipe = normalizeText(vaga.equipe) || group.equipe || "Sem equipe";
+          vacancies.delete(`${slugKey(equipe)}::${field}`);
+          const baseKey = `${field}:vaga:${slugKey(vaga.protocolo || vaga.identificador_vaga || vaga.equipe)}`;
+          for (let index = 0; index < quantidade; index += 1) {
+            vacancies.set(`${baseKey}:${index}`, {
+              field,
+              equipe,
+              key: `${baseKey}:${index}`,
+              protocolo: vaga.protocolo,
+              origem: "vaga",
+            });
+          }
+        });
+    }
     if (field === "gerente_vendas" && group.gestorVago && !vacancies.size) {
       vacancies.set(`fallback:${group.key}`, { field, equipe: group.equipe });
     }

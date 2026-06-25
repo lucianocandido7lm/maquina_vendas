@@ -1,6 +1,6 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpDown, BarChart3, ChevronDown, ChevronRight, LayoutDashboard, ListChecks, RefreshCcw, Save, Target, TriangleAlert } from 'lucide-react';
+import { ArrowUpDown, BarChart3, ChevronDown, ChevronRight, LayoutDashboard, ListChecks, LoaderCircle, RefreshCcw, Save, Target, TriangleAlert } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -217,6 +217,32 @@ const RESERVAS_TABS = [
   { id: 'metas', label: 'Metas', icon: Target },
 ];
 
+const RESERVAS_QUERY_FILTER_KEYS = [
+  'cidade',
+  'origem',
+  'empreendimento',
+  'empreendimentoReduzido',
+  'imobiliaria',
+  'regiaoOperacao',
+  'imobiliariaOperacao',
+  'corretorOperacao',
+  'sdrOperacao',
+  'corretorAtivo',
+  'gestorCorretor',
+  'coordenadorCorretor',
+  'regiaoCorretor',
+  'imobiliariaCorretor',
+  'sdrAtivo',
+  'gestorSdr',
+  'coordenadorSdr',
+  'regiaoSdr',
+  'imobiliariaSdr',
+  'situacaoAtual',
+  'idReserva',
+  'repasseNoMes',
+  'agente',
+];
+
 const DETAIL_TABLE_COLUMNS = [
   { key: 'idreserva', label: 'ID Reserva', getter: (row) => row.idreserva },
   { key: 'dt_cadastro_reserva', label: 'Data cadastro', getter: (row) => row.dt_cadastro_reserva },
@@ -367,10 +393,18 @@ const ReservasBI = () => {
   const [metaSort, setMetaSort] = useState({ key: 'regiao', order: 'asc' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const mainLoadControllerRef = useRef(null);
+
+  const reservasFilterSignature = useMemo(() => JSON.stringify(
+    RESERVAS_QUERY_FILTER_KEYS.map((key) => [
+      key,
+      Array.isArray(filters[key]) ? [...filters[key]].sort() : filters[key],
+    ]),
+  ), [filters]);
 
   const queryParams = useMemo(() => {
-    return buildFilterParams(filters.dataInicial, filters.dataFinal);
-  }, [buildFilterParams, filters.dataFinal, filters.dataInicial]);
+    return buildFilterParams(filters.dataInicial, filters.dataFinal, { __scope: 'reservas' });
+  }, [buildFilterParams, filters.dataFinal, filters.dataInicial, reservasFilterSignature]);
 
   const fetchJson = useCallback(async (url, options) => {
     const response = await fetch(url, options);
@@ -387,7 +421,7 @@ const ReservasBI = () => {
     return response.json();
   }, []);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (signal) => {
     setLoading(true);
     setError(null);
     const qs = queryParams.toString();
@@ -400,32 +434,69 @@ const ReservasBI = () => {
     cadastroTrendParams.set('startDate', cadastroRange.start);
     cadastroTrendParams.set('endDate', cadastroRange.end);
     cadastroTrendParams.delete('comparacao');
+    const shouldLoadGeneral = activeTab === 'geral';
+    const shouldLoadGoals = activeTab === 'metas';
+    const shouldLoadTable = activeTab === 'detalhada' && !detailContext;
+
     try {
-      const [trendsPayload, breakdownPayload, pipelinePayload, tablePayload, metasPayload] = await Promise.all([
-        fetchJson(`/api/v1/dashboard/reservas/trends?${cadastroTrendParams.toString()}`),
-        fetchJson(`/api/v1/dashboard/reservas/breakdown?axis=all&${qs}`),
-        fetchJson(`/api/v1/dashboard/reservas/breakdown?axis=situacao&${pipelineParams.toString()}`),
-        fetchJson(`/api/v1/dashboard/reservas/table?limit=1000&${qs}`),
-        fetchJson(`/api/v1/dashboard/reservas/metas?${qs}`),
-      ]);
-      setTrends(Array.isArray(trendsPayload) ? trendsPayload : []);
-      setBreakdowns({
-        ...(breakdownPayload?.byAxis ?? {}),
-        situacao: Array.isArray(pipelinePayload?.items) ? pipelinePayload.items : [],
-      });
-      setTableData(tablePayload ?? { items: [], pagination: { total: 0, page: 1, limit: 200 } });
-      setMetas(metasPayload ?? { items: [], totalsByRegion: [] });
-      setDetailContext(null);
+      const requests = [];
+      if (shouldLoadGeneral) {
+        requests.push(fetchJson(`/api/v1/dashboard/reservas/trends?${cadastroTrendParams.toString()}`, { signal }));
+        requests.push(fetchJson(`/api/v1/dashboard/reservas/breakdown?axis=all&${qs}`, { signal }));
+        requests.push(fetchJson(`/api/v1/dashboard/reservas/breakdown?axis=situacao&${pipelineParams.toString()}`, { signal }));
+      }
+      if (shouldLoadGoals) {
+        requests.push(fetchJson(`/api/v1/dashboard/reservas/metas?${qs}`, { signal }));
+      }
+      if (shouldLoadTable) {
+        requests.push(fetchJson(`/api/v1/dashboard/reservas/table?limit=1000&${qs}`, { signal }));
+      }
+
+      const payloads = await Promise.all(requests);
+      let cursor = 0;
+
+      if (shouldLoadGeneral) {
+        const trendsPayload = payloads[cursor++];
+        const breakdownPayload = payloads[cursor++];
+        const pipelinePayload = payloads[cursor++];
+        setTrends(Array.isArray(trendsPayload) ? trendsPayload : []);
+        setBreakdowns({
+          ...(breakdownPayload?.byAxis ?? {}),
+          situacao: Array.isArray(pipelinePayload?.items) ? pipelinePayload.items : [],
+        });
+      }
+      if (shouldLoadGoals) {
+        const metasPayload = payloads[cursor++];
+        setMetas(metasPayload ?? { items: [], totalsByRegion: [] });
+      }
+      if (shouldLoadTable) {
+        const tablePayload = payloads[cursor++];
+        setTableData(tablePayload ?? { items: [], pagination: { total: 0, page: 1, limit: 200 } });
+      }
+
+      if (!detailContext) {
+        setDetailContext(null);
+      }
     } catch (err) {
+      if (err?.name === 'AbortError') return;
       setError(err?.message || 'Erro inesperado ao carregar reservas.');
     } finally {
       setLoading(false);
     }
-  }, [fetchJson, queryParams]);
+  }, [activeTab, detailContext, fetchJson, queryParams]);
 
   useEffect(() => {
-    const timer = setTimeout(loadData, 200);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => {
+      mainLoadControllerRef.current?.abort();
+      const controller = new AbortController();
+      mainLoadControllerRef.current = controller;
+      loadData(controller.signal);
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      mainLoadControllerRef.current?.abort();
+      mainLoadControllerRef.current = null;
+    };
   }, [loadData]);
 
   const tableItems = useMemo(() => tableData.items ?? [], [tableData.items]);
@@ -833,13 +904,20 @@ const ReservasBI = () => {
             <p className="body-sm text-variant">Reservas, repasses, situação operacional e metas por imobiliária/região.</p>
           </div>
         </div>
-        <button type="button" className="btn-secondary reservas-refresh" onClick={loadData} disabled={loading}>
+        <button type="button" className="btn-secondary reservas-refresh" onClick={() => loadData()} disabled={loading}>
           <RefreshCcw size={14} />
           Atualizar
         </button>
       </header>
 
       <DashboardFilters showReservationFilters />
+
+      {loading && (
+        <div className="reservas-loading" role="status" aria-live="polite">
+          <LoaderCircle size={15} />
+          Carregando dados de acordo com os filtros selecionados...
+        </div>
+      )}
 
       {error && (
         <div className="reservas-alert reservas-alert-error">

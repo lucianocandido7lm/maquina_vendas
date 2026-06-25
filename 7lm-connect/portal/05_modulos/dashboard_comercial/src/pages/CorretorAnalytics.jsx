@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpDown, BarChart3, LayoutDashboard, RefreshCw, Search, TrendingUp, UsersRound, X } from 'lucide-react';
 import {
@@ -55,7 +55,7 @@ const FOGUETE_FUNCIONARIO_COLUMNS = [
 
 const TOP_EMPREENDIMENTO_METRICS = [
   { key: 'propostas', label: 'Pastas', barName: 'Pastas com respostas' },
-  { key: 'vendas', label: 'Vendas', barName: 'Vendas' },
+  { key: 'vendas', label: 'Reservas', barName: 'Reservas' },
   { key: 'vendas_finalizadas', label: 'Vendas Finalizadas', barName: 'Vendas finalizadas' },
   { key: 'repasses', label: 'Repasse', barName: 'Repasses' },
 ];
@@ -418,6 +418,7 @@ const CorretorAnalytics = () => {
   const [detailError, setDetailError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const detailControllerRef = useRef(null);
 
   const tabConfig = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
@@ -455,6 +456,7 @@ const CorretorAnalytics = () => {
       setIsLoading(true);
       setError('');
       const params = buildFilterParams(filters.dataInicial, filters.dataFinal, {
+        __scope: 'legacy',
         search: debouncedSearch,
         sort,
         order,
@@ -506,6 +508,7 @@ const CorretorAnalytics = () => {
     const loadFrequency = async () => {
       setIsLoadingFrequency(true);
       const params = buildFilterParams(filters.dataInicial, filters.dataFinal, {
+        __scope: 'legacy',
         search: debouncedSearch,
         limit: '120',
       });
@@ -571,6 +574,9 @@ const CorretorAnalytics = () => {
     if (!corretorIdentity && !corretor && !regiaoDetalhe) return;
     const detailIndicatorKey = resolveDetailIndicatorKey(indicatorKey);
     if (!isDetailSupportedIndicator(detailIndicatorKey)) return;
+    detailControllerRef.current?.abort();
+    const controller = new AbortController();
+    detailControllerRef.current = controller;
     setIsLoadingDetail(true);
     setDetailError('');
     setDetailContext({
@@ -589,6 +595,7 @@ const CorretorAnalytics = () => {
     });
 
     const params = buildFilterParams(filters.dataInicial, filters.dataFinal, {
+      __scope: 'legacy',
       indicador: detailIndicatorKey,
       aba: activeTab,
       expectedTotal: String(Number(value) || 0),
@@ -606,7 +613,7 @@ const CorretorAnalytics = () => {
     if (selectedDate) params.set('data', selectedDate);
 
     try {
-      const response = await fetch(`/api/v1/dashboard/corretores/detalhes?${params.toString()}`);
+      const response = await fetch(`/api/v1/dashboard/corretores/detalhes?${params.toString()}`, { signal: controller.signal });
       if (!response.ok) {
         let detail = `Erro ${response.status}`;
         try {
@@ -620,18 +627,28 @@ const CorretorAnalytics = () => {
       const data = await response.json();
       setDetailPayload(data);
     } catch (err) {
+      if (err?.name === 'AbortError') return;
       setDetailPayload(null);
       setDetailError(err?.message || 'Erro ao carregar detalhamento.');
     } finally {
-      setIsLoadingDetail(false);
+      if (detailControllerRef.current === controller) {
+        detailControllerRef.current = null;
+        setIsLoadingDetail(false);
+      }
     }
   };
 
   const closeDetail = () => {
+    detailControllerRef.current?.abort();
+    detailControllerRef.current = null;
     setDetailPayload(null);
     setDetailContext(null);
     setDetailError('');
   };
+
+  useEffect(() => () => {
+    detailControllerRef.current?.abort();
+  }, []);
 
   const renderMetricCell = (row, column) => {
     const value = metricValue(row, column.key);
@@ -817,7 +834,7 @@ const CorretorAnalytics = () => {
       { key: 'propostas_aprovadas', label: 'Aprovadas' },
       { key: 'propostas_condicionadas', label: 'Condicionadas' },
       { key: 'propostas_reprovadas', label: 'Reprovadas' },
-      { key: 'vendas', label: 'Vendas' },
+      { key: 'vendas', label: 'Reservas' },
       { key: 'vendas_finalizadas', label: 'Vendas finalizadas' },
       { key: 'repasses', label: 'Repasses' },
     ];
@@ -966,9 +983,9 @@ const CorretorAnalytics = () => {
           </div>
           <div
             className="foguete-kpi-card"
-            title="Venda: count distinct de idreserva com data de venda/contrato contabilizado no período filtrado. No consolidado usa comercial_kpi_daily.vendas; no detalhe usa dt_contrato_contabilizado."
+            title="Reserva: uma reserva por cliente no mês pela dt_cadastro_reserva. Se o cliente tiver mais de uma reserva no período, considera a reserva mais recente."
           >
-            <span>Vendas dos Foguetes</span>
+            <span>Reservas dos Foguetes</span>
             <strong>{formatNumber(fogueteInsights.totalVendas, 'integer')}</strong>
             <small>{formatNumber(safeDivide(fogueteInsights.totalVendas, fogueteInsights.totalCorretores), 'ratio')} por corretor</small>
           </div>

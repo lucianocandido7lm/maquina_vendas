@@ -7,7 +7,9 @@ const MultiSelectFilter = ({ id, label, value = [], options = [], onChange, clas
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [remoteOptions, setRemoteOptions] = useState([]);
+  const remoteOptionsRef = useRef([]);
   const containerRef = useRef(null);
+  const lastRemoteQueryRef = useRef('');
   const MotionPanel = motionFactory.div;
 
   // Sync value if it's not an array (initial state might be 'todos')
@@ -47,28 +49,60 @@ const MultiSelectFilter = ({ id, label, value = [], options = [], onChange, clas
     ));
   }, [safeOptions, remoteOptions, search]);
 
+  const localFilteredCount = useMemo(() => {
+    const searchText = String(search ?? '').toLowerCase();
+    return safeOptions.filter((opt) => (
+      opt.label.toLowerCase().includes(searchText) && opt.value !== 'todos' && opt.value !== 'todas'
+    )).length;
+  }, [safeOptions, search]);
+
+  const normalizedSearch = useMemo(() => String(search ?? '').trim().toLowerCase(), [search]);
+
+  useEffect(() => {
+    remoteOptionsRef.current = remoteOptions;
+  }, [remoteOptions]);
+
   useEffect(() => {
     if (!isOpen) return () => {};
     if (typeof onSearchOptions !== 'function') return () => {};
-    if (String(search).trim().length < 2) {
+    if (normalizedSearch.length < 2) {
       startTransition(() => setRemoteOptions([]));
+      lastRemoteQueryRef.current = '';
+      return () => {};
+    }
+    if (localFilteredCount >= 20) {
+      startTransition(() => setRemoteOptions([]));
+      lastRemoteQueryRef.current = '';
+      return () => {};
+    }
+    const requestKey = `${searchKey}::${normalizedSearch}`;
+    if (lastRemoteQueryRef.current === requestKey) {
       return () => {};
     }
 
     let active = true;
     const timer = setTimeout(async () => {
-      const result = await onSearchOptions(searchKey, search);
+      const result = await onSearchOptions(searchKey, normalizedSearch);
       if (!active) return;
+      const normalizedResult = Array.isArray(result) ? result : [];
+      const currentRemote = remoteOptionsRef.current;
+      const hasDiff = normalizedResult.length !== currentRemote.length
+        || normalizedResult.some((opt, idx) => opt?.value !== currentRemote[idx]?.value || opt?.label !== currentRemote[idx]?.label);
+      if (!hasDiff) {
+        lastRemoteQueryRef.current = requestKey;
+        return;
+      }
       startTransition(() => {
-        setRemoteOptions(Array.isArray(result) ? result : []);
+        setRemoteOptions(normalizedResult);
       });
+      lastRemoteQueryRef.current = requestKey;
     }, 180);
 
     return () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [isOpen, onSearchOptions, search, searchKey]);
+  }, [isOpen, localFilteredCount, normalizedSearch, onSearchOptions, searchKey]);
 
   const toggleOption = (optionValue) => {
     if (optionValue === 'todos') {

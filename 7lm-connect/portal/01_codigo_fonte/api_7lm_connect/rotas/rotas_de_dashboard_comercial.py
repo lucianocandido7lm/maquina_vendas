@@ -188,6 +188,47 @@ REPASSE_FLUXO_REPASSE_SQL = (
     f"translate(lower(coalesce(repasse_situacao_nome, '')), '{SQL_NORMALIZE_ACCENTS_FROM}', '{SQL_NORMALIZE_ACCENTS_TO}') "
     "in ('em andamento- (repasse)', 'inicio repasse')"
 )
+
+
+def _sql_reserva_situacao_normalizada(alias: str = "b") -> str:
+    return (
+        f"translate(lower(coalesce({alias}.reserva_situacao_nome, '')), "
+        f"'{SQL_NORMALIZE_ACCENTS_FROM}', '{SQL_NORMALIZE_ACCENTS_TO}')"
+    )
+
+
+def _sql_reserva_cancelada(alias: str = "b") -> str:
+    return f"{_sql_reserva_situacao_normalizada(alias)} like 'cancel%'"
+
+
+def _sql_venda_data_referencia(alias: str = "b") -> str:
+    return f"{alias}.dt_cadastro_reserva"
+
+
+def _sql_venda_data_desempate(alias: str = "b") -> str:
+    return f"coalesce({alias}.dt_referencia_reserva, {alias}.dt_cadastro_reserva)"
+
+
+def _sql_venda_cliente_chave(alias: str = "b") -> str:
+    documento = (
+        f"nullif(regexp_replace(coalesce({alias}.cliente_documento, "
+        f"{alias}.dim_lead_cliente_documento, ''), '\\D', '', 'g'), '')"
+    )
+    return f"coalesce({alias}.idcliente_canonico::text, {documento}, {alias}.idreserva::text)"
+
+
+def _sql_venda_cliente_mes_chave(alias: str = "b") -> str:
+    return f"concat(to_char(date_trunc('month', {alias}.dt_cadastro_reserva), 'YYYY-MM'), '|', {_sql_venda_cliente_chave(alias)})"
+
+
+def _sql_venda_ordem_canonica(alias: str = "b") -> str:
+    return (
+        f"{alias}.dt_cadastro_reserva desc nulls last, "
+        f"{_sql_venda_data_desempate(alias)} desc nulls last, "
+        f"case when {_sql_reserva_cancelada(alias)} then 1 else 0 end, "
+        f"{alias}.idreserva desc nulls last, "
+        f"{alias}.fato_jornada_comercial_key desc nulls last"
+    )
 REPASSE_MP_ATIVA_SQL = (
     f"translate(lower(coalesce(repasse_situacao_nome, '')), '{SQL_NORMALIZE_ACCENTS_FROM}', '{SQL_NORMALIZE_ACCENTS_TO}') "
     "in ('assinatura caixa', 'validacao assinatura caixa', 'em andamento- (garantia)')"
@@ -211,7 +252,7 @@ KPI_SQL = {
     "vendas": "sum(vendas)",
     "vendas_geradas": "sum(vendas)",
     "repasses": "sum(repasses)",
-    "propostas": "sum(propostas_total)",
+    "propostas": "sum(propostas_aprovadas) + sum(propostas_condicionadas)",
     "propostas_total": "sum(propostas_total)",
     "pastas_aprovadas": "sum(propostas_aprovadas)",
     "pastas_condicionadas": "sum(propostas_condicionadas)",
@@ -263,10 +304,10 @@ FUNIL_ETAPAS = [
         "label": "AGENDAMENTO",
         "order": 3,
         "source": "historico",
-        "aggregate": "countrows",
+        "aggregate": "latest_by_lead",
         "statuses": ("Agendado", "Agendado - IA", "Agendamento", "Agendamento - IA"),
         "status_groups": ("AGENDADO_IA", "AGENDAMENTO", "AGENDAMENTO_IA"),
-        "rule": "Eventos de workflow em situacoes de agendamento.",
+        "rule": "Ultima entrada de cada lead em AGENDAMENTO, AGENDAMENTO_IA ou AGENDADO_IA no periodo.",
     },
     {
         "key": "visita",
@@ -293,15 +334,15 @@ FUNIL_ETAPAS = [
         "source": "propostas",
         "aggregate": "distinct",
         "statuses": ("APROVADA", "CONDICIONADA", "CONDICIONADO", "CONDICIONADO PENDENTE"),
-        "rule": "Analises aprovadas ou condicionadas pela data de resposta da analise.",
+        "rule": "Soma oficial de propostas aprovadas ou condicionadas no fato diario dos indicadores gerais.",
     },
     {
         "key": "vendas",
-        "label": "VENDAS",
+        "label": "RESERVA",
         "order": 7,
         "source": "base",
         "aggregate": "distinct",
-        "rule": "Reservas iniciadas no periodo, independente do status posterior.",
+        "rule": "Uma reserva por cliente no mes pela data de cadastro da reserva; se o cliente tiver mais de uma reserva no periodo, conta a reserva mais recente.",
     },
     {
         "key": "vendas_finalizadas",
@@ -309,7 +350,7 @@ FUNIL_ETAPAS = [
         "order": 8,
         "source": "base",
         "aggregate": "distinct",
-        "rule": "Reservas finalizadas, usando a data da reserva.",
+        "rule": "Entradas em repasse, usando dt_cadastro_repasse; nao usa dt_referencia_repasse.",
     },
     {
         "key": "repasse",
@@ -326,6 +367,10 @@ FUNIL_ETAPA_POR_CHAVE = {
     for etapa in FUNIL_ETAPAS
     for valor in (etapa["key"], etapa["label"])
 }
+FUNIL_ETAPA_POR_CHAVE["vendas"] = next(etapa for etapa in FUNIL_ETAPAS if etapa["key"] == "vendas")
+FUNIL_ETAPA_POR_CHAVE["venda"] = FUNIL_ETAPA_POR_CHAVE["vendas"]
+
+FUNIL_FILTROS_IGNORADOS = {"cidade"}
 
 PROPOSTAS_AUDIT_STATUS_KPIS = {
     "aprovadas": "pastas_aprovadas",
@@ -2212,7 +2257,7 @@ async def _buscar_resumo(conexao, intervalo: IntervaloDatas, request: Request) -
             coalesce(sum(propostas_condicionadas), 0)::numeric as total_propostas_condicionadas,
             coalesce(sum(propostas_reprovadas), 0)::numeric as total_propostas_reprovadas,
             coalesce(sum(propostas_total), 0)::numeric as total_propostas,
-            coalesce(sum(propostas_total), 0)::numeric as total_propostas_geral,
+            (coalesce(sum(propostas_aprovadas), 0) + coalesce(sum(propostas_condicionadas), 0))::numeric as total_propostas_geral,
             case when coalesce(sum(sla_finalizacao_count), 0) > 0
                  then sum(sla_finalizacao_sum) / sum(sla_finalizacao_count)
                  else 0 end as total_sla_finalizacao,
@@ -2271,7 +2316,7 @@ async def _buscar_tendencias(conexao, intervalo: IntervaloDatas, request: Reques
             coalesce(sum(propostas_condicionadas), 0)::numeric as propostas_condicionadas,
             coalesce(sum(propostas_reprovadas), 0)::numeric as propostas_reprovadas,
             coalesce(sum(propostas_total), 0)::numeric as propostas_total,
-            coalesce(sum(propostas_total), 0)::numeric as propostas,
+            (coalesce(sum(propostas_aprovadas), 0) + coalesce(sum(propostas_condicionadas), 0))::numeric as propostas,
             coalesce(sum(sla_finalizacao_sum), 0)::numeric as sla_finalizacao_sum,
             coalesce(sum(sla_finalizacao_count), 0)::numeric as sla_finalizacao_base,
             coalesce(sum(sla_repasse_sum), 0)::numeric as sla_repasse_sum,
@@ -3088,8 +3133,25 @@ def _funil_filtros_base(request: Request, indice: int) -> tuple[str, list[Any]]:
     mapa = {
         nome: (coluna if "(" in coluna or "::" in coluna else f"b.{coluna}")
         for nome, coluna in FILTROS_BASE.items()
+        if nome not in FUNIL_FILTROS_IGNORADOS
     }
     return _montar_where_dimensoes(request, mapa, indice)
+
+
+def _funil_filtros_kpi(request: Request, indice: int, alias: str = "kd") -> tuple[str, list[Any]]:
+    prefixo = f"{alias}." if alias else ""
+    mapa = {
+        nome: (coluna if "(" in coluna or "::" in coluna else f"{prefixo}{coluna}")
+        for nome, coluna in FILTROS_KPI.items()
+        if nome not in FUNIL_FILTROS_IGNORADOS
+    }
+    return _montar_where_dimensoes(request, mapa, indice)
+
+
+FUNIL_DOCUMENTO_CLIENTE_SQL = (
+    "nullif(regexp_replace(coalesce(b.cliente_documento, b.dim_lead_cliente_documento, ''), '\\D', '', 'g'), '')"
+)
+FUNIL_REFERENCIA_RESERVA_SQL = "b.dt_cadastro_reserva"
 
 
 def _funil_sla_classificacao_sql(situacao: str, sla: str) -> str:
@@ -3148,25 +3210,62 @@ def _funil_select_final(situacao: str, sla: str, restricao: str) -> str:
 
 def _funil_query_base(etapa: dict[str, Any], request: Request, intervalo: IntervaloDatas) -> tuple[str, list[Any]]:
     where_filtros, parametros = _funil_filtros_base(request, 3)
+    if etapa["key"] == "vendas":
+        restricao = _funil_restricao_numero_sql("b.fl_restricao_lead")
+        sql = f"""
+            with vendas_canonicas as (
+                select distinct on ({_sql_venda_cliente_mes_chave('base')})
+                    base.*
+                from {ESQUEMA_COMERCIAL}.comercial_base base
+                where base.idreserva is not null
+                  and {_sql_venda_data_referencia('base')} >= $1::date
+                  and {_sql_venda_data_referencia('base')} < ($2::date + interval '1 day')
+                order by {_sql_venda_cliente_mes_chave('base')}, {_sql_venda_ordem_canonica('base')}
+            ),
+            detail_rows as (
+                select
+                    {_sql_venda_cliente_mes_chave('b')} as chave,
+                    {_sql_venda_data_referencia('b')} as data_evento,
+                    b.idlead::text as idlead,
+                    b.idprecadastro::text as idprecadastro,
+                    b.idreserva::text as idreserva,
+                    b.idrepasse::text as idrepasse,
+                    b.reserva_situacao_nome as situacao,
+                    b.lead_cidade as cidade,
+                    b.empreendimento_nome as empreendimento,
+                    coalesce(nullif(b.corretor_nome_canonico, ''), nullif(b.corretor_nome, '')) as corretor,
+                    b.sdr_nome as sdr,
+                    b.lead_origem_nome as origem,
+                    null::numeric as sla,
+                    {restricao} as restricao_lead
+                from vendas_canonicas b
+                where b.idreserva is not null
+                  {where_filtros}
+            )
+            select {_funil_select_final("situacao", "sla", "restricao_lead")}
+            from detail_rows
+        """
+        return sql, [intervalo.inicio, intervalo.fim, *parametros]
+
     key_expr = {
         "lead": "b.idlead::text",
         "visita": "b.idlead::text",
         "vendas": "b.idreserva::text",
-        "vendas_finalizadas": "b.idreserva::text",
+        "vendas_finalizadas": "b.idrepasse::text",
         "repasse": "b.idrepasse::text",
     }[etapa["key"]]
     date_expr = {
         "lead": "b.dt_ultima_conversao_lead",
         "visita": "b.dt_visita_realizada",
-        "vendas": "b.dt_cadastro_reserva",
-        "vendas_finalizadas": "b.dt_cadastro_reserva",
+        "vendas": FUNIL_REFERENCIA_RESERVA_SQL,
+        "vendas_finalizadas": "b.dt_cadastro_repasse",
         "repasse": "b.dt_assinatura_contrato",
     }[etapa["key"]]
     extra = {
         "lead": "b.idlead is not null",
         "visita": "b.idlead is not null and b.dt_visita_realizada is not null",
-        "vendas": "b.idreserva is not null and b.dt_cadastro_reserva is not null",
-        "vendas_finalizadas": "b.idreserva is not null and coalesce(b.fl_venda_finalizada, false) = true",
+        "vendas": f"b.idreserva is not null and {FUNIL_REFERENCIA_RESERVA_SQL} is not null and not ({_sql_reserva_cancelada('b')})",
+        "vendas_finalizadas": "b.idrepasse is not null and b.dt_cadastro_repasse is not null",
         "repasse": "b.idrepasse is not null and coalesce(b.fl_repasse_assinado, false) = true",
     }[etapa["key"]]
     restricao = _funil_restricao_numero_sql("b.fl_restricao_lead")
@@ -3194,17 +3293,29 @@ def _funil_query_base(etapa: dict[str, Any], request: Request, intervalo: Interv
               {where_filtros}
         )
         select {_funil_select_final("situacao", "sla", "restricao_lead")}
-        from detail_rows
+        from (
+            select distinct on (chave) *
+              from detail_rows
+             order by chave, data_evento desc nulls last
+        ) detail_rows
     """
     return sql, [intervalo.inicio, intervalo.fim, *parametros]
 
 
 def _funil_query_historico(etapa: dict[str, Any], request: Request, intervalo: IntervaloDatas) -> tuple[str, list[Any]]:
     where_filtros, parametros = _funil_filtros_base(request, 5)
+    dedupe_agendamento = etapa["key"] == "agendamento"
+    distinct_clause = "distinct on (lh.idlead)" if dedupe_agendamento else ""
+    order_clause = (
+        "order by lh.idlead, lh.dt_referencia desc nulls last, lh.historico_status_key desc nulls last"
+        if dedupe_agendamento
+        else ""
+    )
+    lead_required_clause = "and lh.idlead is not null" if dedupe_agendamento else ""
     if not parametros:
         sql = f"""
             with detail_rows as (
-                select
+                select {distinct_clause}
                     coalesce(lh.historico_status_key, concat_ws('|', lh.idlead::text, lh.dt_referencia::text, lh.situacao_para)) as chave,
                     lh.dt_referencia as data_evento,
                     lh.idlead::text as idlead,
@@ -3227,6 +3338,8 @@ def _funil_query_historico(etapa: dict[str, Any], request: Request, intervalo: I
                         or coalesce(lh.funil_status_grupo, lh.agendamento_status_grupo) = any($4::text[])
                         or lh.agendamento_status_grupo = any($4::text[])
                   )
+                  {lead_required_clause}
+                {order_clause}
             )
             select {_funil_select_final("situacao", "sla", "restricao_lead")}
             from detail_rows
@@ -3241,7 +3354,7 @@ def _funil_query_historico(etapa: dict[str, Any], request: Request, intervalo: I
     restricao = _funil_restricao_numero_sql("b.fl_restricao_lead")
     sql = f"""
         with detail_rows as (
-            select
+            select {distinct_clause}
                 coalesce(lh.historico_status_key, concat_ws('|', lh.idlead::text, lh.dt_referencia::text, lh.situacao_para)) as chave,
                 lh.dt_referencia as data_evento,
                 lh.idlead::text as idlead,
@@ -3275,7 +3388,9 @@ def _funil_query_historico(etapa: dict[str, Any], request: Request, intervalo: I
                     or coalesce(lh.funil_status_grupo, lh.agendamento_status_grupo) = any($4::text[])
                     or lh.agendamento_status_grupo = any($4::text[])
               )
+              {lead_required_clause}
               {where_filtros}
+            {order_clause}
         )
         select {_funil_select_final("situacao", "sla", "restricao_lead")}
         from detail_rows
@@ -3392,8 +3507,10 @@ def _funil_count_query(etapa: dict[str, Any], request: Request, intervalo: Inter
                     limit 1
                 ) b on true
             """
+        total_expr = "count(distinct lh.idlead)::bigint" if etapa["key"] == "agendamento" else "count(*)::bigint"
+        lead_required_clause = "and lh.idlead is not null" if etapa["key"] == "agendamento" else ""
         sql = f"""
-            select count(*)::bigint as total
+            select {total_expr} as total
               from {ESQUEMA_COMERCIAL}.comercial_leads_historico lh
               {join_base}
              where lh.dt_referencia >= $1::date
@@ -3403,6 +3520,7 @@ def _funil_count_query(etapa: dict[str, Any], request: Request, intervalo: Inter
                     or coalesce(lh.funil_status_grupo, lh.agendamento_status_grupo) = any($4::text[])
                     or lh.agendamento_status_grupo = any($4::text[])
                )
+               {lead_required_clause}
                {where_filtros if precisa_base else ""}
         """
         return sql, [
@@ -3412,6 +3530,20 @@ def _funil_count_query(etapa: dict[str, Any], request: Request, intervalo: Inter
             list(etapa.get("status_groups") or []),
             *parametros,
         ]
+
+    if etapa["key"] == "prop_aprovada_condicionada":
+        where_filtros, parametros = _funil_filtros_kpi(request, 3)
+        sql = f"""
+            select (
+                coalesce(sum(kd.propostas_aprovadas), 0)
+              + coalesce(sum(kd.propostas_condicionadas), 0)
+            )::bigint as total
+              from {ESQUEMA_COMERCIAL}.comercial_kpi_daily kd
+             where kd.data >= $1::date
+               and kd.data <= $2::date
+               {where_filtros}
+        """
+        return sql, [intervalo.inicio, intervalo.fim, *parametros]
 
     if etapa["source"] == "propostas":
         where_filtros, parametros = _funil_filtros_base(request, 4)
@@ -3450,26 +3582,45 @@ def _funil_count_query(etapa: dict[str, Any], request: Request, intervalo: Inter
         """
         return sql, [intervalo.inicio, intervalo.fim, list(etapa.get("statuses") or []), *parametros]
 
+    if etapa["key"] == "vendas":
+        where_filtros, parametros = _funil_filtros_base(request, 3)
+        sql = f"""
+            with vendas_canonicas as (
+                select distinct on ({_sql_venda_cliente_mes_chave('base')})
+                    base.*
+                from {ESQUEMA_COMERCIAL}.comercial_base base
+                where base.idreserva is not null
+                  and {_sql_venda_data_referencia('base')} >= $1::date
+                  and {_sql_venda_data_referencia('base')} < ($2::date + interval '1 day')
+                order by {_sql_venda_cliente_mes_chave('base')}, {_sql_venda_ordem_canonica('base')}
+            )
+            select count(*)::bigint as total
+              from vendas_canonicas b
+             where b.idreserva is not null
+               {where_filtros}
+        """
+        return sql, [intervalo.inicio, intervalo.fim, *parametros]
+
     where_filtros, parametros = _funil_filtros_base(request, 3)
     key_expr = {
         "lead": "b.idlead",
         "visita": "b.idlead",
         "vendas": "b.idreserva",
-        "vendas_finalizadas": "b.idreserva",
+        "vendas_finalizadas": "b.idrepasse",
         "repasse": "b.idrepasse",
     }[etapa["key"]]
     date_expr = {
         "lead": "b.dt_ultima_conversao_lead",
         "visita": "b.dt_visita_realizada",
-        "vendas": "b.dt_cadastro_reserva",
-        "vendas_finalizadas": "b.dt_cadastro_reserva",
+        "vendas": FUNIL_REFERENCIA_RESERVA_SQL,
+        "vendas_finalizadas": "b.dt_cadastro_repasse",
         "repasse": "b.dt_assinatura_contrato",
     }[etapa["key"]]
     extra = {
         "lead": "b.idlead is not null",
         "visita": "b.idlead is not null and b.dt_visita_realizada is not null",
-        "vendas": "b.idreserva is not null and b.dt_cadastro_reserva is not null",
-        "vendas_finalizadas": "b.idreserva is not null and coalesce(b.fl_venda_finalizada, false) = true",
+        "vendas": f"b.idreserva is not null and {FUNIL_REFERENCIA_RESERVA_SQL} is not null and not ({_sql_reserva_cancelada('b')})",
+        "vendas_finalizadas": "b.idrepasse is not null and b.dt_cadastro_repasse is not null",
         "repasse": "b.idrepasse is not null and coalesce(b.fl_repasse_assinado, false) = true",
     }[etapa["key"]]
     sql = f"""
@@ -3489,13 +3640,252 @@ async def _funil_valor(conexao, etapa: dict[str, Any], request: Request, interva
     return int(linha["total"] or 0)
 
 
+async def _funil_sla_transicoes_leve(conexao, request: Request, intervalo: IntervaloDatas) -> dict[str, float]:
+    where_filtros, parametros = _funil_filtros_base(request, 3)
+    resultados: dict[str, float] = {}
+
+    async def buscar(chave: str, sql: str, *extras: Any) -> None:
+        valor = await conexao.fetchval(sql, intervalo.inicio, intervalo.fim, *extras)
+        if valor is not None:
+            resultados[chave] = float(valor)
+
+    await buscar(
+        "lead",
+        f"""
+        with atuais as (
+            select distinct on (b.idlead)
+                b.idlead,
+                b.dt_ultima_conversao_lead as data_evento
+              from {ESQUEMA_COMERCIAL}.comercial_base b
+             where b.dt_ultima_conversao_lead >= $1::date
+               and b.dt_ultima_conversao_lead < ($2::date + interval '1 day')
+               and b.idlead is not null
+               {where_filtros}
+             order by b.idlead, b.dt_ultima_conversao_lead desc nulls last
+        ),
+        pares as (
+            select a.data_evento, min(lh.dt_referencia) as proxima_data
+              from atuais a
+              join {ESQUEMA_COMERCIAL}.comercial_leads_historico lh
+                on lh.idlead = a.idlead
+               and lh.dt_referencia >= a.data_evento
+               and (
+                    lh.situacao_para in ('Atendimento - IA', 'Atendimento - SDR')
+                    or coalesce(lh.funil_status_grupo, '') = 'ATENDIMENTO'
+               )
+             group by a.idlead, a.data_evento
+        )
+        select round(avg(extract(epoch from (proxima_data::timestamp - data_evento::timestamp)) / 86400)::numeric, 1)
+          from pares
+         where proxima_data is not null
+        """,
+        *parametros,
+    )
+
+    await buscar(
+        "atendimento",
+        f"""
+        with atuais as (
+            select lh.idlead, lh.dt_referencia as data_evento
+              from {ESQUEMA_COMERCIAL}.comercial_leads_historico lh
+              left join lateral (
+                  select b.*
+                    from {ESQUEMA_COMERCIAL}.comercial_base b
+                   where (lh.journey_id is not null and b.journey_id = lh.journey_id)
+                      or (lh.idlead is not null and b.idlead = lh.idlead)
+                   order by
+                      case when lh.journey_id is not null and b.journey_id = lh.journey_id then 1 else 2 end,
+                      b.dt_ultima_conversao_lead desc nulls last,
+                      b.fato_jornada_comercial_key
+                   limit 1
+              ) b on true
+             where lh.dt_referencia >= $1::date
+               and lh.dt_referencia < ($2::date + interval '1 day')
+               and lh.idlead is not null
+               and (
+                    lh.situacao_para in ('Atendimento - IA', 'Atendimento - SDR')
+                    or coalesce(lh.funil_status_grupo, '') = 'ATENDIMENTO'
+               )
+               {where_filtros}
+        ),
+        pares as (
+            select a.data_evento, min(lh.dt_referencia) as proxima_data
+              from atuais a
+              join {ESQUEMA_COMERCIAL}.comercial_leads_historico lh
+                on lh.idlead = a.idlead
+               and lh.dt_referencia >= a.data_evento
+               and (
+                    coalesce(lh.funil_status_grupo, '') in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+                    or lh.agendamento_status_grupo in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+                    or lh.situacao_para in ('Agendado', 'Agendado - IA', 'Agendamento', 'Agendamento - IA')
+               )
+             group by a.idlead, a.data_evento
+        )
+        select round(avg(extract(epoch from (proxima_data::timestamp - data_evento::timestamp)) / 86400)::numeric, 1)
+          from pares
+         where proxima_data is not null
+        """,
+        *parametros,
+    )
+
+    await buscar(
+        "agendamento",
+        f"""
+        with atuais as (
+            select distinct on (lh.idlead)
+                lh.idlead,
+                lh.dt_referencia as data_evento
+              from {ESQUEMA_COMERCIAL}.comercial_leads_historico lh
+              left join lateral (
+                  select b.*
+                    from {ESQUEMA_COMERCIAL}.comercial_base b
+                   where (lh.journey_id is not null and b.journey_id = lh.journey_id)
+                      or (lh.idlead is not null and b.idlead = lh.idlead)
+                   order by
+                      case when lh.journey_id is not null and b.journey_id = lh.journey_id then 1 else 2 end,
+                      b.dt_ultima_conversao_lead desc nulls last,
+                      b.fato_jornada_comercial_key
+                   limit 1
+              ) b on true
+             where lh.dt_referencia >= $1::date
+               and lh.dt_referencia < ($2::date + interval '1 day')
+               and lh.idlead is not null
+               and (
+                    coalesce(lh.funil_status_grupo, '') in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+                    or lh.agendamento_status_grupo in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+                    or lh.situacao_para in ('Agendado', 'Agendado - IA', 'Agendamento', 'Agendamento - IA')
+               )
+               {where_filtros}
+             order by lh.idlead, lh.dt_referencia desc nulls last, lh.historico_status_key desc nulls last
+        ),
+        pares as (
+            select a.data_evento, min(b.dt_visita_realizada) as proxima_data
+              from atuais a
+              join {ESQUEMA_COMERCIAL}.comercial_base b
+                on b.idlead = a.idlead
+               and b.dt_visita_realizada >= a.data_evento
+             group by a.idlead, a.data_evento
+        )
+        select round(avg(extract(epoch from (proxima_data::timestamp - data_evento::timestamp)) / 86400)::numeric, 1)
+          from pares
+         where proxima_data is not null
+        """,
+        *parametros,
+    )
+
+    await buscar(
+        "visita",
+        f"""
+        with atuais as (
+            select distinct on (b.idlead)
+                b.idlead,
+                b.dt_visita_realizada as data_evento
+              from {ESQUEMA_COMERCIAL}.comercial_base b
+             where b.dt_visita_realizada >= $1::date
+               and b.dt_visita_realizada < ($2::date + interval '1 day')
+               and b.idlead is not null
+               {where_filtros}
+             order by b.idlead, b.dt_visita_realizada desc nulls last
+        ),
+        pares as (
+            select a.data_evento, min(lh.dt_referencia) as proxima_data
+              from atuais a
+              join {ESQUEMA_COMERCIAL}.comercial_leads_historico lh
+                on lh.idlead = a.idlead
+               and lh.dt_referencia >= a.data_evento
+               and (lh.situacao_para = 'Proposta' or coalesce(lh.funil_status_grupo, '') = 'PROPOSTA')
+             group by a.idlead, a.data_evento
+        )
+        select round(avg(extract(epoch from (proxima_data::timestamp - data_evento::timestamp)) / 86400)::numeric, 1)
+          from pares
+         where proxima_data is not null
+        """,
+        *parametros,
+    )
+
+    await buscar(
+        "vendas",
+        f"""
+        with vendas_canonicas as (
+            select distinct on ({_sql_venda_cliente_mes_chave('base')})
+                base.*
+            from {ESQUEMA_COMERCIAL}.comercial_base base
+            where base.idreserva is not null
+              and {_sql_venda_data_referencia('base')} >= $1::date
+              and {_sql_venda_data_referencia('base')} < ($2::date + interval '1 day')
+            order by {_sql_venda_cliente_mes_chave('base')}, {_sql_venda_ordem_canonica('base')}
+        )
+        select round(avg(extract(epoch from (b.dt_cadastro_repasse::timestamp - {_sql_venda_data_referencia('b')}::timestamp)) / 86400)::numeric, 1)
+          from vendas_canonicas b
+         where b.idreserva is not null
+           and b.dt_cadastro_repasse is not null
+           and b.dt_cadastro_repasse >= {_sql_venda_data_referencia('b')}
+           {where_filtros}
+        """,
+        *parametros,
+    )
+
+    await buscar(
+        "vendas_finalizadas",
+        f"""
+        select round(avg(extract(epoch from (b.dt_assinatura_contrato::timestamp - b.dt_cadastro_repasse::timestamp)) / 86400)::numeric, 1)
+          from {ESQUEMA_COMERCIAL}.comercial_base b
+         where b.dt_cadastro_repasse >= $1::date
+           and b.dt_cadastro_repasse < ($2::date + interval '1 day')
+           and b.idrepasse is not null
+           and b.dt_assinatura_contrato is not null
+           and b.dt_assinatura_contrato >= b.dt_cadastro_repasse
+           {where_filtros}
+        """,
+        *parametros,
+    )
+
+    return resultados
+
+
+async def _funil_sla_transicoes(conexao, request: Request, intervalo: IntervaloDatas) -> dict[str, float]:
+    return await _funil_sla_transicoes_leve(conexao, request, intervalo)
+
+
+async def _funil_metricas_laterais(conexao, request: Request, intervalo: IntervaloDatas) -> list[dict[str, Any]]:
+    where_kpi, parametros = _funil_filtros_kpi(request, 3)
+    linha = await conexao.fetchrow(
+        f"""
+        select
+            coalesce(sum(kd.cancelamentos), 0)::numeric as cancelados,
+            coalesce(sum(kd.distratos), 0)::numeric as distratos
+          from {ESQUEMA_COMERCIAL}.comercial_kpi_daily kd
+         where kd.data >= $1::date
+           and kd.data <= $2::date
+           {where_kpi}
+        """,
+        intervalo.inicio,
+        intervalo.fim,
+        *parametros,
+    )
+    return [
+        {
+            "key": "cancelados",
+            "label": "CANCELADO",
+            "value": float(linha["cancelados"] if linha else 0),
+            "outsideConversion": True,
+            "rule": "Indicador lateral: cancelamentos no periodo pelos filtros gerais; nao entra no calculo de conversao do funil.",
+        },
+        {
+            "key": "distratos",
+            "label": "DISTRATO",
+            "value": float(linha["distratos"] if linha else 0),
+            "outsideConversion": True,
+            "rule": "Indicador lateral: distratos no periodo pelos filtros gerais; nao entra no calculo de conversao do funil.",
+        },
+    ]
+
+
 async def _funil_metricas_diarias(conexao, request: Request, intervalo: IntervaloDatas) -> dict[str, dict[str, Any]]:
     where_filtros, parametros = _funil_filtros_base(request, 3)
+    where_kpi, parametros_kpi = _funil_filtros_kpi(request, 3 + len(parametros))
     usar_base_para_filtros = bool(parametros)
-    data_resposta = "coalesce(b.dt_resposta_analise_precadastro, pc.dt_ultimo_historico_data)" if usar_base_para_filtros else "pc.dt_ultimo_historico_data"
-    status_aprovada_condicionada = "('APROVADA', 'CONDICIONADA', 'CONDICIONADO', 'CONDICIONADO PENDENTE')"
     historico_join_base = ""
-    propostas_join_base = ""
     if usar_base_para_filtros:
         historico_join_base = f"""
               left join lateral (
@@ -3505,20 +3895,6 @@ async def _funil_metricas_diarias(conexao, request: Request, intervalo: Interval
                      or (lh.idlead is not null and b.idlead = lh.idlead)
                   order by
                       case when lh.journey_id is not null and b.journey_id = lh.journey_id then 1 else 2 end,
-                      b.dt_ultima_conversao_lead desc nulls last,
-                      b.fato_jornada_comercial_key
-                  limit 1
-              ) b on true
-        """
-        propostas_join_base = f"""
-              left join lateral (
-                  select b.*
-                  from {ESQUEMA_COMERCIAL}.comercial_base b
-                  where b.idprecadastro = pc.idprecadastro
-                     or (pc.journey_id is not null and b.journey_id = pc.journey_id)
-                  order by
-                      case when b.idprecadastro = pc.idprecadastro then 1 else 2 end,
-                      b.dt_resposta_analise_precadastro desc nulls last,
                       b.dt_ultima_conversao_lead desc nulls last,
                       b.fato_jornada_comercial_key
                   limit 1
@@ -3559,16 +3935,36 @@ async def _funil_metricas_diarias(conexao, request: Request, intervalo: Interval
              group by 1
             union all
             select
-                b.dt_cadastro_reserva::date as data,
+                {_sql_venda_data_referencia('b')}::date as data,
                 0::numeric as leads,
                 0::numeric as visitas,
-                count(distinct b.idreserva)::numeric as vendas,
-                count(distinct b.idreserva) filter (where coalesce(b.fl_venda_finalizada, false) is true)::numeric as vendas_finalizadas,
+                count(*)::numeric as vendas,
+                0::numeric as vendas_finalizadas,
+                0::numeric as repasses
+              from (
+                  select distinct on ({_sql_venda_cliente_mes_chave('base')})
+                      base.*
+                  from {ESQUEMA_COMERCIAL}.comercial_base base
+                  where base.idreserva is not null
+                    and {_sql_venda_data_referencia('base')} >= $1::date
+                    and {_sql_venda_data_referencia('base')} < ($2::date + interval '1 day')
+                  order by {_sql_venda_cliente_mes_chave('base')}, {_sql_venda_ordem_canonica('base')}
+              ) b
+             where b.idreserva is not null
+               {where_filtros}
+             group by 1
+            union all
+            select
+                b.dt_cadastro_repasse::date as data,
+                0::numeric as leads,
+                0::numeric as visitas,
+                0::numeric as vendas,
+                count(distinct b.idrepasse)::numeric as vendas_finalizadas,
                 0::numeric as repasses
               from {ESQUEMA_COMERCIAL}.comercial_base b
-             where b.dt_cadastro_reserva >= $1::date
-               and b.dt_cadastro_reserva < ($2::date + interval '1 day')
-               and b.idreserva is not null
+             where b.dt_cadastro_repasse >= $1::date
+               and b.dt_cadastro_repasse < ($2::date + interval '1 day')
+               and b.idrepasse is not null
                {where_filtros}
              group by 1
             union all
@@ -3606,11 +4002,6 @@ async def _funil_metricas_diarias(conexao, request: Request, intervalo: Interval
                        or lh.situacao_para in ('Atendimento - IA', 'Atendimento - SDR')
                 )::numeric as atendimentos,
                 count(*) filter (
-                    where coalesce(lh.funil_status_grupo, '') in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
-                       or lh.situacao_para in ('Agendado', 'Agendado - IA', 'Agendamento', 'Agendamento - IA')
-                       or lh.agendamento_status_grupo in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
-                )::numeric as agendamentos,
-                count(*) filter (
                     where coalesce(lh.funil_status_grupo, '') = 'PROPOSTA'
                        or lh.situacao_para = 'Proposta'
                 )::numeric as proposta_funil
@@ -3634,35 +4025,48 @@ async def _funil_metricas_diarias(conexao, request: Request, intervalo: Interval
                {where_filtros}
              group by 1
         ),
+        agendamentos_diario as (
+            select
+                ultimos.dt_referencia::date as data,
+                count(*)::numeric as agendamentos
+            from (
+                select distinct on (lh.idlead)
+                    lh.idlead,
+                    lh.dt_referencia,
+                    lh.historico_status_key
+                from {ESQUEMA_COMERCIAL}.comercial_leads_historico lh
+                {historico_join_base}
+                where lh.dt_referencia >= $1::date
+                  and lh.dt_referencia < ($2::date + interval '1 day')
+                  and lh.idlead is not null
+                  and (
+                       coalesce(lh.funil_status_grupo, '') in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+                    or lh.situacao_para in ('Agendado', 'Agendado - IA', 'Agendamento', 'Agendamento - IA')
+                    or lh.agendamento_status_grupo in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+                  )
+                  {where_filtros}
+                order by lh.idlead, lh.dt_referencia desc nulls last, lh.historico_status_key desc nulls last
+            ) ultimos
+            group by 1
+        ),
         propostas_diarias as (
             select
-                {data_resposta}::date as data,
-                count(distinct pc.idprecadastro) filter (
-                    where upper(trim(coalesce(pc.proposta_status_atual, ''))) = 'APROVADA'
-                )::numeric as propostas_aprovadas,
-                count(distinct pc.idprecadastro) filter (
-                    where upper(trim(coalesce(pc.proposta_status_atual, ''))) in ('CONDICIONADA', 'CONDICIONADO', 'CONDICIONADO PENDENTE')
-                )::numeric as propostas_condicionadas,
-                count(distinct pc.idprecadastro) filter (
-                    where upper(trim(coalesce(pc.proposta_status_atual, ''))) = 'REPROVADA'
-                )::numeric as propostas_reprovadas,
-                count(distinct pc.idprecadastro) filter (
-                    where upper(trim(coalesce(pc.proposta_status_atual, ''))) in {status_aprovada_condicionada}
-                )::numeric as prop_aprovada_condicionada
-              from {ESQUEMA_COMERCIAL}.comercial_propostas_consolidada pc
-              {propostas_join_base}
-             where {data_resposta} >= $1::date
-               and {data_resposta} < ($2::date + interval '1 day')
-               and pc.idprecadastro is not null
-               and upper(trim(coalesce(pc.proposta_status_atual, ''))) in ('APROVADA', 'CONDICIONADA', 'CONDICIONADO', 'CONDICIONADO PENDENTE', 'REPROVADA')
-               {where_filtros}
+                kd.data::date as data,
+                coalesce(sum(kd.propostas_aprovadas), 0)::numeric as propostas_aprovadas,
+                coalesce(sum(kd.propostas_condicionadas), 0)::numeric as propostas_condicionadas,
+                coalesce(sum(kd.propostas_reprovadas), 0)::numeric as propostas_reprovadas,
+                (coalesce(sum(kd.propostas_aprovadas), 0) + coalesce(sum(kd.propostas_condicionadas), 0))::numeric as prop_aprovada_condicionada
+              from {ESQUEMA_COMERCIAL}.comercial_kpi_daily kd
+             where kd.data >= $1::date
+               and kd.data <= $2::date
+               {where_kpi}
              group by 1
         )
         select
             dias.data,
             coalesce(base_diaria.leads, 0)::numeric as leads,
             coalesce(historico_diario.atendimentos, 0)::numeric as atendimentos,
-            coalesce(historico_diario.agendamentos, 0)::numeric as agendamentos,
+            coalesce(agendamentos_diario.agendamentos, 0)::numeric as agendamentos,
             coalesce(base_diaria.visitas, 0)::numeric as visitas,
             coalesce(historico_diario.proposta_funil, 0)::numeric as proposta_funil,
             coalesce(propostas_diarias.propostas_aprovadas, 0)::numeric as propostas_aprovadas,
@@ -3675,12 +4079,14 @@ async def _funil_metricas_diarias(conexao, request: Request, intervalo: Interval
           from dias
           left join base_diaria on base_diaria.data = dias.data
           left join historico_diario on historico_diario.data = dias.data
+          left join agendamentos_diario on agendamentos_diario.data = dias.data
           left join propostas_diarias on propostas_diarias.data = dias.data
          order by dias.data
         """,
         intervalo.inicio,
         intervalo.fim,
         *parametros,
+        *parametros_kpi,
     )
     return {str(linha["data"]): _linha_para_dict(linha) for linha in linhas}
 
@@ -3736,6 +4142,11 @@ async def _funil_detalhe(
     mapa_sort = {
         "data_evento": "data_evento",
         "chave": "chave",
+        "idlead": "idlead",
+        "idprecadastro": "idprecadastro",
+        "idreserva": "idreserva",
+        "idrepasse": "idrepasse",
+        "situacao": "situacao",
         "cidade": "cidade",
         "empreendimento": "empreendimento",
         "corretor": "corretor",
@@ -3764,7 +4175,170 @@ async def _funil_detalhe(
     for linha in linhas:
         item = _linha_para_dict(linha)
         rows.append(item)
-    return {"stage": etapa["label"], "rows": rows, "total": total, "page": page, "limit": limit}
+    return {
+        "stage": etapa["label"],
+        "stageKey": etapa["key"],
+        "rows": rows,
+        "total": total,
+        "visualTotal": total,
+        "auditOk": True,
+        "page": page,
+        "limit": limit,
+    }
+
+
+async def _funil_historico_entidade(
+    conexao,
+    request: Request,
+    idlead: str | None,
+    idprecadastro: str | None,
+    idreserva: str | None,
+    idrepasse: str | None,
+) -> dict[str, Any]:
+    def inteiro_ou_nulo(valor: str | None) -> int | None:
+        texto = str(valor or "").strip()
+        if not texto or not texto.isdigit():
+            return None
+        return int(texto)
+
+    lead_id = inteiro_ou_nulo(idlead)
+    proposta_id = inteiro_ou_nulo(idprecadastro)
+    reserva_id = inteiro_ou_nulo(idreserva)
+    repasse_id = inteiro_ou_nulo(idrepasse)
+
+    if not any((lead_id, proposta_id, reserva_id, repasse_id)):
+        return {"lead": [], "proposta": [], "reserva": [], "total": 0}
+
+    lead_rows = []
+    proposta_rows = []
+    reserva_rows = []
+
+    if lead_id is not None:
+        linhas = await conexao.fetch(
+            f"""
+            with eventos as (
+                select
+                    lh.idlead,
+                    lh.referencia_data,
+                    lh.situacao_de,
+                    lh.situacao_para,
+                    lead(lh.situacao_para) over (
+                        partition by lh.idlead
+                        order by lh.referencia_data asc nulls last, lh.historico_status_key
+                    ) as situacao_proxima,
+                    lead(lh.referencia_data) over (
+                        partition by lh.idlead
+                        order by lh.referencia_data asc nulls last, lh.historico_status_key
+                    ) as proxima_data
+                from {ESQUEMA_COMERCIAL}.comercial_leads_historico lh
+                where lh.idlead = $1
+            )
+            select
+                'lead'::text as tipo,
+                idlead::text as entidade_id,
+                referencia_data,
+                situacao_de as situacao_anterior,
+                situacao_para as situacao,
+                situacao_proxima,
+                case
+                    when proxima_data is null or referencia_data is null then 0::numeric
+                    else round((extract(epoch from (proxima_data - referencia_data)) / 3600)::numeric, 2)
+                end as tempo_horas
+            from eventos
+            order by referencia_data desc nulls last
+            limit 200
+            """,
+            lead_id,
+        )
+        lead_rows = [_linha_para_dict(linha) for linha in linhas]
+
+    if proposta_id is not None:
+        linhas = await conexao.fetch(
+            f"""
+            with eventos as (
+                select
+                    ph.idprecadastro,
+                    ph.idreserva,
+                    ph.idrepasse,
+                    ph.referencia_data,
+                    ph.situacao_de,
+                    ph.situacao_para,
+                    ph.proposta_status_grupo,
+                    lead(ph.situacao_para) over (
+                        partition by ph.idprecadastro
+                        order by ph.referencia_data asc nulls last, ph.historico_status_key
+                    ) as situacao_proxima,
+                    lead(ph.referencia_data) over (
+                        partition by ph.idprecadastro
+                        order by ph.referencia_data asc nulls last, ph.historico_status_key
+                    ) as proxima_data
+                from {ESQUEMA_COMERCIAL}.comercial_propostas_historico ph
+                where ph.idprecadastro = $1
+            )
+            select
+                'proposta'::text as tipo,
+                idprecadastro::text as entidade_id,
+                idreserva::text as idreserva,
+                idrepasse::text as idrepasse,
+                referencia_data,
+                situacao_de as situacao_anterior,
+                coalesce(proposta_status_grupo, situacao_para) as situacao,
+                situacao_proxima,
+                case
+                    when proxima_data is null or referencia_data is null then 0::numeric
+                    else round((extract(epoch from (proxima_data - referencia_data)) / 3600)::numeric, 2)
+                end as tempo_horas
+            from eventos
+            order by referencia_data desc nulls last
+            limit 200
+            """,
+            proposta_id,
+        )
+        proposta_rows = [_linha_para_dict(linha) for linha in linhas]
+
+    if reserva_id is not None:
+        where_filtros, parametros = _funil_filtros_base(request, 2)
+        linhas = await conexao.fetch(
+            f"""
+            select *
+            from (
+                select distinct on (b.idreserva)
+                    'reserva'::text as tipo,
+                    b.idreserva::text as entidade_id,
+                    b.idlead::text as idlead,
+                    b.idprecadastro::text as idprecadastro,
+                    b.idrepasse::text as idrepasse,
+                    coalesce(b.dt_referencia_reserva, b.dt_cadastro_reserva) as referencia_data,
+                    b.lead_situacao_nome as situacao_anterior,
+                    coalesce(b.reserva_situacao_nome, b.repasse_situacao_nome, b.precadastro_situacao_nome) as situacao,
+                    b.repasse_situacao_nome as situacao_proxima,
+                    0::numeric as tempo_horas,
+                    b.empreendimento_nome as empreendimento,
+                    coalesce(nullif(b.corretor_nome_canonico, ''), nullif(b.corretor_nome, '')) as corretor,
+                    b.sdr_nome as sdr
+                from {ESQUEMA_COMERCIAL}.comercial_base b
+                where b.idreserva = $1
+                  {where_filtros}
+                order by b.idreserva, coalesce(b.dt_referencia_reserva, b.dt_cadastro_reserva) desc nulls last
+            ) reserva_contexto
+            """,
+            reserva_id,
+            *parametros,
+        )
+        reserva_rows = [_linha_para_dict(linha) for linha in linhas]
+
+    return {
+        "lead": lead_rows,
+        "proposta": proposta_rows,
+        "reserva": reserva_rows,
+        "total": len(lead_rows) + len(proposta_rows) + len(reserva_rows),
+        "identifiers": {
+            "idlead": lead_id,
+            "idprecadastro": proposta_id,
+            "idreserva": reserva_id,
+            "idrepasse": repasse_id,
+        },
+    }
 
 
 def _dias_uteis(inicio: date, fim: date) -> int:
@@ -3802,6 +4376,7 @@ def _intervalo_mes(referencia: date) -> IntervaloDatas:
 async def _funil_payload(conexao, request: Request, intervalo: IntervaloDatas) -> dict[str, Any]:
     etapas = []
     avisos = []
+    slas = await _funil_sla_transicoes(conexao, request, intervalo)
     for etapa in FUNIL_ETAPAS:
         valor = await _funil_valor(conexao, etapa, request, intervalo)
         if etapa["source"] == "historico" and valor == 0:
@@ -3809,7 +4384,7 @@ async def _funil_payload(conexao, request: Request, intervalo: IntervaloDatas) -
                 "stage": etapa["label"],
                 "message": "Sem eventos historicos oficiais para a etapa no periodo selecionado.",
             })
-        etapas.append({**etapa, "value": valor, "detailCount": valor, "sourceAvailable": True})
+        etapas.append({**etapa, "value": valor, "detailCount": valor, "sourceAvailable": True, "slaAverage": slas.get(etapa["key"])})
     lead = float(etapas[0]["value"] or 0)
     for indice, etapa in enumerate(etapas):
         anterior = float(etapas[indice - 1]["value"] or 0) if indice else 0
@@ -3820,6 +4395,7 @@ async def _funil_payload(conexao, request: Request, intervalo: IntervaloDatas) -
         "period": {"startDate": intervalo.inicio.isoformat(), "endDate": intervalo.fim.isoformat()},
         "stages": etapas,
         "warnings": avisos,
+        "externalMetrics": await _funil_metricas_laterais(conexao, request, intervalo),
         "audit": {"ok": all(etapa["auditOk"] for etapa in etapas), "checkedAt": datetime.utcnow().isoformat()},
         "meta": {"source": "connect_comercial"},
     }
@@ -3862,7 +4438,7 @@ async def _funil_goals_payload(conexao, request: Request, intervalo: IntervaloDa
             **base,
             "quarterActual": qtd_tri,
             "actual": qtd_tri,
-            "slaAverage": None,
+            "slaAverage": etapa_tri.get("slaAverage"),
             "conversionFromPrevious": etapa_tri.get("conversionFromPrevious"),
             "conversionFromLead": etapa_tri.get("conversionFromLead"),
             "conversionToRepasse": round(conversao_repasse * 100, 2) if conversao_repasse is not None else None,
@@ -3875,6 +4451,7 @@ async def _funil_goals_payload(conexao, request: Request, intervalo: IntervaloDa
             "conversionToRepasse": round(conversao_repasse * 100, 2) if conversao_repasse is not None else None,
             "conversionFromPrevious": conversao_atual,
             "conversionFromLead": etapa.get("conversionFromLead"),
+            "slaAverage": etapa.get("slaAverage"),
             "dynamicGoal": round(meta_dinamica, 1) if meta_dinamica is not None else None,
             "attainment": round((atual / meta_dinamica) * 100, 1) if meta_dinamica else None,
             "trend": round(tendencia, 1),
@@ -3984,6 +4561,21 @@ async def funil_dashboard_detail(
     pool = _obter_pool(request)
     async with pool.acquire() as conexao:
         return await _funil_detalhe(conexao, etapa, request, intervalo, page, limit, sortBy, sortDir)
+
+
+@rotas_de_dashboard_comercial.get("/v1/dashboard/funnel/history")
+async def funil_dashboard_history(
+    request: Request,
+    idlead: str | None = Query(None, max_length=40),
+    idprecadastro: str | None = Query(None, max_length=40),
+    idreserva: str | None = Query(None, max_length=40),
+    idrepasse: str | None = Query(None, max_length=40),
+    usuario=Depends(obter_usuario_autenticado),
+):
+    await _exigir_acesso(request, usuario)
+    pool = _obter_pool(request)
+    async with pool.acquire() as conexao:
+        return await _funil_historico_entidade(conexao, request, idlead, idprecadastro, idreserva, idrepasse)
 
 
 @rotas_de_dashboard_comercial.get("/v1/dashboard/funnel/goals")
@@ -4158,6 +4750,7 @@ async def tabela_reservas_dashboard(
 async def filtros_reservas_dashboard(
     request: Request,
     limit: int = Query(160, ge=1, le=500),
+    fields: str = Query("", max_length=500),
     usuario=Depends(obter_usuario_autenticado),
 ):
     await _exigir_acesso(request, usuario)
@@ -4178,21 +4771,36 @@ async def filtros_reservas_dashboard(
             "agente": "null::text",
             "cidade": "lead_cidade",
         }
-        for nome, coluna in campos.items():
+        campos_solicitados = {
+            campo.strip()
+            for campo in str(fields or "").split(",")
+            if campo.strip() in campos
+        }
+        itens_campos = [
+            (nome, coluna)
+            for nome, coluna in campos.items()
+            if not campos_solicitados or nome in campos_solicitados
+        ]
+
+        for nome, coluna in itens_campos:
+            where_filtros, parametros_filtros = _where_reservas(request, 3)
+            data_reserva_sql = "coalesce(dt_referencia_reserva, dt_cadastro_reserva)"
             linhas = await conexao.fetch(
                 f"""
                 select distinct {coluna} as valor
                 from {ESQUEMA_COMERCIAL}.comercial_base
                 where idreserva is not null
-                  and referencia_data_reserva >= $1::date
-                  and referencia_data_reserva < ($2::date + interval '1 day')
+                  and {data_reserva_sql} >= $1::date
+                  and {data_reserva_sql} < ($2::date + interval '1 day')
                   and {coluna} is not null
                   and btrim({coluna}) <> ''
+                  {where_filtros}
                 order by valor
-                limit $3
+                limit ${3 + len(parametros_filtros)}
                 """,
                 intervalo.inicio,
                 intervalo.fim,
+                *parametros_filtros,
                 limit,
             )
             resposta[nome] = [{"value": linha["valor"], "label": linha["valor"]} for linha in linhas]
@@ -4519,7 +5127,107 @@ async def _breakdown_funcionario_pessoa_eixo(
     return itens
 
 
+def _agendamento_axis_expr(eixo: str) -> str | None:
+    return {
+        "regiaoOperacao": "b.regiao_empreendimento",
+        "regiaoCorretor": "b.regiao_empreendimento",
+        "regiaoSdr": "b.regiao_empreendimento",
+        "imobiliariaOperacao": "coalesce(nullif(trim(b.imobiliaria_nome_canonica), ''), nullif(trim(b.imobiliaria_nome), ''))",
+        "imobiliariaCorretor": "coalesce(nullif(trim(b.imobiliaria_nome_canonica), ''), nullif(trim(b.imobiliaria_nome), ''))",
+        "imobiliariaSdr": "coalesce(nullif(trim(b.imobiliaria_nome_canonica), ''), nullif(trim(b.imobiliaria_nome), ''))",
+        "corretorOperacao": "coalesce(nullif(trim(b.corretor_nome_canonico), ''), nullif(trim(b.corretor_nome), ''))",
+        "corretorAtivo": "coalesce(nullif(trim(b.corretor_nome_canonico), ''), nullif(trim(b.corretor_nome), ''))",
+        "sdrOperacao": "b.sdr_nome",
+        "sdrAtivo": "b.sdr_nome",
+        "origem": "b.lead_origem_nome",
+        "empreendimento": "b.empreendimento_nome",
+        "unidade": "b.unidade_nome",
+        "gestorCorretor": "b.gestor_nome",
+        "coordenadorCorretor": "b.gestor_nome",
+        "gestorSdr": "b.gestor_nome",
+        "coordenadorSdr": "b.gestor_nome",
+    }.get(eixo)
+
+
+async def _breakdown_agendamentos_eixo(
+    conexao,
+    eixo: str,
+    intervalo: IntervaloDatas,
+    request: Request,
+    limit: int,
+) -> list[dict[str, Any]]:
+    eixo_expr = _agendamento_axis_expr(eixo)
+    if not eixo_expr:
+        return []
+    mapa = {
+        nome: (coluna if "(" in coluna or "::" in coluna else f"b.{coluna}")
+        for nome, coluna in FILTROS_BASE.items()
+    }
+    where_filtros, parametros_filtros = _montar_where_dimensoes(
+        request,
+        mapa,
+        3,
+        ignorar={eixo},
+    )
+    indice_limit = 3 + len(parametros_filtros)
+    linhas = await conexao.fetch(
+        f"""
+        with ultimos as (
+            select distinct on (lh.idlead)
+                lh.idlead,
+                coalesce(nullif(trim({eixo_expr}), ''), 'Sem informacao') as label
+            from {ESQUEMA_COMERCIAL}.comercial_leads_historico lh
+            left join lateral (
+                select b.*
+                from {ESQUEMA_COMERCIAL}.comercial_base b
+                where (lh.journey_id is not null and b.journey_id = lh.journey_id)
+                   or (lh.idlead is not null and b.idlead = lh.idlead)
+                order by
+                    case when lh.journey_id is not null and b.journey_id = lh.journey_id then 1 else 2 end,
+                    b.dt_ultima_conversao_lead desc nulls last,
+                    b.fato_jornada_comercial_key
+                limit 1
+            ) b on true
+            where lh.dt_referencia >= $1::date
+              and lh.dt_referencia < ($2::date + interval '1 day')
+              and lh.idlead is not null
+              and (
+                   coalesce(lh.funil_status_grupo, '') in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+                or lh.situacao_para in ('Agendado', 'Agendado - IA', 'Agendamento', 'Agendamento - IA')
+                or lh.agendamento_status_grupo in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
+              )
+              {where_filtros}
+            order by lh.idlead, lh.dt_referencia desc nulls last, lh.historico_status_key desc nulls last
+        )
+        select
+            label,
+            count(*)::numeric as value,
+            count(*)::numeric as count,
+            count(*)::int as case_count
+        from ultimos
+        group by label
+        having count(*) > 0
+        order by value desc, label asc
+        limit ${indice_limit}
+        """,
+        intervalo.inicio,
+        intervalo.fim,
+        *parametros_filtros,
+        limit,
+    )
+    total = sum(float(linha["value"] or 0) for linha in linhas)
+    itens = []
+    for linha in linhas:
+        item = _linha_para_dict(linha)
+        valor = float(item.get("value") or 0)
+        item["share"] = (valor / total * 100) if total else 0
+        itens.append(item)
+    return itens
+
+
 async def _breakdown_eixo(conexao, eixo: str, kpi: str, intervalo: IntervaloDatas, request: Request) -> list[dict[str, Any]]:
+    if str(kpi or "").strip() == "agendamentos":
+        return await _breakdown_agendamentos_eixo(conexao, eixo, intervalo, request, 50)
     if eixo in FUNCIONARIO_PESSOA_FIELDS and str(kpi or "").strip() not in {"ipc", "ipc_corretor", "ipc_imobiliaria"}:
         return await _breakdown_funcionario_pessoa_eixo(conexao, eixo, kpi, intervalo, request, 50, FILTROS_KPI)
     if str(kpi or "").strip() in {"repasses", "ipc", "ipc_corretor", "ipc_imobiliaria"}:
@@ -4613,7 +5321,7 @@ async def filtros_dashboard(
             {"value": "leads", "label": "Leads"},
             {"value": "visitas", "label": "Visitas"},
             {"value": "propostas", "label": "Propostas"},
-            {"value": "vendas", "label": "Vendas"},
+            {"value": "vendas", "label": "Reservas"},
             {"value": "repasses", "label": "Repasses"},
             {"value": "cancelamentos", "label": "Cancelamentos"},
             {"value": "distratos", "label": "Distratos"},
@@ -4630,6 +5338,44 @@ async def pesquisar_filtro_dashboard(
     usuario=Depends(obter_usuario_autenticado),
 ):
     await _exigir_acesso(request, usuario)
+    campos_busca_reserva = {"situacao", "situacaoAtual", "status", "idReserva", "repasseNoMes", "agente"}
+    if field in campos_busca_reserva:
+        coluna_reserva = FILTROS_RESERVAS_BASE.get(field)
+        if not coluna_reserva:
+            raise HTTPException(status_code=422, detail="Filtro invalido.")
+        intervalo = _intervalo_datas(request)
+        termo = f"%{q.strip()}%"
+        where_filtros, parametros_filtros = _montar_where_dimensoes(
+            request,
+            FILTROS_RESERVAS_BASE,
+            4,
+            ignorar={field},
+        )
+        data_reserva_sql = "coalesce(dt_referencia_reserva, dt_cadastro_reserva)"
+        pool = _obter_pool(request)
+        async with pool.acquire() as conexao:
+            linhas = await conexao.fetch(
+                f"""
+                select distinct {coluna_reserva} as valor
+                from {ESQUEMA_COMERCIAL}.comercial_base
+                where idreserva is not null
+                  and {data_reserva_sql} >= $1::date
+                  and {data_reserva_sql} < ($2::date + interval '1 day')
+                  and {coluna_reserva} is not null
+                  and btrim({coluna_reserva}) <> ''
+                  and ($3 = '%%' or {coluna_reserva} ilike $3)
+                  {where_filtros}
+                order by valor
+                limit ${4 + len(parametros_filtros)}
+                """,
+                intervalo.inicio,
+                intervalo.fim,
+                termo,
+                *parametros_filtros,
+                limit,
+            )
+        return {"field": field, "q": q, "options": [{"value": linha["valor"], "label": linha["valor"]} for linha in linhas]}
+
     coluna = FILTROS_KPI.get(field)
     if not coluna:
         raise HTTPException(status_code=422, detail="Filtro invalido.")
@@ -5031,9 +5777,13 @@ CORRETORES_DETALHE_INDICADORES = {
     },
     "vendas": {
         "label": "VENDA",
-        "date": "data_venda",
-        "condition": "data_venda is not null",
-        "key": "coalesce(idreserva::text, journey_id, journey_key, fato_jornada_comercial_key)",
+        "date": "dt_cadastro_reserva",
+        "condition": (
+            "idreserva is not null and dt_cadastro_reserva is not null and not ("
+            f"translate(lower(coalesce(reserva_situacao_nome, '')), '{SQL_NORMALIZE_ACCENTS_FROM}', '{SQL_NORMALIZE_ACCENTS_TO}') like 'cancel%'"
+            ")"
+        ),
+        "key": "idreserva::text",
         "entity": "idreserva",
     },
     "vendas_finalizadas": {
@@ -5957,8 +6707,9 @@ async def corretores_foguetes_dashboard(
                     0::numeric as visitas,
                     0::numeric as propostas,
                     count(distinct b.idreserva) filter (
-                        where b.dt_contrato_contabilizado >= (select inicio from periodo)
-                          and b.dt_contrato_contabilizado < (select fim_exclusivo from periodo)
+                        where b.dt_cadastro_reserva >= (select inicio from periodo)
+                          and b.dt_cadastro_reserva < (select fim_exclusivo from periodo)
+                          and not ({_sql_reserva_cancelada('b')})
                     )::numeric as vendas,
                     count(distinct b.idreserva) filter (
                         where b.dt_venda_finalizada >= (select inicio from periodo)
@@ -5974,7 +6725,7 @@ async def corretores_foguetes_dashboard(
                 join linhas_foguetes lf
                   on lf.corretor_identity_key = coalesce(fib.corretor_identity_key, 'nome:' || regexp_replace(regexp_replace(lower(trim(coalesce(nullif(trim(b.corretor_nome_canonico), ''), nullif(trim(b.corretor_nome), ''), 'Sem corretor'))), '\\s*-\\s*(clt|pj|desligado|demitido|inativo)$', '', 'i'), '\\s+', ' ', 'g'))
                 where (
-                    (b.dt_contrato_contabilizado >= (select inicio from periodo) and b.dt_contrato_contabilizado < (select fim_exclusivo from periodo))
+                    (b.dt_cadastro_reserva >= (select inicio from periodo) and b.dt_cadastro_reserva < (select fim_exclusivo from periodo))
                     or (b.dt_venda_finalizada >= (select inicio from periodo) and b.dt_venda_finalizada < (select fim_exclusivo from periodo))
                     or (b.dt_assinatura_contrato >= (select inicio from periodo) and b.dt_assinatura_contrato < (select fim_exclusivo from periodo))
                 )
@@ -5994,8 +6745,9 @@ async def corretores_foguetes_dashboard(
                 group by 1, 2, 4
                 having (
                     count(distinct b.idreserva) filter (
-                        where b.dt_contrato_contabilizado >= (select inicio from periodo)
-                          and b.dt_contrato_contabilizado < (select fim_exclusivo from periodo)
+                        where b.dt_cadastro_reserva >= (select inicio from periodo)
+                          and b.dt_cadastro_reserva < (select fim_exclusivo from periodo)
+                          and not ({_sql_reserva_cancelada('b')})
                     )
                   + count(distinct b.idrepasse) filter (
                         where b.dt_assinatura_contrato >= (select inicio from periodo)
@@ -8180,6 +8932,8 @@ async def _breakdown_segmentado_eixo(
     request: Request,
     limit: int,
 ) -> list[dict[str, Any]]:
+    if str(kpi or "").strip() == "agendamentos":
+        return await _breakdown_agendamentos_eixo(conexao, eixo, intervalo, request, limit)
     if eixo in FUNCIONARIO_PESSOA_FIELDS and str(kpi or "").strip() not in {"ipc", "ipc_corretor", "ipc_imobiliaria"}:
         return await _breakdown_funcionario_pessoa_eixo(conexao, eixo, kpi, intervalo, request, limit, SEGMENTED_FILTER_COLUMNS_KPI)
     if str(kpi or "").strip() in {"repasses", "ipc", "ipc_corretor", "ipc_imobiliaria"}:

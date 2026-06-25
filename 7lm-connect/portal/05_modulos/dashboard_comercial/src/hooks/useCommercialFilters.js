@@ -6,7 +6,7 @@
  *  - Exposes `buildFilterParams()` returning URLSearchParams ready for API calls
  *  - Keeps a single source-of-truth import for all dashboard consumers
  */
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useFilters } from '../contexts/FiltersContext';
 
 /**
@@ -15,7 +15,16 @@ import { useFilters } from '../contexts/FiltersContext';
  */
 const appendMultiParam = (params, key, value) => {
   if (Array.isArray(value) && value.length > 0) {
-    params.append(key, value.join(','));
+    const normalized = Array.from(
+      new Set(
+        value
+          .map((item) => String(item ?? '').trim())
+          .filter(Boolean),
+      ),
+    ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    if (normalized.length > 0) {
+      params.append(key, normalized.join(','));
+    }
   }
 };
 
@@ -44,9 +53,27 @@ const RESERVA_FILTER_KEYS = [
   'agente',
 ];
 
+const appendLegacyFilters = (params, currentFilters) => {
+  appendMultiParam(params, 'cidade', currentFilters.cidade);
+  appendMultiParam(params, 'coordenacao', currentFilters.coordenacao);
+  appendMultiParam(params, 'gerencia', currentFilters.gerencia);
+  appendMultiParam(params, 'corretor', currentFilters.corretor);
+  appendMultiParam(params, 'sdr', currentFilters.sdr);
+  appendMultiParam(params, 'origem', currentFilters.origem);
+  appendMultiParam(params, 'empreendimento', currentFilters.empreendimento);
+  appendMultiParam(params, 'empreendimentoReduzido', currentFilters.empreendimentoReduzido);
+  appendMultiParam(params, 'imobiliaria', currentFilters.imobiliaria);
+};
+
+const appendSegmentedFilters = (params, currentFilters) => {
+  SEGMENTED_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, currentFilters[key]));
+};
+
 export const useCommercialFilters = () => {
   const context = useFilters();
   const { filters } = context;
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
 
   /**
    * Stable serialised string of **all** active filter values.
@@ -61,12 +88,14 @@ export const useCommercialFilters = () => {
     appendMultiParam(params, 'coordenacao', filters.coordenacao);
     appendMultiParam(params, 'gerencia', filters.gerencia);
     appendMultiParam(params, 'corretor', filters.corretor);
+    appendMultiParam(params, 'sdr', filters.sdr);
     appendMultiParam(params, 'origem', filters.origem);
     appendMultiParam(params, 'empreendimento', filters.empreendimento);
     appendMultiParam(params, 'empreendimentoReduzido', filters.empreendimentoReduzido);
     appendMultiParam(params, 'imobiliaria', filters.imobiliaria);
     SEGMENTED_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, filters[key]));
-    RESERVA_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, filters[key]));
+    // Default signature intentionally excludes reserva filters to avoid unnecessary
+    // refetches on non-reserva dashboards.
     return params.toString();
   }, [filters]);
 
@@ -74,28 +103,29 @@ export const useCommercialFilters = () => {
    * Build URLSearchParams for a given date range using all active hierarchy filters.
    * Accepts an optional `extraParams` object to merge additional keys (e.g. { kpi: 'ipc' }).
    */
-  const buildFilterParams = useMemo(
-    () =>
-      (
-        startDate = filters.dataInicial,
-        endDate = filters.dataFinal,
-        extraParams = {},
-      ) => {
-        const params = new URLSearchParams({ startDate, endDate, ...extraParams });
-        appendMultiParam(params, 'cidade', filters.cidade);
-        appendMultiParam(params, 'coordenacao', filters.coordenacao);
-        appendMultiParam(params, 'gerencia', filters.gerencia);
-        appendMultiParam(params, 'corretor', filters.corretor);
-        appendMultiParam(params, 'origem', filters.origem);
-        appendMultiParam(params, 'empreendimento', filters.empreendimento);
-        appendMultiParam(params, 'empreendimentoReduzido', filters.empreendimentoReduzido);
-        appendMultiParam(params, 'imobiliaria', filters.imobiliaria);
-        SEGMENTED_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, filters[key]));
-        RESERVA_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, filters[key]));
-        return params;
-      },
-    [filters],
-  );
+  const buildFilterParams = useCallback((
+    startDate = filtersRef.current.dataInicial,
+    endDate = filtersRef.current.dataFinal,
+    extraParams = {},
+  ) => {
+    const currentFilters = filtersRef.current;
+    const scope = String(extraParams.__scope || 'default').toLowerCase();
+    const mergedParams = { ...extraParams };
+    delete mergedParams.__scope;
+    const params = new URLSearchParams({ startDate, endDate, ...mergedParams });
+    if (scope === 'legacy') {
+      appendLegacyFilters(params, currentFilters);
+    } else if (scope === 'segmented') {
+      appendSegmentedFilters(params, currentFilters);
+    } else {
+      appendLegacyFilters(params, currentFilters);
+      appendSegmentedFilters(params, currentFilters);
+    }
+    if (scope === 'all' || scope === 'reservas') {
+      RESERVA_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, currentFilters[key]));
+    }
+    return params;
+  }, []);
 
   /**
    * Human-readable labels for active hierarchy filters.

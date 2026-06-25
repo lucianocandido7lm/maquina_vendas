@@ -29,7 +29,7 @@ const KPI_DEFINITIONS = [
   { id: 'visitas', label: 'Visitas', unit: 'total', defaultType: 'absolute' },
   { id: 'propostas', label: 'Prop. Aprovada / Condicionada', unit: 'total', defaultType: 'absolute' },
   { id: 'cancelamentos', label: 'Cancelamentos', unit: 'total', defaultType: 'ratio_limit' },
-  { id: 'vendas', label: 'Vendas', unit: 'total', defaultType: 'absolute' },
+  { id: 'vendas', label: 'Reservas', unit: 'total', defaultType: 'absolute' },
   { id: 'distratos', label: 'Distratos', unit: 'total', defaultType: 'ratio_limit' },
   { id: 'repasses', label: 'Repasses', unit: 'total', defaultType: 'absolute' },
   { id: 'sla_f', label: 'SLA Finalização', unit: 'dias', defaultType: 'days_max' },
@@ -53,7 +53,7 @@ const PERIOD_OPTIONS = [
 
 const TARGET_TYPE_LABELS = {
   absolute: 'Volume Absoluto',
-  ratio_limit: '% sobre Vendas (Teto)',
+  ratio_limit: '% sobre Reservas (Teto)',
   days_max: 'Limite Máximo (dias)',
 };
 
@@ -61,9 +61,16 @@ const TARGET_TYPE_LABELS = {
 // ── Component ─────────────────────────────────────────────────────────────────
 const GoalSettings = () => {
   const { goals, saveGoal, refreshGoals, isLoading: isGoalsLoading, error: goalsError } = useGoalConfig();
-  const { filters, filterOptions } = useCommercialFilters();
+  const { filters, filterOptions, enableExtendedFilterOptions, disableExtendedFilterOptions } = useCommercialFilters();
   const [expandedRow, setExpandedRow] = useState(null);
   const [saveStatus, setSaveStatus] = useState(null);
+
+  useEffect(() => {
+    enableExtendedFilterOptions?.();
+    return () => {
+      disableExtendedFilterOptions?.();
+    };
+  }, [disableExtendedFilterOptions, enableExtendedFilterOptions]);
 
   // ── Reference month info ────────────────────────────────────────────────
   const referenceMonth = useMemo(() => {

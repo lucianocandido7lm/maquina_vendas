@@ -188,7 +188,7 @@ const Analytics = () => {
     { label: 'Leads', value: summary?.total_leads ?? 0, helper: 'Contagem no período' },
     { label: 'Visitas', value: summary?.total_visitas ?? 0, helper: 'Contagem no período' },
     { label: 'Propostas', value: summary?.total_propostas_geral ?? summary?.total_propostas ?? 0, helper: 'Última ocorrência entre os 3 status' },
-    { label: 'Vendas', value: summary?.total_vendas ?? 0, helper: 'Data da venda da reserva' },
+    { label: 'Reservas', value: summary?.total_vendas ?? 0, helper: 'Reservas por data de cadastro' },
     { label: 'Repasses', value: summary?.total_repasses ?? 0, helper: 'Por assinatura contrato' },
   ];
 

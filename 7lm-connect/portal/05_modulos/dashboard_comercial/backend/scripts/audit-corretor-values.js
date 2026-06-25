@@ -157,9 +157,11 @@ async function main() {
         where dt_ultimo_historico_data >= $1::date and dt_ultimo_historico_data < ($2::date + interval '1 day')
           and proposta_status_atual = 'REPROVADA'
         union all
-        select 'vendas', count(distinct coalesce(idreserva::text, journey_id, journey_key, fato_jornada_comercial_key))::bigint
+        select 'vendas', count(distinct concat(to_char(date_trunc('month', dt_cadastro_reserva), 'YYYY-MM'), '|', coalesce(idcliente_canonico::text, nullif(regexp_replace(coalesce(cliente_documento, dim_lead_cliente_documento, ''), '\\D', '', 'g'), ''), idreserva::text)))::bigint
         from ${comercialBase}
-        where data_venda >= $1::date and data_venda < ($2::date + interval '1 day')
+        where dt_cadastro_reserva >= $1::date
+          and dt_cadastro_reserva < ($2::date + interval '1 day')
+          and idreserva is not null
         union all
         select 'repasses', count(distinct coalesce(idrepasse::text, idreserva::text, journey_id, journey_key, fato_jornada_comercial_key))::bigint
         from ${comercialBase}

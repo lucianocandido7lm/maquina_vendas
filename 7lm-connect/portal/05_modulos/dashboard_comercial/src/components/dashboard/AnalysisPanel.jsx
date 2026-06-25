@@ -208,6 +208,7 @@ const getAxisScope = (axis = {}) => axis.scope ?? (
 
 const metricFieldByKpi = {
   leads: 'leads',
+  agendamentos: 'agendamentos',
   visitas: 'visitas',
   propostas: 'propostas_total',
   cancelamentos: 'cancelamentos',
@@ -2077,14 +2078,14 @@ const AnalysisPanel = ({
                 </div>
                 <div className="analysis-summary-card">
                   <span className="analysis-summary-label">Corretores-mês</span>
-                  <span className="analysis-summary-value">{fmt(kpi.denominator, 'un')}</span>
+                  <span className="analysis-summary-value">{fmt(ipcSummary.corretoresAtivos, 'un')}</span>
                   <span className="analysis-ipc-summary-hint">
                     {ipcCoverage.corretoresComRepasse} com repasse · {ipcCoverage.corretoresSemRepasse} sem · {fmt(ipcCoverage.corretoresRepassesSemVinculo, 'un')} rep. sem vínculo
                   </span>
                 </div>
                 <div className="analysis-summary-card">
                   <span className="analysis-summary-label">Imobiliárias-mês</span>
-                  <span className="analysis-summary-value">{fmt(kpi.denominatorSecondary, 'un')}</span>
+                  <span className="analysis-summary-value">{fmt(ipcSummary.imobiliariasAtivas, 'un')}</span>
                   <span className="analysis-ipc-summary-hint">
                     {ipcCoverage.imobiliariasComRepasse} com repasse · {ipcCoverage.imobiliariasSemRepasse} sem · {fmt(ipcCoverage.imobiliariasRepassesSemVinculo, 'un')} rep. sem vínculo
                   </span>
@@ -2767,7 +2768,7 @@ const AnalysisPanel = ({
                     : ' Indicador em rota favorável para cumprimento da meta.'
                 }`
                 : isPropostas
-                  ? `${kpiTitle} considera a ultima movimentacao por idprecadastro dentro dos status Aprovada, Condicionada e Reprovada no periodo filtrado. No período, temos ${fmt(propostasTotals.aprovadas, 'un')} aprovadas, ${fmt(propostasTotals.condicionadas, 'un')} condicionadas e ${fmt(propostasTotals.reprovadas, 'un')} reprovadas (total com resposta ${fmt(propostasTotals.total, 'un')}). ${showForecast ? `Forecast projeta ${fmt(forecastValue, kpi.unit)} propostas com resposta no fechamento.` : ''}${hasGap ? ` Gap atual de ${fmt(Math.abs(gapValue), kpi.unit)} para a meta de propostas com resposta.` : ' Indicador em rota favorável para a meta de propostas com resposta.'}`
+                  ? `${kpiTitle} soma no fato diario oficial as propostas aprovadas e condicionadas no periodo filtrado. No período, temos ${fmt(propostasTotals.aprovadas, 'un')} aprovadas, ${fmt(propostasTotals.condicionadas, 'un')} condicionadas e ${fmt(propostasTotals.reprovadas, 'un')} reprovadas apenas como detalhamento de apoio (total com resposta ${fmt(propostasTotals.total, 'un')}). ${showForecast ? `Forecast projeta ${fmt(forecastValue, kpi.unit)} aprovadas + condicionadas no fechamento.` : ''}${hasGap ? ` Gap atual de ${fmt(Math.abs(gapValue), kpi.unit)} para a meta de aprovadas + condicionadas.` : ' Indicador em rota favorável para a meta de aprovadas + condicionadas.'}`
                 : isCancelamentos
                   ? cancelamentosAnnotation
                 : isSlaFinalizacao

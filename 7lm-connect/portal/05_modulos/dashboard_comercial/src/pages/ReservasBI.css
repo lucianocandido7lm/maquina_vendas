@@ -81,6 +81,30 @@
   background: color-mix(in srgb, var(--warning) 12%, var(--surface-lowest));
 }
 
+.reservas-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.4rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--outline-variant));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface-lowest));
+  color: var(--primary);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.reservas-loading svg {
+  animation: reservas-spin 0.9s linear infinite;
+}
+
+@keyframes reservas-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .reservas-tabs {
   display: flex;
   align-items: center;

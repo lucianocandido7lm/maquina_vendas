@@ -162,6 +162,11 @@ async function ensureRuntimeObjects(client) {
     alter table ${qualify(TARGET_SCHEMA, 'comercial_kpi_daily')}
       add column if not exists agendamentos integer default 0
   `);
+  await client.query(`
+    alter table ${qualify(TARGET_SCHEMA, 'comercial_base')}
+      add column if not exists dt_cadastro_repasse timestamp,
+      add column if not exists dt_cadastro_repasse_data date
+  `);
 
   for (const table of SOURCE_TABLES) {
     await client.query(`
@@ -172,6 +177,11 @@ async function ensureRuntimeObjects(client) {
   await client.query(`
     alter table ${qualify(TARGET_SCHEMA, 'comercial_leads_historico_staging')}
       add column if not exists funil_status_grupo text
+  `);
+  await client.query(`
+    alter table ${qualify(TARGET_SCHEMA, 'comercial_base_staging')}
+      add column if not exists dt_cadastro_repasse timestamp,
+      add column if not exists dt_cadastro_repasse_data date
   `);
 }
 
@@ -373,6 +383,7 @@ function comercialBaseWindowPredicate(start, end) {
     ${range('coalesce(b.dt_lead, b.dt_ultima_conversao_lead)')}
     or ${range('coalesce(b.dt_visita, b.dt_visita_realizada)')}
     or ${range('b.dt_cadastro_reserva')}
+    or ${range('b.dt_cadastro_repasse')}
     or ${range('b.dt_contrato_contabilizado')}
     or ${range('b.dt_venda_finalizada')}
     or ${range('coalesce(b.dt_repasse, b.dt_assinatura_contrato)')}
@@ -679,6 +690,26 @@ async function promoteStaging(client) {
   }
 }
 
+async function ensurePerformanceIndexes(client) {
+  const base = qualify(TARGET_SCHEMA, 'comercial_base');
+  const leadsHistorico = qualify(TARGET_SCHEMA, 'comercial_leads_historico');
+  const indexes = [
+    `create index if not exists idx_comercial_base_journey_id on ${base} (journey_id)`,
+    `create index if not exists idx_comercial_base_idlead on ${base} (idlead)`,
+    `create index if not exists idx_comercial_base_corretor_id on ${base} (idcorretor_canonico, idcorretor_atual)`,
+    `create index if not exists idx_leads_hist_dt_agendamento on ${leadsHistorico} (dt_referencia, agendamento_status_grupo, idlead)`,
+    `create index if not exists idx_leads_hist_journey_id on ${leadsHistorico} (journey_id)`,
+    `create index if not exists idx_leads_hist_idlead on ${leadsHistorico} (idlead)`,
+    `create index if not exists idx_leads_hist_corretor on ${leadsHistorico} (idcorretor_atual)`,
+  ];
+
+  for (const sql of indexes) {
+    await client.query(sql);
+  }
+  await client.query(`analyze ${base}`);
+  await client.query(`analyze ${leadsHistorico}`);
+}
+
 async function recomputeKpiDaily(client) {
   const base = qualify(TARGET_SCHEMA, 'comercial_base');
   const kpi = qualify(TARGET_SCHEMA, 'comercial_kpi_daily');
@@ -781,11 +812,7 @@ async function recomputeKpiDaily(client) {
       order by dt_visita_realizada::date, idlead, fato_jornada_comercial_key
     ),
     agendamento_events as (
-      select distinct on (
-        lh.dt_referencia,
-        lh.idlead,
-        coalesce(nullif(trim(coalesce(bj.corretor_dim, bl.corretor_dim)), ''), 'Corretor ' || lh.idcorretor_atual::text, 'Sem corretor')
-      )
+      select distinct on (date_trunc('month', lh.dt_referencia), lh.idlead)
         lh.dt_referencia as data,
         coalesce(bj.cidade_dim, bl.cidade_dim) as cidade_dim,
         coalesce(bj.origem_dim, bl.origem_dim) as origem_dim,
@@ -803,19 +830,47 @@ async function recomputeKpiDaily(client) {
         and lh.idlead is not null
         and coalesce(lh.funil_status_grupo, lh.agendamento_status_grupo) in ('AGENDAMENTO', 'AGENDAMENTO_IA', 'AGENDADO_IA')
       order by
-        lh.dt_referencia,
+        date_trunc('month', lh.dt_referencia),
         lh.idlead,
-        coalesce(nullif(trim(coalesce(bj.corretor_dim, bl.corretor_dim)), ''), 'Corretor ' || lh.idcorretor_atual::text, 'Sem corretor'),
-        lh.historico_status_key
+        lh.dt_referencia desc nulls last,
+        lh.historico_status_key desc nulls last
     ),
-    venda_events as (
-      select distinct on (data_venda::date, idreserva)
-        data_venda::date as data,
+    venda_canonical as (
+      select distinct on (
+        date_trunc('month', dt_cadastro_reserva),
+        coalesce(
+          idcliente_canonico::text,
+          nullif(regexp_replace(coalesce(cliente_documento, dim_lead_cliente_documento, ''), '\\D', '', 'g'), ''),
+          idreserva::text
+        )
+      )
+        dt_cadastro_reserva::date as data,
         cidade_dim, origem_dim, empreendimento_dim, empreendimento_reduzido_dim, sdr_dim,
         corretor_dim, gerencia_dim, coordenacao_dim, imobiliaria_dim
       from base_dim
-      where data_venda is not null and idreserva is not null
-      order by data_venda::date, idreserva, fato_jornada_comercial_key
+      where dt_cadastro_reserva is not null and idreserva is not null
+      order by
+        date_trunc('month', dt_cadastro_reserva),
+        coalesce(
+          idcliente_canonico::text,
+          nullif(regexp_replace(coalesce(cliente_documento, dim_lead_cliente_documento, ''), '\\D', '', 'g'), ''),
+          idreserva::text
+        ),
+        dt_cadastro_reserva desc nulls last,
+        coalesce(dt_referencia_reserva, dt_cadastro_reserva) desc nulls last,
+        case
+          when translate(lower(coalesce(reserva_situacao_nome, '')), 'ãáàâäéèêëíìîïóòôöõúùûüç', 'aaaaaeeeeiiiiooooouuuuc') like 'cancel%' then 1
+          else 0
+        end,
+        idreserva desc nulls last,
+        fato_jornada_comercial_key desc nulls last
+    ),
+    venda_events as (
+      select
+        data,
+        cidade_dim, origem_dim, empreendimento_dim, empreendimento_reduzido_dim, sdr_dim,
+        corretor_dim, gerencia_dim, coordenacao_dim, imobiliaria_dim
+      from venda_canonical
     ),
     repasse_events as (
       select distinct on (dt_assinatura_contrato::date, idrepasse)
@@ -1046,6 +1101,7 @@ async function run({ dryRun = false } = {}) {
       await client.query('rollback');
       throw error;
     }
+    await ensurePerformanceIndexes(client);
 
     await finishLog(client, logId, 'success', counts, startedAt, 'Carga direta Databricks -> connect_comercial concluida.');
     return { status: 'success', tables: counts };

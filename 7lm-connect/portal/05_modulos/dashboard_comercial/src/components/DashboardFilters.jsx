@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFilters } from '../contexts/FiltersContext';
 import PeriodFilter from './PeriodFilter';
 import MultiSelectFilter from './MultiSelectFilter';
@@ -12,7 +12,8 @@ const FILTER_GROUPS = [
     hint: 'Campos da fato comercial: região da venda, imobiliária da operação, empreendimento, unidade e origem.',
     filters: [
       { key: 'regiaoOperacao', label: 'Região da operação', essential: true },
-      { key: 'imobiliariaOperacao', label: 'Imobiliária da operação' },
+      { key: 'cidade', label: 'Cidade', essential: true },
+      { key: 'imobiliariaOperacao', label: 'Imobiliária da operação', essential: true },
       { key: 'corretorOperacao', label: 'Corretor da operação' },
       { key: 'sdrOperacao', label: 'SDR da operação' },
       { key: 'origem', label: 'Origem da campanha' },
@@ -27,7 +28,7 @@ const FILTER_GROUPS = [
     hint: 'Campos operacionais da própria reserva: situação atual, ID reserva, repasse no mês e agente quando disponível na base.',
     filters: [
       { key: 'situacaoAtual', label: 'Situação atual', essential: true },
-      { key: 'idReserva', label: 'ID Reserva' },
+      { key: 'idReserva', label: 'ID Reserva', essential: true },
       { key: 'repasseNoMes', label: 'Repasse no mês', essential: true },
       { key: 'agente', label: 'Agente' },
     ],
@@ -60,19 +61,50 @@ const FILTER_GROUPS = [
   },
 ];
 
-const DashboardFilters = ({ showReservationFilters = false }) => {
+const DashboardFilters = ({ showReservationFilters = false, hiddenKeys = [] }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { filters, filterOptions, setFilterValue, resetFilters, searchFilterOptions } = useFilters();
+  const {
+    filters,
+    filterOptions,
+    setFilterValue,
+    resetFilters,
+    searchFilterOptions,
+    enableReservationOptions,
+    disableReservationOptions,
+    enableExtendedFilterOptions,
+    disableExtendedFilterOptions,
+  } = useFilters();
+
+  useEffect(() => {
+    if (!showReservationFilters) return undefined;
+    enableReservationOptions?.();
+    return () => {
+      disableReservationOptions?.();
+    };
+  }, [disableReservationOptions, enableReservationOptions, showReservationFilters]);
+
+  useEffect(() => {
+    if (!isExpanded) return undefined;
+    enableExtendedFilterOptions?.();
+    return () => {
+      disableExtendedFilterOptions?.();
+    };
+  }, [disableExtendedFilterOptions, enableExtendedFilterOptions, isExpanded]);
 
   const visibleGroups = FILTER_GROUPS
     .filter((group) => showReservationFilters || group.tone !== 'reservation')
     .map((group) => ({
       ...group,
       filters: group.filters.filter((filter) => {
+        if (hiddenKeys.includes(filter.key)) {
+          return false;
+        }
         if (isExpanded) {
           return true;
         }
-        return group.tone === 'operation' && filter.essential;
+        const canShowCollapsedEssential = group.tone === 'operation'
+          || (showReservationFilters && group.tone === 'reservation');
+        return canShowCollapsedEssential && filter.essential;
       }),
     }))
     .filter((group) => group.filters.length > 0);

@@ -471,7 +471,7 @@ pastas com respostas  -> dt_resposta_analise_precadastro / idprecadastro
 pastas aprovadas      -> dt_resposta_analise_precadastro + situacao aprovada
 pastas condicionadas  -> dt_resposta_analise_precadastro + situacao condicionada/pendente
 pastas reprovadas     -> dt_resposta_analise_precadastro + situacao reprovada
-vendas                -> dt_contrato_contabilizado / idreserva
+vendas                -> dt_cadastro_reserva / uma venda por cliente no mes
 vendas finalizadas    -> dt_venda_finalizada / idreserva
 repasses              -> dt_assinatura_contrato / idrepasse
 cancelamentos         -> dt_cancelamento_reserva / idreserva
@@ -541,9 +541,8 @@ Cards atuais:
 Regra exibida em tooltip:
 
 ```text
-Venda: count distinct de idreserva com data de venda/contrato contabilizado
-no período filtrado. No consolidado usa comercial_kpi_daily.vendas; no detalhe
-usa dt_contrato_contabilizado.
+Venda: uma venda por cliente no mes pela dt_cadastro_reserva. Se o cliente tiver
+mais de uma reserva no periodo, considera a reserva mais recente.
 ```
 
 #### Repasse dos Foguetes

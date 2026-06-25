@@ -11,6 +11,7 @@
     "data:update": "node backend/scripts/run-data-update.js",
     "data:update:connect": "node backend/scripts/sync-databricks-to-connect-comercial.js",
     "data:update:connect:dry-run": "node backend/scripts/sync-databricks-to-connect-comercial.js --dry-run",
+    "bench:filters": "node backend/scripts/benchmark-filters.js",
     "audit:p2p": "node backend/scripts/run-p2p-validation.js",
     "audit:canonical": "node backend/scripts/validate-canonical-fields.js",
     "audit:corretor-values": "node backend/scripts/audit-corretor-values.js",

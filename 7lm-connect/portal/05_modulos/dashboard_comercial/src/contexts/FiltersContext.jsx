@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, useEffect, useRef } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, useEffect, useRef } from 'react';
 import { logger } from '../utils/logger';
 
 const FILTER_OPTIONS = {
@@ -252,112 +252,495 @@ const SEGMENTED_FILTER_GROUP_BY_FIELD = {
 };
 
 const RESERVA_FILTER_FIELDS = new Set(['situacaoAtual', 'idReserva', 'repasseNoMes', 'agente']);
+const LEGACY_REMOTE_FILTER_KEYS = [
+  'cidade',
+  'coordenacao',
+  'gerencia',
+  'corretor',
+  'sdr',
+  'origem',
+  'empreendimento',
+  'unidade',
+  'empreendimentoReduzido',
+  'imobiliaria',
+];
+const SEGMENTED_REMOTE_FILTER_KEYS = Object.keys(SEGMENTED_FILTER_GROUP_BY_FIELD);
+const RESERVA_REMOTE_FILTER_KEYS = Array.from(RESERVA_FILTER_FIELDS);
+const SEGMENTED_REMOTE_FILTER_KEYS_SET = new Set(SEGMENTED_REMOTE_FILTER_KEYS);
+const LEGACY_REMOTE_FILTER_KEYS_SET = new Set(LEGACY_REMOTE_FILTER_KEYS);
+const ESSENTIAL_LEGACY_FILTER_KEYS = ['cidade'];
+const ESSENTIAL_SEGMENTED_FILTER_KEYS = ['regiaoOperacao', 'imobiliariaOperacao', 'empreendimento'];
+const ESSENTIAL_RESERVA_FILTER_KEYS = ['situacaoAtual', 'idReserva', 'repasseNoMes'];
+const ESSENTIAL_FILTER_KEYS_SET = new Set([
+  ...ESSENTIAL_LEGACY_FILTER_KEYS,
+  ...ESSENTIAL_SEGMENTED_FILTER_KEYS,
+  ...ESSENTIAL_RESERVA_FILTER_KEYS,
+]);
 
-const getSegmentedOptionsFromPayload = (payload, field) => {
-  const path = SEGMENTED_FILTER_GROUP_BY_FIELD[field];
-  if (!path) return [];
-  const [group, key] = path;
-  return payload?.[group]?.[key] ?? [];
+const appendMultiParam = (params, key, value) => {
+  if (Array.isArray(value) && value.length > 0) {
+    const normalized = Array.from(
+      new Set(
+        value
+          .map((item) => String(item ?? '').trim())
+          .filter(Boolean),
+      ),
+    ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    if (normalized.length > 0) {
+      params.set(key, normalized.join(','));
+    }
+  }
+};
+
+const inFlightOptionsRequests = new Map();
+const inFlightSearchRequests = new Map();
+const activeSearchControllers = new Map();
+
+const setMapEntryWithLimit = (mapRef, key, value, maxEntries) => {
+  const map = mapRef.current;
+  if (map.has(key)) {
+    map.delete(key);
+  }
+  map.set(key, value);
+  if (map.size > maxEntries) {
+    const oldest = map.keys().next().value;
+    if (oldest != null) {
+      map.delete(oldest);
+    }
+  }
+};
+
+const appendFilterKeyList = (params, keyList, filters) => {
+  keyList.forEach((key) => appendMultiParam(params, key, filters[key]));
+};
+
+const areOptionListsEqual = (left, right) => {
+  if (!Array.isArray(left) || !Array.isArray(right)) return false;
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    const a = left[i];
+    const b = right[i];
+    if (a?.value !== b?.value || a?.label !== b?.label) return false;
+  }
+  return true;
+};
+
+const hasOptionsPayloadDiff = (currentOptions, nextPayload) => (
+  Object.entries(nextPayload || {}).some(([key, nextList]) => {
+    const currentList = currentOptions?.[key];
+    return !areOptionListsEqual(currentList, nextList);
+  })
+);
+
+const areFilterValuesEqual = (left, right) => {
+  if (Array.isArray(left) && Array.isArray(right)) {
+    if (left.length !== right.length) return false;
+    return left.every((item, index) => item === right[index]);
+  }
+  return left === right;
 };
 
 export const FiltersProvider = ({ children }) => {
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [dynamicOptions, setDynamicOptions] = useState(FILTER_OPTIONS);
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
+  const [reservationOptionsDemand, setReservationOptionsDemand] = useState(0);
+  const reservationOptionsEnabled = reservationOptionsDemand > 0;
+  const [extendedFilterOptionsDemand, setExtendedFilterOptionsDemand] = useState(0);
+  const extendedFilterOptionsEnabled = extendedFilterOptionsDemand > 0;
   const filterOptionsCacheRef = useRef(new Map());
+  const essentialOptionsCacheRef = useRef(new Map());
   const filterSearchCacheRef = useRef(new Map());
+  const dynamicOptionsRef = useRef(dynamicOptions);
+  const reservationOptionsRef = useRef({
+    situacaoAtual: FILTER_OPTIONS.situacaoAtual,
+    idReserva: FILTER_OPTIONS.idReserva,
+    repasseNoMes: FILTER_OPTIONS.repasseNoMes,
+    agente: FILTER_OPTIONS.agente,
+  });
+  const optionScopeFilters = useMemo(() => ({
+    dataInicial: filters.dataInicial,
+    dataFinal: filters.dataFinal,
+    cidade: filters.cidade,
+    coordenacao: filters.coordenacao,
+    gerencia: filters.gerencia,
+    corretor: filters.corretor,
+    sdr: filters.sdr,
+    origem: filters.origem,
+    empreendimento: filters.empreendimento,
+    unidade: filters.unidade,
+    empreendimentoReduzido: filters.empreendimentoReduzido,
+    imobiliaria: filters.imobiliaria,
+    regiaoOperacao: filters.regiaoOperacao,
+    imobiliariaOperacao: filters.imobiliariaOperacao,
+    corretorOperacao: filters.corretorOperacao,
+    sdrOperacao: filters.sdrOperacao,
+    corretorAtivo: filters.corretorAtivo,
+    gestorCorretor: filters.gestorCorretor,
+    coordenadorCorretor: filters.coordenadorCorretor,
+    regiaoCorretor: filters.regiaoCorretor,
+    imobiliariaCorretor: filters.imobiliariaCorretor,
+    sdrAtivo: filters.sdrAtivo,
+    gestorSdr: filters.gestorSdr,
+    coordenadorSdr: filters.coordenadorSdr,
+    regiaoSdr: filters.regiaoSdr,
+    imobiliariaSdr: filters.imobiliariaSdr,
+    situacaoAtual: filters.situacaoAtual,
+    idReserva: filters.idReserva,
+    repasseNoMes: filters.repasseNoMes,
+    agente: filters.agente,
+  }), [
+    filters.dataInicial,
+    filters.dataFinal,
+    filters.cidade,
+    filters.coordenacao,
+    filters.gerencia,
+    filters.corretor,
+    filters.sdr,
+    filters.origem,
+    filters.empreendimento,
+    filters.unidade,
+    filters.empreendimentoReduzido,
+    filters.imobiliaria,
+    filters.regiaoOperacao,
+    filters.imobiliariaOperacao,
+    filters.corretorOperacao,
+    filters.sdrOperacao,
+    filters.corretorAtivo,
+    filters.gestorCorretor,
+    filters.coordenadorCorretor,
+    filters.regiaoCorretor,
+    filters.imobiliariaCorretor,
+    filters.sdrAtivo,
+    filters.gestorSdr,
+    filters.coordenadorSdr,
+    filters.regiaoSdr,
+    filters.imobiliariaSdr,
+    filters.situacaoAtual,
+    filters.idReserva,
+    filters.repasseNoMes,
+    filters.agente,
+  ]);
+  const essentialOptionScopeFilters = useMemo(() => ({
+    dataInicial: filters.dataInicial,
+    dataFinal: filters.dataFinal,
+    cidade: filters.cidade,
+    empreendimento: filters.empreendimento,
+    regiaoOperacao: filters.regiaoOperacao,
+    imobiliariaOperacao: filters.imobiliariaOperacao,
+    situacaoAtual: filters.situacaoAtual,
+    idReserva: filters.idReserva,
+    repasseNoMes: filters.repasseNoMes,
+  }), [
+    filters.dataInicial,
+    filters.dataFinal,
+    filters.cidade,
+    filters.empreendimento,
+    filters.regiaoOperacao,
+    filters.imobiliariaOperacao,
+    filters.situacaoAtual,
+    filters.idReserva,
+    filters.repasseNoMes,
+  ]);
+  const legacyOptionsQueryString = useMemo(() => {
+    const params = new URLSearchParams({
+      startDate: optionScopeFilters.dataInicial,
+      endDate: optionScopeFilters.dataFinal,
+    });
+
+    const setIfEmpty = (targetKey, sourceValues) => {
+      const current = optionScopeFilters[targetKey];
+      if (Array.isArray(current) && current.length > 0) return;
+      if (!Array.isArray(sourceValues) || sourceValues.length === 0) return;
+      const normalized = Array.from(
+        new Set(
+          sourceValues
+            .map((item) => String(item ?? '').trim())
+            .filter(Boolean),
+        ),
+      ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      if (normalized.length > 0) {
+        params.set(targetKey, normalized.join(','));
+      }
+    };
+
+    LEGACY_REMOTE_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, optionScopeFilters[key]));
+    setIfEmpty('empreendimentoReduzido', optionScopeFilters.regiaoOperacao);
+    setIfEmpty('imobiliaria', optionScopeFilters.imobiliariaOperacao);
+    setIfEmpty('corretor', optionScopeFilters.corretorOperacao);
+    setIfEmpty('sdr', optionScopeFilters.sdrOperacao);
+    setIfEmpty('corretor', optionScopeFilters.corretorAtivo);
+    setIfEmpty('gerencia', optionScopeFilters.gestorCorretor);
+    setIfEmpty('coordenacao', optionScopeFilters.coordenadorCorretor);
+    setIfEmpty('imobiliaria', optionScopeFilters.imobiliariaCorretor);
+    setIfEmpty('empreendimentoReduzido', optionScopeFilters.regiaoCorretor);
+    setIfEmpty('sdr', optionScopeFilters.sdrAtivo);
+    setIfEmpty('gerencia', optionScopeFilters.gestorSdr);
+    setIfEmpty('coordenacao', optionScopeFilters.coordenadorSdr);
+    setIfEmpty('imobiliaria', optionScopeFilters.imobiliariaSdr);
+    setIfEmpty('empreendimentoReduzido', optionScopeFilters.regiaoSdr);
+    return params.toString();
+  }, [optionScopeFilters]);
+
+  const segmentedOptionsQueryString = useMemo(() => {
+    const params = new URLSearchParams({
+      startDate: optionScopeFilters.dataInicial,
+      endDate: optionScopeFilters.dataFinal,
+    });
+    SEGMENTED_REMOTE_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, optionScopeFilters[key]));
+    return params.toString();
+  }, [optionScopeFilters]);
+
+  const reservaOptionsQueryString = useMemo(() => {
+    const params = new URLSearchParams({
+      startDate: optionScopeFilters.dataInicial,
+      endDate: optionScopeFilters.dataFinal,
+    });
+    RESERVA_REMOTE_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, optionScopeFilters[key]));
+    return params.toString();
+  }, [optionScopeFilters]);
+
+  const essentialLegacyOptionsQueryString = useMemo(() => {
+    const params = new URLSearchParams({
+      startDate: essentialOptionScopeFilters.dataInicial,
+      endDate: essentialOptionScopeFilters.dataFinal,
+    });
+    ESSENTIAL_LEGACY_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, essentialOptionScopeFilters[key]));
+    appendMultiParam(params, 'empreendimento', essentialOptionScopeFilters.empreendimento);
+    if (!Array.isArray(filters.empreendimentoReduzido) || filters.empreendimentoReduzido.length === 0) {
+      appendMultiParam(params, 'empreendimentoReduzido', essentialOptionScopeFilters.regiaoOperacao);
+    }
+    if (!Array.isArray(filters.imobiliaria) || filters.imobiliaria.length === 0) {
+      appendMultiParam(params, 'imobiliaria', essentialOptionScopeFilters.imobiliariaOperacao);
+    }
+    return params.toString();
+  }, [essentialOptionScopeFilters, filters.empreendimentoReduzido, filters.imobiliaria]);
+
+  const essentialSegmentedOptionsQueryString = useMemo(() => {
+    const params = new URLSearchParams({
+      startDate: essentialOptionScopeFilters.dataInicial,
+      endDate: essentialOptionScopeFilters.dataFinal,
+    });
+    ESSENTIAL_SEGMENTED_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, essentialOptionScopeFilters[key]));
+    return params.toString();
+  }, [essentialOptionScopeFilters]);
+
+  const essentialReservaOptionsQueryString = useMemo(() => {
+    const params = new URLSearchParams({
+      startDate: essentialOptionScopeFilters.dataInicial,
+      endDate: essentialOptionScopeFilters.dataFinal,
+    });
+    ESSENTIAL_RESERVA_FILTER_KEYS.forEach((key) => appendMultiParam(params, key, essentialOptionScopeFilters[key]));
+    return params.toString();
+  }, [essentialOptionScopeFilters]);
+
+  const activeLegacyOptionsQueryString = useMemo(
+    () => (extendedFilterOptionsEnabled ? legacyOptionsQueryString : essentialLegacyOptionsQueryString),
+    [extendedFilterOptionsEnabled, legacyOptionsQueryString, essentialLegacyOptionsQueryString],
+  );
+
+  const activeSegmentedOptionsQueryString = useMemo(
+    () => (extendedFilterOptionsEnabled ? segmentedOptionsQueryString : essentialSegmentedOptionsQueryString),
+    [extendedFilterOptionsEnabled, segmentedOptionsQueryString, essentialSegmentedOptionsQueryString],
+  );
+
+  const activeReservaOptionsQueryString = useMemo(
+    () => (extendedFilterOptionsEnabled ? reservaOptionsQueryString : essentialReservaOptionsQueryString),
+    [extendedFilterOptionsEnabled, reservaOptionsQueryString, essentialReservaOptionsQueryString],
+  );
+
+  const hasActiveReservaSelections = useMemo(
+    () => RESERVA_REMOTE_FILTER_KEYS.some((key) => Array.isArray(optionScopeFilters[key]) && optionScopeFilters[key].length > 0),
+    [optionScopeFilters],
+  );
+
+  const shouldLoadReservaOptions = reservationOptionsEnabled || hasActiveReservaSelections;
+
+  useEffect(() => {
+    dynamicOptionsRef.current = dynamicOptions;
+  }, [dynamicOptions]);
+
+  useEffect(() => {
+    reservationOptionsRef.current = {
+      situacaoAtual: dynamicOptions.situacaoAtual,
+      idReserva: dynamicOptions.idReserva,
+      repasseNoMes: dynamicOptions.repasseNoMes,
+      agente: dynamicOptions.agente,
+    };
+  }, [dynamicOptions.agente, dynamicOptions.idReserva, dynamicOptions.repasseNoMes, dynamicOptions.situacaoAtual]);
 
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
     const loadFilters = async () => {
       try {
-        const params = new URLSearchParams({
-          startDate: filters.dataInicial,
-          endDate: filters.dataFinal,
-        });
-
-        const appendMulti = (key, value) => {
-          if (Array.isArray(value) && value.length > 0) {
-            params.append(key, value.join(','));
+        const optionsModeToken = extendedFilterOptionsEnabled ? 'mode:full' : 'mode:essential';
+        const essentialCacheKey = !extendedFilterOptionsEnabled
+          ? `${optionsModeToken}||${optionScopeFilters.dataInicial}||${optionScopeFilters.dataFinal}||${shouldLoadReservaOptions ? 'reserva:on' : 'reserva:off'}`
+          : null;
+        if (essentialCacheKey) {
+          const essentialCached = essentialOptionsCacheRef.current.get(essentialCacheKey);
+          if (essentialCached) {
+            if (!hasOptionsPayloadDiff(dynamicOptionsRef.current, essentialCached)) {
+              return;
+            }
+            setDynamicOptions((prev) => ({ ...prev, ...essentialCached }));
+            return;
           }
-        };
+        }
 
-        appendMulti('cidade', filters.cidade);
-        appendMulti('coordenacao', filters.coordenacao);
-        appendMulti('gerencia', filters.gerencia);
-        appendMulti('corretor', filters.corretor);
-        appendMulti('sdr', filters.sdr);
-        appendMulti('origem', filters.origem);
-        appendMulti('empreendimento', filters.empreendimento);
-        appendMulti('empreendimentoReduzido', filters.empreendimentoReduzido);
-        appendMulti('imobiliaria', filters.imobiliaria);
-        appendMulti('regiaoOperacao', filters.regiaoOperacao);
-        appendMulti('imobiliariaOperacao', filters.imobiliariaOperacao);
-        appendMulti('corretorOperacao', filters.corretorOperacao);
-        appendMulti('sdrOperacao', filters.sdrOperacao);
-        appendMulti('corretorAtivo', filters.corretorAtivo);
-        appendMulti('gestorCorretor', filters.gestorCorretor);
-        appendMulti('coordenadorCorretor', filters.coordenadorCorretor);
-        appendMulti('regiaoCorretor', filters.regiaoCorretor);
-        appendMulti('imobiliariaCorretor', filters.imobiliariaCorretor);
-        appendMulti('sdrAtivo', filters.sdrAtivo);
-        appendMulti('gestorSdr', filters.gestorSdr);
-        appendMulti('coordenadorSdr', filters.coordenadorSdr);
-        appendMulti('regiaoSdr', filters.regiaoSdr);
-        appendMulti('imobiliariaSdr', filters.imobiliariaSdr);
-        appendMulti('situacaoAtual', filters.situacaoAtual);
-        appendMulti('idReserva', filters.idReserva);
-        appendMulti('repasseNoMes', filters.repasseNoMes);
-        appendMulti('agente', filters.agente);
-
-        const queryString = params.toString();
+        const queryString = `${optionsModeToken}||${activeLegacyOptionsQueryString}||${activeSegmentedOptionsQueryString}||${shouldLoadReservaOptions ? activeReservaOptionsQueryString : 'reserva:disabled'}`;
         const cached = filterOptionsCacheRef.current.get(queryString);
         if (cached) {
+          if (!hasOptionsPayloadDiff(dynamicOptionsRef.current, cached)) {
+            return;
+          }
           setDynamicOptions(prev => ({ ...prev, ...cached }));
           return;
         }
 
-        const fastParams = new URLSearchParams(queryString);
-        fastParams.set('lite', 'true');
-        fastParams.set('limit', '120');
-        const [segmentedResponse, reservasResponse] = await Promise.all([
-          fetch(`/api/v1/dashboard/segmented/filters?${fastParams.toString()}`, { signal: controller.signal }),
-          fetch(`/api/v1/dashboard/reservas/filters?${fastParams.toString()}`, { signal: controller.signal }),
-        ]);
-        if (segmentedResponse.ok) {
-          const data = await segmentedResponse.json();
-          const reservasData = reservasResponse.ok ? await reservasResponse.json() : {};
+        setFilterOptionsLoading(true);
+        const loadRemoteOptions = async () => {
+          const fetchWithTimeout = async (url, timeoutMs) => {
+            const timeoutController = new AbortController();
+            const forwardAbort = () => timeoutController.abort();
+            const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+            controller.signal.addEventListener('abort', forwardAbort, { once: true });
+            try {
+              return await fetch(url, { signal: timeoutController.signal });
+            } catch {
+              return null;
+            } finally {
+              clearTimeout(timeoutId);
+              controller.signal.removeEventListener('abort', forwardAbort);
+            }
+          };
+          const optionsLimit = extendedFilterOptionsEnabled ? '120' : '80';
+          const legacyParams = new URLSearchParams(activeLegacyOptionsQueryString);
+          legacyParams.set('lite', 'true');
+          legacyParams.set('limit', optionsLimit);
+          if (!extendedFilterOptionsEnabled) {
+            legacyParams.set('fields', ESSENTIAL_LEGACY_FILTER_KEYS.join(','));
+          }
+          const segmentedParams = new URLSearchParams(activeSegmentedOptionsQueryString);
+          segmentedParams.set('lite', 'true');
+          segmentedParams.set('limit', optionsLimit);
+          if (!extendedFilterOptionsEnabled) {
+            segmentedParams.set('fields', ESSENTIAL_SEGMENTED_FILTER_KEYS.join(','));
+          }
+          const reservasParams = new URLSearchParams(activeReservaOptionsQueryString);
+          reservasParams.set('lite', 'true');
+          reservasParams.set('limit', optionsLimit);
+          if (!extendedFilterOptionsEnabled) {
+            reservasParams.set('fields', ESSENTIAL_RESERVA_FILTER_KEYS.join(','));
+          }
+
+          const [legacyResponse, segmentedResponse, reservasResponse] = await Promise.all([
+            fetchWithTimeout(
+              `/api/v1/dashboard/filters?${legacyParams.toString()}`,
+              5000,
+            ),
+            fetchWithTimeout(
+              `/api/v1/dashboard/segmented/filters?${segmentedParams.toString()}`,
+              5000,
+            ),
+            shouldLoadReservaOptions
+              ? fetchWithTimeout(
+                `/api/v1/dashboard/reservas/filters?${reservasParams.toString()}`,
+                5000,
+              )
+              : Promise.resolve(null),
+          ]);
+
+          const legacyData = legacyResponse?.ok ? await legacyResponse.json() : {};
+          const data = segmentedResponse?.ok ? await segmentedResponse.json() : {};
+          const reservasData = reservasResponse?.ok ? await reservasResponse.json() : {};
+          return {
+            hasAny: Boolean(legacyResponse?.ok) || Boolean(segmentedResponse?.ok) || Boolean(reservasResponse?.ok),
+            legacyData,
+            data,
+            reservasData,
+          };
+        };
+
+        let inFlight = inFlightOptionsRequests.get(queryString);
+        if (!inFlight) {
+          inFlight = loadRemoteOptions().finally(() => {
+            inFlightOptionsRequests.delete(queryString);
+          });
+          inFlightOptionsRequests.set(queryString, inFlight);
+        }
+
+        const { hasAny, legacyData, data, reservasData } = await inFlight;
+        if (!active || controller.signal.aborted) return;
+        if (hasAny) {
           // Safe Guard: Only update if we received valid fields
-          if (data && typeof data === 'object' && !Array.isArray(data)) {
-            const normalizedData = {
-              regiaoOperacao: ensureBlankOption(sanitizeBackendOptions('regiaoOperacao', data.operation?.regiaoOperacao)),
-              imobiliariaOperacao: ensureBlankOption(sanitizeBackendOptions('imobiliariaOperacao', data.operation?.imobiliariaOperacao)),
-              corretorOperacao: ensureBlankOption(sanitizeBackendOptions('corretorOperacao', data.operation?.corretorOperacao)),
-              empreendimento: ensureBlankOption(sanitizeBackendOptions('empreendimento', data.operation?.empreendimento)),
-              unidade: ensureBlankOption(sanitizeBackendOptions('unidade', data.operation?.unidade)),
-              origem: ensureBlankOption(sanitizeBackendOptions('origem', data.operation?.origem)),
-              sdrOperacao: ensureBlankOption(sanitizeBackendOptions('sdrOperacao', data.operation?.sdrOperacao)),
-              corretorAtivo: ensureBlankOption(sanitizeBackendOptions('corretorAtivo', data.corretorAtivo?.corretorAtivo)),
-              gestorCorretor: ensureBlankOption(sanitizeBackendOptions('gestorCorretor', data.corretorAtivo?.gestorCorretor)),
-              coordenadorCorretor: ensureBlankOption(sanitizeBackendOptions('coordenadorCorretor', data.corretorAtivo?.coordenadorCorretor)),
-              regiaoCorretor: ensureBlankOption(sanitizeBackendOptions('regiaoCorretor', data.corretorAtivo?.regiaoCorretor)),
-              imobiliariaCorretor: ensureBlankOption(sanitizeBackendOptions('imobiliariaCorretor', data.corretorAtivo?.imobiliariaCorretor)),
-              sdrAtivo: ensureBlankOption(sanitizeBackendOptions('sdrAtivo', data.sdrAtivo?.sdrAtivo)),
-              gestorSdr: ensureBlankOption(sanitizeBackendOptions('gestorSdr', data.sdrAtivo?.gestorSdr)),
-              coordenadorSdr: ensureBlankOption(sanitizeBackendOptions('coordenadorSdr', data.sdrAtivo?.coordenadorSdr)),
-              regiaoSdr: ensureBlankOption(sanitizeBackendOptions('regiaoSdr', data.sdrAtivo?.regiaoSdr)),
-              imobiliariaSdr: ensureBlankOption(sanitizeBackendOptions('imobiliariaSdr', data.sdrAtivo?.imobiliariaSdr)),
-              situacaoAtual: ensureBlankOption(sanitizeBackendOptions('situacaoAtual', reservasData.situacaoAtual)),
-              idReserva: ensureBlankOption(sanitizeBackendOptions('idReserva', reservasData.idReserva)),
-              repasseNoMes: ensureBlankOption(sanitizeBackendOptions('repasseNoMes', reservasData.repasseNoMes)),
-              agente: ensureBlankOption(sanitizeBackendOptions('agente', reservasData.agente)),
+          if ((data && typeof data === 'object' && !Array.isArray(data))
+            || (legacyData && typeof legacyData === 'object' && !Array.isArray(legacyData))
+            || (reservasData && typeof reservasData === 'object' && !Array.isArray(reservasData))) {
+            const loadedKeys = new Set();
+            Object.keys(FILTER_OPTIONS).forEach((key) => {
+              if (key === 'perfilVisualizacao' || key === 'periodo') return;
+              if (RESERVA_FILTER_FIELDS.has(key) && !shouldLoadReservaOptions) return;
+              if (extendedFilterOptionsEnabled || ESSENTIAL_FILTER_KEYS_SET.has(key)) {
+                loadedKeys.add(key);
+              }
+            });
+            if (shouldLoadReservaOptions) {
+              (extendedFilterOptionsEnabled ? RESERVA_REMOTE_FILTER_KEYS : ESSENTIAL_RESERVA_FILTER_KEYS)
+                .forEach((key) => loadedKeys.add(key));
+            }
+
+            const optionBuilders = {
+              cidade: () => ensureBlankOption(sanitizeBackendOptions('cidade', legacyData.cidade)),
+              coordenacao: () => ensureBlankOption(sanitizeBackendOptions('coordenacao', legacyData.coordenacao)),
+              gerencia: () => ensureBlankOption(sanitizeBackendOptions('gerencia', legacyData.gerencia)),
+              corretor: () => ensureBlankOption(sanitizeBackendOptions('corretor', legacyData.corretor)),
+              sdr: () => ensureBlankOption(sanitizeBackendOptions('sdr', legacyData.sdr)),
+              origem: () => ensureBlankOption(sanitizeBackendOptions('origem', legacyData.origem || data.operation?.origem)),
+              empreendimento: () => ensureBlankOption(sanitizeBackendOptions('empreendimento', data.operation?.empreendimento || legacyData.empreendimento)),
+              unidade: () => ensureBlankOption(sanitizeBackendOptions('unidade', data.operation?.unidade || legacyData.unidade)),
+              empreendimentoReduzido: () => ensureBlankOption(sanitizeBackendOptions('empreendimentoReduzido', legacyData.empreendimentoReduzido)),
+              imobiliaria: () => ensureBlankOption(sanitizeBackendOptions('imobiliaria', legacyData.imobiliaria)),
+              regiaoOperacao: () => ensureBlankOption(sanitizeBackendOptions('regiaoOperacao', data.operation?.regiaoOperacao || legacyData.empreendimentoReduzido)),
+              imobiliariaOperacao: () => ensureBlankOption(sanitizeBackendOptions('imobiliariaOperacao', data.operation?.imobiliariaOperacao || legacyData.imobiliaria)),
+              corretorOperacao: () => ensureBlankOption(sanitizeBackendOptions('corretorOperacao', data.operation?.corretorOperacao || legacyData.corretor)),
+              sdrOperacao: () => ensureBlankOption(sanitizeBackendOptions('sdrOperacao', data.operation?.sdrOperacao || legacyData.sdr)),
+              corretorAtivo: () => ensureBlankOption(sanitizeBackendOptions('corretorAtivo', data.corretorAtivo?.corretorAtivo || legacyData.corretor)),
+              gestorCorretor: () => ensureBlankOption(sanitizeBackendOptions('gestorCorretor', data.corretorAtivo?.gestorCorretor || legacyData.gerencia)),
+              coordenadorCorretor: () => ensureBlankOption(sanitizeBackendOptions('coordenadorCorretor', data.corretorAtivo?.coordenadorCorretor || legacyData.coordenacao)),
+              regiaoCorretor: () => ensureBlankOption(sanitizeBackendOptions('regiaoCorretor', data.corretorAtivo?.regiaoCorretor || legacyData.empreendimentoReduzido)),
+              imobiliariaCorretor: () => ensureBlankOption(sanitizeBackendOptions('imobiliariaCorretor', data.corretorAtivo?.imobiliariaCorretor || legacyData.imobiliaria)),
+              sdrAtivo: () => ensureBlankOption(sanitizeBackendOptions('sdrAtivo', data.sdrAtivo?.sdrAtivo || legacyData.sdr)),
+              gestorSdr: () => ensureBlankOption(sanitizeBackendOptions('gestorSdr', data.sdrAtivo?.gestorSdr || legacyData.gerencia)),
+              coordenadorSdr: () => ensureBlankOption(sanitizeBackendOptions('coordenadorSdr', data.sdrAtivo?.coordenadorSdr || legacyData.coordenacao)),
+              regiaoSdr: () => ensureBlankOption(sanitizeBackendOptions('regiaoSdr', data.sdrAtivo?.regiaoSdr || legacyData.empreendimentoReduzido)),
+              imobiliariaSdr: () => ensureBlankOption(sanitizeBackendOptions('imobiliariaSdr', data.sdrAtivo?.imobiliariaSdr || legacyData.imobiliaria)),
+              situacaoAtual: () => ensureBlankOption(sanitizeBackendOptions('situacaoAtual', reservasData.situacaoAtual)),
+              idReserva: () => ensureBlankOption(sanitizeBackendOptions('idReserva', reservasData.idReserva)),
+              repasseNoMes: () => ensureBlankOption(sanitizeBackendOptions('repasseNoMes', reservasData.repasseNoMes)),
+              agente: () => ensureBlankOption(sanitizeBackendOptions('agente', reservasData.agente)),
             };
 
+            const normalizedData = Object.fromEntries(
+              Array.from(loadedKeys)
+                .map((key) => [key, optionBuilders[key]?.()])
+                .filter(([, value]) => Array.isArray(value)),
+            );
 
-            filterOptionsCacheRef.current.set(queryString, normalizedData);
 
-            setDynamicOptions(prev => ({
+            setMapEntryWithLimit(filterOptionsCacheRef, queryString, normalizedData, 80);
+            if (essentialCacheKey) {
+              setMapEntryWithLimit(essentialOptionsCacheRef, essentialCacheKey, normalizedData, 12);
+            }
+
+            if (!hasOptionsPayloadDiff(dynamicOptionsRef.current, normalizedData)) {
+              return;
+            }
+
+            setDynamicOptions((prev) => ({
               ...prev,
-              ...normalizedData
+              ...normalizedData,
             }));
 
             setFilters((current) => {
@@ -395,6 +778,7 @@ export const FiltersProvider = ({ children }) => {
               };
 
               Object.entries(defaults).forEach(([key, defaultValue]) => {
+                if (!loadedKeys.has(key)) return;
                 const options = normalizedData[key] ?? [];
                 const selected = current[key];
                 
@@ -421,30 +805,47 @@ export const FiltersProvider = ({ children }) => {
 
               return hasChanges ? next : current;
             });
-
-            logger.info('filters', 'Filtros do backend sincronizados', normalizedData);
           }
         }
       } catch (err) {
         if (err?.name === 'AbortError') return;
         logger.warn('filters', 'Falha ao buscar filtros remotos, usando fallback', { error: err?.message });
+      } finally {
+        if (active) {
+          setFilterOptionsLoading(false);
+        }
       }
     };
+    const fetchDebounceMs = extendedFilterOptionsEnabled ? 220 : 140;
     const timer = setTimeout(() => {
       loadFilters();
-    }, 200);
+    }, fetchDebounceMs);
 
     return () => {
+      active = false;
       controller.abort();
       clearTimeout(timer);
     };
-  }, [filters.dataInicial, filters.dataFinal, filters.cidade, filters.coordenacao, filters.gerencia, filters.corretor, filters.sdr, filters.empreendimentoReduzido, filters.imobiliaria, filters.regiaoOperacao, filters.imobiliariaOperacao, filters.corretorOperacao, filters.sdrOperacao, filters.origem, filters.empreendimento, filters.unidade, filters.corretorAtivo, filters.gestorCorretor, filters.coordenadorCorretor, filters.regiaoCorretor, filters.imobiliariaCorretor, filters.sdrAtivo, filters.gestorSdr, filters.coordenadorSdr, filters.regiaoSdr, filters.imobiliariaSdr, filters.situacaoAtual, filters.idReserva, filters.repasseNoMes, filters.agente]);
+  }, [
+    extendedFilterOptionsEnabled,
+    activeLegacyOptionsQueryString,
+    activeSegmentedOptionsQueryString,
+    activeReservaOptionsQueryString,
+    shouldLoadReservaOptions,
+    optionScopeFilters.dataInicial,
+    optionScopeFilters.dataFinal,
+  ]);
 
   const setFilterValue = (key, value) => {
-    setFilters((current) => ({
-      ...current,
-      [key]: value,
-    }));
+    setFilters((current) => {
+      if (areFilterValuesEqual(current[key], value)) {
+        return current;
+      }
+      return {
+        ...current,
+        [key]: value,
+      };
+    });
   };
 
   const setPeriodo = (periodo) => {
@@ -454,105 +855,139 @@ export const FiltersProvider = ({ children }) => {
       return;
     }
 
-    setFilters((current) => ({
-      ...current,
-      periodo,
-      dataInicial: preset.dataInicial,
-      dataFinal: preset.dataFinal,
-    }));
+    setFilters((current) => {
+      if (
+        current.periodo === periodo
+        && current.dataInicial === preset.dataInicial
+        && current.dataFinal === preset.dataFinal
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        periodo,
+        dataInicial: preset.dataInicial,
+        dataFinal: preset.dataFinal,
+      };
+    });
   };
 
   const setDateRange = ({ dataInicial, dataFinal, periodo }) => {
-    setFilters((current) => ({
-      ...current,
-      dataInicial: dataInicial ?? current.dataInicial,
-      dataFinal: dataFinal ?? current.dataFinal,
-      periodo: periodo ?? current.periodo,
-    }));
+    setFilters((current) => {
+      const nextDataInicial = dataInicial ?? current.dataInicial;
+      const nextDataFinal = dataFinal ?? current.dataFinal;
+      const nextPeriodo = periodo ?? current.periodo;
+      if (
+        current.dataInicial === nextDataInicial
+        && current.dataFinal === nextDataFinal
+        && current.periodo === nextPeriodo
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        dataInicial: nextDataInicial,
+        dataFinal: nextDataFinal,
+        periodo: nextPeriodo,
+      };
+    });
   };
 
   const resetFilters = () => {
     setFilters(INITIAL_FILTERS);
   };
 
-  const searchFilterOptions = async (field, term) => {
+  const enableReservationOptions = useCallback(() => {
+    setReservationOptionsDemand((current) => current + 1);
+  }, []);
+
+  const disableReservationOptions = useCallback(() => {
+    setReservationOptionsDemand((current) => (current > 0 ? current - 1 : 0));
+  }, []);
+
+  const enableExtendedFilterOptions = useCallback(() => {
+    setExtendedFilterOptionsDemand((current) => current + 1);
+  }, []);
+
+  const disableExtendedFilterOptions = useCallback(() => {
+    setExtendedFilterOptionsDemand((current) => (current > 0 ? current - 1 : 0));
+  }, []);
+
+  const searchFilterOptions = useCallback(async (field, term) => {
     const q = String(term || '').trim();
     if (q.length < 2) return [];
-
-    const key = `${field}::${q.toLowerCase()}::${filters.dataInicial}::${filters.dataFinal}`;
-    const cached = filterSearchCacheRef.current.get(key);
-    if (cached) return cached;
+    const normalizedQ = q.toLowerCase();
 
     const params = new URLSearchParams({
       field,
-      q,
+      q: normalizedQ,
       limit: '40',
-      startDate: filters.dataInicial,
-      endDate: filters.dataFinal,
+      startDate: optionScopeFilters.dataInicial,
+      endDate: optionScopeFilters.dataFinal,
     });
 
-    const appendMulti = (name, value) => {
-      if (Array.isArray(value) && value.length > 0) {
-        params.set(name, value.join(','));
-      }
-    };
+    const isSegmentedField = SEGMENTED_REMOTE_FILTER_KEYS_SET.has(field);
+    const isReservaField = RESERVA_FILTER_FIELDS.has(field);
+    const isLegacyField = LEGACY_REMOTE_FILTER_KEYS_SET.has(field);
 
-    appendMulti('cidade', filters.cidade);
-    appendMulti('coordenacao', filters.coordenacao);
-    appendMulti('gerencia', filters.gerencia);
-    appendMulti('corretor', filters.corretor);
-    appendMulti('sdr', filters.sdr);
-    appendMulti('origem', filters.origem);
-    appendMulti('empreendimento', filters.empreendimento);
-    appendMulti('empreendimentoReduzido', filters.empreendimentoReduzido);
-    appendMulti('imobiliaria', filters.imobiliaria);
-    Object.keys(SEGMENTED_FILTER_GROUP_BY_FIELD).forEach((name) => {
-      appendMulti(name, filters[name]);
-    });
-    RESERVA_FILTER_FIELDS.forEach((name) => {
-      appendMulti(name, filters[name]);
-    });
+    if (isSegmentedField) {
+      appendFilterKeyList(params, SEGMENTED_REMOTE_FILTER_KEYS, optionScopeFilters);
+    } else if (isReservaField) {
+      appendFilterKeyList(params, LEGACY_REMOTE_FILTER_KEYS, optionScopeFilters);
+      appendFilterKeyList(params, RESERVA_REMOTE_FILTER_KEYS, optionScopeFilters);
+      // Keep segmented constraints on reserva search to preserve cross-panel narrowing.
+      appendFilterKeyList(params, SEGMENTED_REMOTE_FILTER_KEYS, optionScopeFilters);
+    } else if (isLegacyField) {
+      appendFilterKeyList(params, LEGACY_REMOTE_FILTER_KEYS, optionScopeFilters);
+      // Legacy endpoints project segmented fields to legacy in backend fallback;
+      // include segmented state so search respects current UI context.
+      appendFilterKeyList(params, SEGMENTED_REMOTE_FILTER_KEYS, optionScopeFilters);
+    } else {
+      appendFilterKeyList(params, LEGACY_REMOTE_FILTER_KEYS, optionScopeFilters);
+      appendFilterKeyList(params, SEGMENTED_REMOTE_FILTER_KEYS, optionScopeFilters);
+      appendFilterKeyList(params, RESERVA_REMOTE_FILTER_KEYS, optionScopeFilters);
+    }
+
+    const key = `${field}::${params.toString()}`;
+    const cached = filterSearchCacheRef.current.get(key);
+    if (cached) return cached;
 
     try {
-      if (SEGMENTED_FILTER_GROUP_BY_FIELD[field]) {
-        const segmentedParams = new URLSearchParams(params);
-        segmentedParams.delete('field');
-        segmentedParams.delete('q');
-        segmentedParams.set('lite', 'false');
-        segmentedParams.set('limit', '1000');
-        const response = await fetch(`/api/v1/dashboard/segmented/filters?${segmentedParams.toString()}`);
-        if (!response.ok) return [];
-        const payload = await response.json();
-        const options = sanitizeBackendOptions(field, getSegmentedOptionsFromPayload(payload, field))
-          .filter((option) => option.label.toLowerCase().includes(q.toLowerCase()));
-        filterSearchCacheRef.current.set(key, options);
-        return options;
-      }
+      let inFlight = inFlightSearchRequests.get(key);
+      if (!inFlight) {
+        const fieldSearchKey = `${field}::${optionScopeFilters.dataInicial}::${optionScopeFilters.dataFinal}`;
+        const previousController = activeSearchControllers.get(fieldSearchKey);
+        if (previousController) {
+          previousController.abort();
+        }
+        const controller = new AbortController();
+        activeSearchControllers.set(fieldSearchKey, controller);
 
-      if (RESERVA_FILTER_FIELDS.has(field)) {
-        const reservaParams = new URLSearchParams(params);
-        reservaParams.delete('field');
-        reservaParams.delete('q');
-        reservaParams.set('limit', '500');
-        const response = await fetch(`/api/v1/dashboard/reservas/filters?${reservaParams.toString()}`);
-        if (!response.ok) return [];
-        const payload = await response.json();
-        const options = sanitizeBackendOptions(field, payload?.[field])
-          .filter((option) => option.label.toLowerCase().includes(q.toLowerCase()));
-        filterSearchCacheRef.current.set(key, options);
-        return options;
+        inFlight = fetch(`/api/v1/dashboard/filters/search?${params.toString()}`, { signal: controller.signal })
+          .then(async (response) => {
+            if (!response.ok) return [];
+            const payload = await response.json();
+            return sanitizeBackendOptions(field, Array.isArray(payload?.options) ? payload.options : []);
+          })
+          .catch((err) => {
+            if (err?.name === 'AbortError') return [];
+            return [];
+          })
+          .finally(() => {
+            inFlightSearchRequests.delete(key);
+            if (activeSearchControllers.get(fieldSearchKey) === controller) {
+              activeSearchControllers.delete(fieldSearchKey);
+            }
+          });
+        inFlightSearchRequests.set(key, inFlight);
       }
-
-      const response = await fetch(`/api/v1/dashboard/filters/search?${params.toString()}`);
-      if (!response.ok) return [];
-      const payload = await response.json();
-      const options = Array.isArray(payload?.options) ? payload.options : [];
-      filterSearchCacheRef.current.set(key, options);
+      const options = await inFlight;
+      setMapEntryWithLimit(filterSearchCacheRef, key, options, 400);
       return options;
     } catch {
       return [];
     }
-  };
+  }, [optionScopeFilters]);
 
   const activeFilterLabels = useMemo(
     () => ({
@@ -599,6 +1034,7 @@ export const FiltersProvider = ({ children }) => {
       value={{
         filters,
         filterOptions: dynamicOptions,
+        filterOptionsLoading,
         periodPresets: PERIOD_PRESETS,
         activeFilterLabels,
         setFilters,
@@ -607,6 +1043,10 @@ export const FiltersProvider = ({ children }) => {
         setDateRange,
         resetFilters,
         searchFilterOptions,
+        enableReservationOptions,
+        disableReservationOptions,
+        enableExtendedFilterOptions,
+        disableExtendedFilterOptions,
       }}
     >
       {children}

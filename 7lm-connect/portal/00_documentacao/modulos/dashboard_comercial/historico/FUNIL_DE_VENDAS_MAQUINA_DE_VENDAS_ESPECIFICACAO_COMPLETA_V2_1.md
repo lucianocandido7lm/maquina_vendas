@@ -1,5 +1,20 @@
 # 📊 Funil de Vendas — Especificação Funcional, Técnica e de Validação
 
+## Atualizacao Operacional Vigente
+
+- A etapa antes chamada `VENDAS` passa a ser exibida como `RESERVA`.
+- `RESERVA` conta uma reserva por cliente no mes pela `dt_cadastro_reserva`.
+  A chave do cliente usa `idcliente_canonico`; se ausente, documento
+  normalizado; se ausente, `idreserva`. Quando houver mais de uma reserva do
+  mesmo cliente no periodo, entra a reserva com maior `dt_cadastro_reserva`.
+- `CANCELADO` e `DISTRATO` sao indicadores laterais do painel do funil. Eles
+  respeitam periodo e filtros gerais, mas ficam fora do calculo de conversao
+  entre etapas.
+- `SLA - Medio` e a media de dias entre a data da etapa atual e a data da
+  proxima etapa do mesmo cliente/chave operacional.
+- O filtro de `cidade` nao se aplica ao funil. Usar filtros gerais de regiao,
+  empreendimento, imobiliaria, corretor, SDR e origem.
+
 **Produto:** Máquina de Vendas — Dashboard Comercial 7LM  
 **Módulo:** Funil de Vendas  
 **Versão:** 2.1 — consolidação de regras de negócio, Power BI de referência e requisitos de implementação  
@@ -95,15 +110,15 @@ Clique em REPASSE = 45
 
 ### 3.3 Eventos de workflow não são oportunidades distintas
 
-ATENDIMENTO, AGENDAMENTO e PROPOSTA são métricas de evento no histórico `leads_workflow`.
+ATENDIMENTO e PROPOSTA são métricas de evento no histórico `leads_workflow`. AGENDAMENTO usa o mesmo histórico, mas deduplica por lead e considera somente a última entrada do lead na etapa dentro do período.
 
 | Etapa | Unidade de medida | Agregação obrigatória |
 |---|---|---|
 | ATENDIMENTO | evento do workflow | `COUNTROWS(leads_workflow)` |
-| AGENDAMENTO | evento do workflow | `COUNTROWS(leads_workflow)` |
+| AGENDAMENTO | lead com agendamento | última ocorrência por `idlead` nos grupos `AGENDAMENTO`, `AGENDAMENTO_IA`, `AGENDADO_IA` |
 | PROPOSTA | evento do workflow | `COUNTROWS(leads_workflow)` |
 
-Para auditoria, esses eventos devem carregar `idlead` e, quando disponível, a ligação ao `idprecadastro`. Contudo, a quantidade do KPI continua sendo a quantidade de eventos, e não a quantidade distinta de pré-cadastros.
+Para auditoria, esses eventos devem carregar `idlead` e, quando disponível, a ligação ao `idprecadastro`. Para ATENDIMENTO e PROPOSTA, a quantidade do KPI continua sendo a quantidade de eventos. Para AGENDAMENTO, a quantidade é uma linha por `idlead`, preservando a última entrada do lead na etapa dentro do período.
 
 ### 3.4 Filtros comerciais devem ser preservados
 
@@ -224,8 +239,8 @@ Antes de iniciar o desenvolvimento, o agente deve mapear os nomes lógicos abaix
 | `data_visita_realizada` | data da visita efetivamente realizada |
 | `data_resposta_analise` | data de conclusão da análise |
 | `resultado_da_analise` | resultado da análise de crédito |
-| `data_reserva` / `referencia_data_reserva` | data de início da reserva |
-| `reserva_situacao` | status usado para VENDAS FINALIZADAS |
+| `dt_cadastro_reserva` | data oficial de VENDAS |
+| `dt_cadastro_repasse` | data de entrada em repasse usada para VENDAS FINALIZADAS |
 | `data_assinatura_de_contrato` | data de assinatura do contrato de repasse |
 | `lead_situacao` | situação do evento de workflow |
 | `data` / `referencia_data_lead` | data do evento do workflow |
@@ -252,7 +267,7 @@ Há nomes diferentes entre fontes e telas para alguns campos. O agente deve mape
 | Conceito | Possíveis nomes |
 |---|---|
 | conversão de lead | `data_conversao`, `lead_data_ultima_conversao` |
-| data da reserva | `data_reserva`, `referencia_data_reserva` |
+| data da venda/reserva | `dt_cadastro_reserva` |
 | data de assinatura | `data_assinatura_de_contrato`, `dt_assinatura_contrato` |
 | situação da reserva | `reserva_situacao`, `reserva_situacao_nome` |
 | data do workflow | `data`, `referencia_data_lead` |
@@ -269,12 +284,12 @@ A ordem abaixo é obrigatória e deve ser fixa. Não ordenar alfabeticamente.
 |---:|---|---|---|---|
 | 1 | LEAD | `idlead` | oportunidade distinta | `fato_leads_comercial` |
 | 2 | ATENDIMENTO | `idlead` | evento de workflow | `leads_workflow` |
-| 3 | AGENDAMENTO | `idlead` | evento de workflow | `leads_workflow` |
+| 3 | AGENDAMENTO | `idlead` | última ocorrência por lead | `leads_workflow` |
 | 4 | VISITA | `idlead` | oportunidade distinta | `fato_leads_comercial` |
 | 5 | PROPOSTA | `idlead` no evento; `idprecadastro` como vínculo comercial quando existir | evento de workflow | `leads_workflow` |
 | 6 | PROP. APROVADA / CONDICIONADA | `idprecadastro` | oportunidade distinta | `fato_leads_comercial` |
 | 7 | VENDAS | `idreserva` | oportunidade distinta | `fato_leads_comercial` |
-| 8 | VENDAS FINALIZADAS | `idreserva` | oportunidade distinta | `fato_leads_comercial` |
+| 8 | VENDAS FINALIZADAS | `idrepasse` | oportunidade distinta | `fato_leads_comercial` |
 | 9 | REPASSE | `idrepasse` | oportunidade distinta | `fato_leads_comercial` |
 
 ## 6.1 Observação crítica sobre PROPOSTA
@@ -298,12 +313,12 @@ Logo:
 |---|---|---|---|---|
 | LEAD | leads que voltaram/foram convertidos no sistema | `DISTINCTCOUNT(idlead)` | `data_conversao` | lead com data de conversão no período |
 | ATENDIMENTO | entradas no atendimento | `COUNTROWS(leads_workflow)` | `leads_workflow[data]` | situação em `Atendimento - IA`, `Atendimento - SDR` |
-| AGENDAMENTO | compromissos marcados | `COUNTROWS(leads_workflow)` | `leads_workflow[data]` | situação em `Agendado - IA`, `Agendamento`, `Agendamento - IA` |
+| AGENDAMENTO | compromissos marcados | última ocorrência por `idlead` | `leads_workflow[data]` | grupo em `AGENDAMENTO`, `AGENDAMENTO_IA`, `AGENDADO_IA` |
 | VISITA | visitas efetivamente realizadas | `DISTINCTCOUNT(idlead)` | `data_visita_realizada` | data de visita preenchida e dentro do período |
 | PROPOSTA | entradas na situação proposta | `COUNTROWS(leads_workflow)` | `leads_workflow[data]` | situação igual a `Proposta` |
 | PROP. APROVADA / CONDICIONADA | análises concluídas com resultado aprovado/condicionado | `DISTINCTCOUNT(idprecadastro)` | `data_resposta_analise` | resultado em `APROVADO`, `CONDICIONADO`, `CONDICIONADO PENDENTE` |
-| VENDAS | reservas iniciadas | `DISTINCTCOUNT(idreserva)` | `data_reserva` | reserva iniciada, independente do status posterior |
-| VENDAS FINALIZADAS | reservas finalizadas | `DISTINCTCOUNT(idreserva)` | `data_reserva` | `reserva_situacao = 'Venda finalizada'` |
+| VENDAS | vendas por cliente | uma venda por cliente no mês | `dt_cadastro_reserva` | se o cliente tiver mais de uma reserva no período, usar a reserva mais recente |
+| VENDAS FINALIZADAS | entradas em repasse | `DISTINCTCOUNT(idrepasse)` | `dt_cadastro_repasse` | repasse cadastrado no período; não usar `dt_referencia_repasse` |
 | REPASSE | contratos assinados | `DISTINCTCOUNT(idrepasse)` | `data_assinatura_de_contrato` | assinatura dentro do período |
 
 ## 7.2 LEAD
@@ -329,7 +344,7 @@ Atendimento - SDR
 
 ```text
 Fonte: leads_workflow
-Agregação: count rows
+Agregação: uma linha por idlead, usando a última ocorrência no período
 Data: leads_workflow[data]
 ```
 
@@ -391,21 +406,22 @@ Data: data_resposta_analise
 
 ## 7.8 VENDAS
 
-**Regra de negócio:** contabilizar todas as reservas iniciadas, independentemente do status posterior.
+**Regra de negócio:** contabilizar uma venda por cliente no período, usando a reserva mais recente do cliente.
 
 ```text
-Chave: idreserva
-Agregação: distinct count
-Data: data_reserva / referencia_data_reserva
+Chave: idcliente_canonico; fallback CPF/CNPJ normalizado; fallback idreserva
+Agregação: uma linha por cliente no mês
+Data: dt_cadastro_reserva
+Deduplicação: maior dt_cadastro_reserva; no empate, referência mais recente e depois linha não cancelada
 ```
 
 ## 7.9 VENDAS FINALIZADAS
 
 ```text
-Chave: idreserva
+Chave: idrepasse
 Agregação: distinct count
-Data: data_reserva / referencia_data_reserva
-Filtro adicional: reserva_situacao = 'Venda finalizada'
+Data: dt_cadastro_repasse
+Filtro adicional: idrepasse preenchido. Não usar dt_referencia_repasse.
 ```
 
 ## 7.10 REPASSE
@@ -451,17 +467,16 @@ SWITCH(
         ),
     // AGENDAMENTO
     "AGENDAMENTO",
-        CALCULATE(
-            COUNTROWS(leads_workflow),
-            leads_workflow[lead_situacao]
-                IN {
-                    "Agendado - IA",
-                    "Agendamento",
-                    "Agendamento - IA"
-                },
-            USERELATIONSHIP(
-                DCalendario[Data],
-                leads_workflow[data]
+        COUNTROWS(
+            SUMMARIZE(
+                FILTER(
+                    leads_workflow,
+                    leads_workflow[agendamento_status_grupo]
+                        IN { "AGENDAMENTO", "AGENDAMENTO_IA", "AGENDADO_IA" }
+                        && leads_workflow[data] IN VALUES(Funil_3[DataEtapa])
+                ),
+                leads_workflow[idlead],
+                "UltimaData", MAX(leads_workflow[data])
             )
         ),
     // VISITA
@@ -499,14 +514,13 @@ SWITCH(
     "VENDAS",
         CALCULATE(
             DISTINCTCOUNT(fato_leads_comercial[idreserva]),
-            TREATAS(VALUES(Funil_3[DataEtapa]), fato_leads_comercial[data_reserva])
+            TREATAS(VALUES(Funil_3[DataEtapa]), fato_leads_comercial[dt_cadastro_reserva])
         ),
     // VENDAS FINALIZADAS
     "VENDAS FINALIZADAS",
         CALCULATE(
-            DISTINCTCOUNT(fato_leads_comercial[idreserva]),
-            fato_leads_comercial[reserva_situacao] = "Venda finalizada",
-            TREATAS(VALUES(Funil_3[DataEtapa]), fato_leads_comercial[data_reserva])
+            DISTINCTCOUNT(fato_leads_comercial[idrepasse]),
+            TREATAS(VALUES(Funil_3[DataEtapa]), fato_leads_comercial[dt_cadastro_repasse])
         ),
     // REPASSE
     "REPASSE",
@@ -1076,8 +1090,8 @@ As situações reais de cada etapa são consideradas com sua data própria.
 O identificador correto muda conforme a fase:
 - idlead: lead, atendimento, agendamento e visita;
 - idprecadastro: análise aprovada/condicionada;
-- idreserva: vendas e vendas finalizadas;
-- idrepasse: repasse.
+- idreserva: vendas;
+- idrepasse: vendas finalizadas e repasse.
 ```
 
 A explicação deve deixar claro que a etapa PROPOSTA é contabilizada por eventos de workflow, conforme a medida oficial.
@@ -1191,12 +1205,12 @@ tempo_horas
 |---|---|
 | LEAD | uma linha por `idlead` usado no distinct count |
 | ATENDIMENTO | uma linha por evento de workflow elegível |
-| AGENDAMENTO | uma linha por evento de workflow elegível |
+| AGENDAMENTO | uma linha por `idlead`, mantendo a última ocorrência de agendamento no período |
 | VISITA | uma linha por `idlead` usado no distinct count |
 | PROPOSTA | uma linha por evento de workflow elegível |
 | PROP. APROVADA / CONDICIONADA | uma linha por `idprecadastro` usado no distinct count |
 | VENDAS | uma linha por `idreserva` usado no distinct count |
-| VENDAS FINALIZADAS | uma linha por `idreserva` usado no distinct count |
+| VENDAS FINALIZADAS | uma linha por `idrepasse` usado no distinct count |
 | REPASSE | uma linha por `idrepasse` usado no distinct count |
 
 > Para os indicadores com `DISTINCTCOUNT`, o backend deve deduplicar pela chave da etapa antes de paginar. Para eventos de workflow, não deduplicar o evento.
@@ -1557,12 +1571,20 @@ base filtrada
 
 ## 15.2 Padrão de consulta para eventos de workflow
 
-Para ATENDIMENTO, AGENDAMENTO e PROPOSTA:
+Para ATENDIMENTO e PROPOSTA:
 
 1. aplicar filtros comerciais;
 2. aplicar intervalo em `leads_workflow[data]`;
 3. filtrar as situações elegíveis;
 4. preservar cada evento elegível;
+
+Para AGENDAMENTO:
+
+1. aplicar filtros comerciais;
+2. aplicar intervalo em `leads_workflow[data]`;
+3. filtrar os grupos `AGENDAMENTO`, `AGENDAMENTO_IA`, `AGENDADO_IA`;
+4. ordenar por `idlead` e data decrescente;
+5. preservar somente a última ocorrência de cada `idlead`.
 5. usar `COUNTROWS` para o indicador;
 6. retornar uma linha por evento no detalhe.
 
@@ -1650,12 +1672,12 @@ Detalhamento da etapa
 |---|---|---|
 | LEAD | distinct `idlead` por conversão | visual = distinct do detalhe |
 | ATENDIMENTO | eventos de workflow | visual = número de eventos do detalhe |
-| AGENDAMENTO | eventos de workflow | visual = número de eventos do detalhe |
+| AGENDAMENTO | última ocorrência por `idlead` | visual = distinct do detalhe por lead |
 | VISITA | distinct `idlead` por visita realizada | visual = distinct do detalhe |
 | PROPOSTA | eventos de workflow | visual = número de eventos do detalhe |
 | PROP. APROVADA / CONDICIONADA | distinct `idprecadastro` | visual = distinct do detalhe |
-| VENDAS | distinct `idreserva` | visual = distinct do detalhe |
-| VENDAS FINALIZADAS | distinct `idreserva` com status finalizada | visual = distinct do detalhe |
+| VENDAS | uma venda por cliente no mês pela `dt_cadastro_reserva` | visual = linhas canônicas do detalhe |
+| VENDAS FINALIZADAS | distinct `idrepasse` por cadastro do repasse | visual = distinct do detalhe |
 | REPASSE | distinct `idrepasse` por assinatura | visual = distinct do detalhe |
 
 ## 17.2 Casos de teste mínimos
@@ -1704,7 +1726,8 @@ O módulo estará pronto para homologação quando todos os pontos abaixo forem 
 
 - [ ] As nove etapas aparecem na ordem oficial.
 - [ ] Cada etapa usa a data correta de movimentação.
-- [ ] ATENDIMENTO, AGENDAMENTO e PROPOSTA usam contagem de eventos de workflow.
+- [ ] ATENDIMENTO e PROPOSTA usam contagem de eventos de workflow.
+- [ ] AGENDAMENTO usa a última ocorrência por `idlead` nos grupos oficiais.
 - [ ] As demais etapas usam a chave e o `DISTINCTCOUNT` definidos neste documento.
 - [ ] O número do visual fecha com o detalhe de cada etapa.
 - [ ] O detalhe apresenta a data efetivamente usada no cálculo.
@@ -1730,7 +1753,7 @@ Estas pendências não autorizam o agente a alterar regras. Elas devem ser confi
 |---|---|
 | Card Leads Cadastrados | qual medida e data oficial do card do cabeçalho |
 | `data_conversao` x `lead_data_ultima_conversao` | qual campo canônico está sendo usado na fonte atual |
-| `data_reserva` x `referencia_data_reserva` | equivalência e campo canônico da implementação |
+| `dt_cadastro_reserva` | campo canônico da implementação de VENDAS |
 | PROPOSTA | chave técnica do evento de workflow para garantir detalhe sem duplicação artificial |
 | `[Conversão Até Repasse]` | DAX exato ou endpoint já existente que reproduza a taxa histórica oficial |
 | medidas de SLA por transição | fórmulas e filtros já homologados no Power BI |

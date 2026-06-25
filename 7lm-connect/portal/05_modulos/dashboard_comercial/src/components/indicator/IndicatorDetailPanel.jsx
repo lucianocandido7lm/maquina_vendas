@@ -29,6 +29,7 @@ const COLUMNS = [
   'dt_lead_conversao',
   'dt_visita_realizada',
   'dt_resposta_analise_precadastro',
+  'dt_cadastro_reserva',
   'data_venda',
   'dt_contrato_contabilizado',
   'dt_assinatura_contrato',

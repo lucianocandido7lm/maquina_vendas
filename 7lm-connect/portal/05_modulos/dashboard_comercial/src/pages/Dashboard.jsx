@@ -14,6 +14,7 @@ import { getComparisonRange } from '../utils/periodComparison';
 
 const summaryFieldByKpi = {
   leads: 'total_leads',
+  agendamentos: 'total_agendamentos',
   visitas: 'total_visitas',
   propostas: 'total_propostas_geral',
   cancelamentos: 'total_cancelamentos',
@@ -34,6 +35,7 @@ const supportFieldByKpi = {
 
 const metricFieldByKpi = {
   leads: 'leads',
+  agendamentos: 'agendamentos',
   visitas: 'visitas',
   propostas: 'propostas',
   cancelamentos: 'cancelamentos',
@@ -125,7 +127,7 @@ const Dashboard = () => {
       }
 
       // Use buildFilterParams for deterministic, consistent serialization
-      const currentParams = buildFilterParams(startDate, endDate);
+      const currentParams = buildFilterParams(startDate, endDate, { __scope: 'legacy' });
       const queryParams = currentParams.toString();
 
       const { start: previousStart, end: previousEnd } = comparisonRange;
@@ -134,63 +136,84 @@ const Dashboard = () => {
       overviewParams.set('prevEndDate', previousEnd);
       const overviewUrl = `/api/v1/dashboard/overview?${overviewParams.toString()}`;
       const summaryUrl = `/api/v1/dashboard/summary?${queryParams}`;
-      const previousSummaryParams = buildFilterParams(previousStart, previousEnd).toString();
-      const previousSummaryUrl = `/api/v1/dashboard/summary?${previousSummaryParams}`;
-
+      const trendsUrl = `/api/v1/dashboard/trends?${queryParams}`;
+      const previousParams = buildFilterParams(previousStart, previousEnd, { __scope: 'legacy' }).toString();
+      const previousTrendsUrl = `/api/v1/dashboard/trends?${previousParams}`;
+      const previousSummaryUrl = `/api/v1/dashboard/summary?${previousParams}`;
       logger.info('dashboard:data', 'Iniciando carregamento do dashboard', { overviewUrl });
 
       try {
-        const [overviewResponse, summaryResponse, previousSummaryResponse] = await Promise.all([
-          fetch(overviewUrl, { signal: controller.signal }),
-          fetch(summaryUrl, { signal: controller.signal }),
-          fetch(previousSummaryUrl, { signal: controller.signal }),
-        ]);
+        const loadLegacyFallback = async ({ includePrevious = true } = {}) => {
+          const [summaryResponse, trendsResponse] = await Promise.all([
+            fetch(summaryUrl, { signal: controller.signal }),
+            fetch(trendsUrl, { signal: controller.signal }),
+          ]);
 
-        const getResponseErrorMessage = async (response, fallbackLabel) => {
-          try {
-            const body = await response.json();
-            if (body?.details) return `${fallbackLabel} failed (${response.status}): ${body.details}`;
-            if (body?.error) return `${fallbackLabel} failed (${response.status}): ${body.error}`;
-          } catch {
-            // noop
+          if (!summaryResponse.ok || !trendsResponse.ok) {
+            throw new Error('Fallback summary/trends failed');
           }
-          return `${fallbackLabel} failed (${response.status})`;
+
+          const [summary, trends] = await Promise.all([
+            summaryResponse.json(),
+            trendsResponse.json(),
+          ]);
+
+          let previousSummary = null;
+          let previousTrends = [];
+          if (includePrevious) {
+            const [previousSummaryResult, previousTrendsResult] = await Promise.allSettled([
+              fetch(previousSummaryUrl, { signal: controller.signal }),
+              fetch(previousTrendsUrl, { signal: controller.signal }),
+            ]);
+
+            if (previousSummaryResult.status === 'fulfilled' && previousSummaryResult.value.ok) {
+              previousSummary = await previousSummaryResult.value.json();
+            }
+            if (previousTrendsResult.status === 'fulfilled' && previousTrendsResult.value.ok) {
+              const payload = await previousTrendsResult.value.json();
+              previousTrends = Array.isArray(payload) ? payload : [];
+            }
+          }
+
+          return {
+            summary: summary ?? null,
+            trends: Array.isArray(trends) ? trends : [],
+            previousSummary: previousSummary ?? null,
+            previousTrends: Array.isArray(previousTrends) ? previousTrends : [],
+            series: null,
+            previousSeries: null,
+            seriesMeta: null,
+          };
         };
 
-        if (!overviewResponse.ok) {
-          throw new Error(await getResponseErrorMessage(overviewResponse, 'Overview request'));
-        }
-        if (!summaryResponse.ok) {
-          throw new Error(await getResponseErrorMessage(summaryResponse, 'Summary request'));
-        }
-        if (!previousSummaryResponse.ok) {
-          throw new Error(await getResponseErrorMessage(previousSummaryResponse, 'Previous summary request'));
-        }
+        const overviewResponse = await fetch(overviewUrl, { signal: controller.signal });
 
-        const [payload, summaryPayload, previousSummaryPayload] = await Promise.all([
-          overviewResponse.json(),
-          summaryResponse.json(),
-          previousSummaryResponse.json(),
-        ]);
-        const summary = summaryPayload ?? null;
-        const trends = payload?.trends ?? [];
-        const previousSummary = previousSummaryPayload ?? null;
-        const previousTrends = payload?.previousTrends ?? [];
-        const series = payload?.series ?? null;
-        const previousSeries = payload?.previousSeries ?? null;
-        const seriesMeta = payload?.seriesMeta ?? null;
+        let newData;
+        if (!overviewResponse.ok) {
+          const overviewError = `Overview request failed (${overviewResponse.status})`;
+          logger.warn('dashboard:data', 'Overview falhou, aplicando fallback summary/trends', {
+            status: overviewResponse.status,
+          });
+          try {
+            newData = await loadLegacyFallback({ includePrevious: overviewResponse.status < 500 });
+          } catch (fallbackError) {
+            throw new Error(`${overviewError}; fallback failed: ${fallbackError?.message || 'unexpected error'}`);
+          }
+        } else {
+          const payload = await overviewResponse.json();
+          newData = {
+            summary: payload?.summary ?? null,
+            trends: Array.isArray(payload?.trends) ? payload.trends : [],
+            previousSummary: payload?.previousSummary ?? null,
+            previousTrends: Array.isArray(payload?.previousTrends) ? payload.previousTrends : [],
+            series: payload?.series ?? null,
+            previousSeries: payload?.previousSeries ?? null,
+            seriesMeta: payload?.seriesMeta ?? null,
+          };
+        }
 
         if (!isSubscribed) return;
 
-        const newData = {
-          summary,
-          trends: Array.isArray(trends) ? trends : [],
-          previousSummary,
-          previousTrends: Array.isArray(previousTrends) ? previousTrends : [],
-          series,
-          previousSeries,
-          seriesMeta,
-        };
         setApiData(newData);
         logger.info('dashboard:data', 'Dashboard carregado com sucesso');
       } catch (err) {
@@ -295,10 +318,11 @@ const Dashboard = () => {
     // Lista base de KPIs oficiais
     const kpiDefinitions = [
       { id: 'leads', label: 'LEADS', unit: 'total', calcDescription: 'Contagem de novos leads no período filtrado.' },
+      { id: 'agendamentos', label: 'AGENDAMENTOS', unit: 'total', calcDescription: 'Contagem de leads distintos pela última entrada em AGENDAMENTO, AGENDAMENTO_IA ou AGENDADO_IA no período.' },
       { id: 'visitas', label: 'VISITAS', unit: 'total', calcDescription: 'Contagem de visitas realizadas no período filtrado.' },
-      { id: 'propostas', label: 'PROP. APROVADA / CONDICIONADA', unit: 'total', calcDescription: 'Contagem de idprecadastro aprovado ou condicionado pela data de resposta da analise.' },
+      { id: 'propostas', label: 'PROP. APROVADA / CONDICIONADA', unit: 'total', calcDescription: 'Soma oficial de propostas aprovadas + condicionadas no fato diário comercial.' },
       { id: 'cancelamentos', label: 'CANCELAMENTOS', unit: 'total', calcDescription: 'Contagem de idreserva com data_cancelamento no período.' },
-      { id: 'vendas', label: 'VENDAS', unit: 'total', calcDescription: 'Contagem de reservas iniciadas pela data de reserva, independente do status posterior.' },
+      { id: 'vendas', label: 'RESERVAS', unit: 'total', calcDescription: 'Conta uma reserva por cliente no mês pela dt_cadastro_reserva; se o cliente tiver mais de uma reserva, considera a reserva mais recente.' },
       { id: 'distratos', label: 'DISTRATOS', unit: 'total', calcDescription: 'Contagem de idreserva com referência em status distrato no período.' },
       { id: 'repasses', label: 'REPASSES', unit: 'total', calcDescription: 'Contagem de idrepasse por data de assinatura do contrato.' },
       { id: 'sla_f', label: 'SLA FINALIZAÇÃO', unit: 'dias', calcDescription: 'Média em dias entre cadastro da reserva e contrato contabilizado.' },
@@ -630,17 +654,18 @@ const Dashboard = () => {
     if (!expandedKpiId) return;
 
     let active = true;
+    const controller = new AbortController();
     const loadBreakdown = async () => {
       setIsLoadingBreakdown(true);
-      const queryParams = buildFilterParams(undefined, undefined, { kpi: expandedKpiId }).toString();
+      const queryParams = buildFilterParams(undefined, undefined, { __scope: 'segmented', kpi: expandedKpiId }).toString();
 
       try {
         if (expandedKpiId === 'propostas') {
           const statuses = ['pastas_aprovadas', 'pastas_condicionadas', 'pastas_reprovadas', 'pastas_com_respostas'];
           const responses = await Promise.all(
             statuses.map((status) => {
-              const params = buildFilterParams(undefined, undefined, { kpi: status }).toString();
-              return fetch(`/api/v1/dashboard/segmented/breakdown?${params}`);
+              const params = buildFilterParams(undefined, undefined, { __scope: 'segmented', kpi: status }).toString();
+              return fetch(`/api/v1/dashboard/segmented/breakdown?${params}`, { signal: controller.signal });
             }),
           );
           const payloads = await Promise.all(responses.map((r) => (r.ok ? r.json() : { byAxis: {} })));
@@ -655,7 +680,7 @@ const Dashboard = () => {
           return;
         }
 
-        const response = await fetch(`/api/v1/dashboard/segmented/breakdown?${queryParams}`);
+        const response = await fetch(`/api/v1/dashboard/segmented/breakdown?${queryParams}`, { signal: controller.signal });
         if (!response.ok) return;
         const data = await response.json();
         if (!active) return;
@@ -663,13 +688,14 @@ const Dashboard = () => {
         setPropostasBreakdowns(null);
 
         if (expandedKpiId === 'ipc_corretor' || expandedKpiId === 'ipc_imobiliaria') {
-          const ipcResponse = await fetch(`/api/v1/dashboard/ipc-insights?${queryParams}`);
+          const ipcResponse = await fetch(`/api/v1/dashboard/ipc-insights?${queryParams}`, { signal: controller.signal });
           if (ipcResponse.ok) {
             const ipcData = await ipcResponse.json();
             if (active) setIpcInsights(ipcData);
           }
         }
-      } catch {
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
         if (!active) return;
         setKpiBreakdowns((current) => ({ ...current, [expandedKpiId]: { byAxis: {} } }));
         if (expandedKpiId === 'propostas') setPropostasBreakdowns(null);
@@ -679,7 +705,10 @@ const Dashboard = () => {
     };
 
     loadBreakdown();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [expandedKpiId, filterQueryString, buildFilterParams]);
 
   useEffect(() => {
@@ -689,20 +718,22 @@ const Dashboard = () => {
     }
 
     let active = true;
+    const controller = new AbortController();
     const loadSlaRepasseInsights = async () => {
       setIsLoadingBreakdown(true);
-      const queryParams = buildFilterParams().toString();
+      const queryParams = buildFilterParams(undefined, undefined, { __scope: 'legacy' }).toString();
 
       try {
         const endpoint = expandedKpiId === 'sla_f'
           ? '/api/v1/dashboard/sla-finalizacao-insights'
           : '/api/v1/dashboard/sla-repasse-insights';
-        const response = await fetch(`${endpoint}?${queryParams}`);
+        const response = await fetch(`${endpoint}?${queryParams}`, { signal: controller.signal });
         if (!response.ok) return;
         const data = await response.json();
         if (!active) return;
         setSlaRepasseInsights(data);
-      } catch {
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
         if (!active) return;
         setSlaRepasseInsights(null);
       } finally {
@@ -711,7 +742,10 @@ const Dashboard = () => {
     };
 
     loadSlaRepasseInsights();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [expandedKpiId, filterQueryString, buildFilterParams]);
 
   const handleToggleExpand = useCallback((kpiId) => {
